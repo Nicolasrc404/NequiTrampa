@@ -6,9 +6,6 @@ manejar un saldo digital, hacer transferencias y recargas simuladas, llevar el c
 gastos en efectivo, presupuestos y categorías, y consultar todo mediante un asistente de
 IA y comandos de voz.
 
-> ⚠️ **Aviso.** Este proyecto no está afiliado ni relacionado con Nequi ni con Bancolombia.
-> No procesa dinero real, no se conecta a bancos, pasarelas de pago ni Open Banking. Todas
-> las recargas son simuladas y el sistema existe únicamente con fines educativos.
 
 ---
 
