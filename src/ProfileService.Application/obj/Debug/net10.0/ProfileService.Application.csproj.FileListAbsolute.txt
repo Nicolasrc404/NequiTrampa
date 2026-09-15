@@ -1,0 +1,16 @@
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/bin/Debug/net10.0/ProfileService.Application.deps.json
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/bin/Debug/net10.0/ProfileService.Application.dll
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/bin/Debug/net10.0/ProfileService.Application.pdb
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/bin/Debug/net10.0/ProfileService.Domain.dll
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/bin/Debug/net10.0/ProfileService.Domain.pdb
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/obj/Debug/net10.0/ProfileService.Application.csproj.AssemblyReference.cache
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/obj/Debug/net10.0/ProfileService.Application.GeneratedMSBuildEditorConfig.editorconfig
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/obj/Debug/net10.0/ProfileService.Application.AssemblyInfoInputs.cache
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/obj/Debug/net10.0/ProfileService.Application.AssemblyInfo.cs
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/obj/Debug/net10.0/ProfileService.Application.csproj.CoreCompileInputs.cache
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/obj/Debug/net10.0/ProfileService.Application.sourcelink.json
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/obj/Debug/net10.0/ProfileS.19CD211C.Up2Date
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/obj/Debug/net10.0/ProfileService.Application.dll
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/obj/Debug/net10.0/refint/ProfileService.Application.dll
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/obj/Debug/net10.0/ProfileService.Application.pdb
+/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/obj/Debug/net10.0/ref/ProfileService.Application.dll

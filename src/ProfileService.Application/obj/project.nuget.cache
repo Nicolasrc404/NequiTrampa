@@ -1,0 +1,12 @@
+{
+  "version": 2,
+  "dgSpecHash": "tX6UQZq2PXY=",
+  "success": true,
+  "projectFilePath": "/home/juanca2805/Documentos/ProyectoFullStack/NequiTrampa/src/ProfileService.Application/ProfileService.Application.csproj",
+  "expectedPackageFiles": [
+    "/home/juanca2805/.nuget/packages/fluentvalidation/12.1.1/fluentvalidation.12.1.1.nupkg.sha512",
+    "/home/juanca2805/.nuget/packages/fluentvalidation.dependencyinjectionextensions/12.1.1/fluentvalidation.dependencyinjectionextensions.12.1.1.nupkg.sha512",
+    "/home/juanca2805/.nuget/packages/microsoft.extensions.dependencyinjection.abstractions/2.1.0/microsoft.extensions.dependencyinjection.abstractions.2.1.0.nupkg.sha512"
+  ],
+  "logs": []
+}
