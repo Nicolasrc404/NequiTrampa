@@ -166,7 +166,8 @@ distintos: que un gasto ya haya ocurrido en la vida real no significa que ya est
 | Esquema Spanner `finanzas-core` | ✅ Desplegado en GCP (9 tablas, 18 índices, 25 CHECK, 5 FK) e invariantes verificados contra producción |
 | Infraestructura GCP | ✅ APIs, service accounts con mínimo privilegio, Pub/Sub con DLQ, Artifact Registry |
 | Firestore | 🚧 Parcial — faltan colecciones y el enlace `operationId` |
-| Los 6 servicios ASP.NET Core | ⬜ Pendientes |
+| Servicios internos (`Nequi.Workers`, `Nequi.Realtime`, `Nequi.Shared`) | ✅ Desplegados en Cloud Run (`southamerica-west1`, privados por IAM); probados de punta a punta con Spanner, Pub/Sub y Firestore |
+| Los 6 servicios de negocio ASP.NET Core | ⬜ Pendientes (carpetas y contrato en `src/`) |
 | API Gateway · Identity Platform · Cloud Scheduler | ⬜ Pendientes (necesitan las URLs de Cloud Run) |
 | App React Native | ⬜ Pendiente |
 
@@ -217,3 +218,21 @@ Dos excepciones conscientes:
 - **Vertex AI** no debe presupuestarse como Always Free. La app expone un flag
   `AI_ENABLED` para que la falta de créditos de IA nunca tumbe transferencias, saldos,
   efectivo ni presupuestos.
+
+---
+
+## Servicios internos y complementarios
+
+Authorization, Idempotency, Health, Logging y Secret Manager viven en `src/Nequi.Shared`.
+Outbox Worker, Projection, Notification y Report corren en `src/Nequi.Workers`; el WebSocket en `src/Nequi.Realtime`.
+
+```
+bash infra/setup.sh                      # APIs, IAM, Firestore, secreto (idempotente)
+AUTH_DEMO_HEADERS=true bash infra/deploy.sh all   # build con Cloud Build + Cloud Run + suscripciones push
+bash infra/smoke-test.sh                 # publica un evento y lo consulta por los endpoints
+dotnet test                              # pruebas locales (en memoria)
+```
+
+`AUTH_DEMO_HEADERS=true` habilita `X-Demo-User` / `X-Demo-Role` solo para pruebas; nunca en producción.
+Contrato del `payload` de `outbox_events` que debe escribir `wallet-service`: `clientId`, `amountCents` (con signo), `currency`
+(opcionales: `operationId`, `occurredAt`, `counterpartyClientId`, `description`, `balanceAfterCents`).
