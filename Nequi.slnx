@@ -1,0 +1,10 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Nequi.Realtime/Nequi.Realtime.csproj" />
+    <Project Path="src/Nequi.Shared/Nequi.Shared.csproj" />
+    <Project Path="src/Nequi.Workers/Nequi.Workers.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Nequi.Tests/Nequi.Tests.csproj" />
+  </Folder>
+</Solution>
