@@ -126,3 +126,5 @@ app.UseHttpsRedirection();
 app.MapControllers();
 
 app.Run();
+
+namespace Nequi.Wallet { public sealed class WalletMarker; }
