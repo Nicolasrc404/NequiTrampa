@@ -14,7 +14,7 @@ namespace Nequi.Shared.Idempotency;
 public sealed class IdempotencyFilter : IEndpointFilter
 {
     public const string HeaderName = "Idempotency-Key";
-    private const int MaxKeyLength = 64; // idempotency_records.idempotency_key is STRING(64);
+    public const int MaxKeyLength = 64; // idempotency_records.idempotency_key is STRING(64);
 
     public async ValueTask<object?> InvokeAsync(EndpointFilterInvocationContext ctx, EndpointFilterDelegate next)
     {

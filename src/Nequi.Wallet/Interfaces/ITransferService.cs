@@ -3,12 +3,14 @@ using Nequi.Wallet.DTOs;
 namespace Nequi.Wallet.Interfaces;
 
 /// <summary>
-/// Contrato de servicio para transferencias monetarias atómicas con validación estricta de idempotencia.
+/// Contrato de servicio para transferencias monetarias.
+/// Implementación actual: MOCK (MockTransferService). En producción: transaccional en Spanner (TO-BE).
 /// </summary>
 public interface ITransferService
 {
     /// <summary>
-    /// Ejecuta una transferencia transaccional en Cloud Spanner verificando saldo, límites e idempotencia.
+    /// Ejecuta una transferencia verificando saldo, límites e idempotencia (MOCK).
+    /// En producción: transferencia transaccional en Cloud Spanner (TO-BE).
     /// </summary>
     Task<TransferResponseDto> CreateTransferAsync(
         string originClientId, 

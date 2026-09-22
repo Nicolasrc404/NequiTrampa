@@ -1,7 +1,7 @@
 namespace Nequi.Wallet.DTOs;
 
 /// <summary>
-/// Representación de la billetera digital y su estado autoritativo.
+/// Representación de la billetera digital y su estado (MOCK).
 /// </summary>
 public record WalletResponseDto(
     string WalletId,
@@ -14,7 +14,8 @@ public record WalletResponseDto(
 );
 
 /// <summary>
-/// Saldo digital oficial emitido directamente por la autoridad financiera (Cloud Spanner).
+/// Saldo digital simulado en memoria (MOCK).
+/// La autoridad financiera real será Cloud Spanner (TO-BE, pendiente de DDL).
 /// </summary>
 public record WalletBalanceResponseDto(
     string WalletId,
@@ -23,5 +24,5 @@ public record WalletBalanceResponseDto(
     long AvailableBalanceCents,
     string Currency, // COP
     DateTimeOffset AsOfTimestamp,
-    string SourceAuthority // "Cloud Spanner"
+    string SourceAuthority // "MOCK_IN_MEMORY" en fase actual; Cloud Spanner en TO-BE
 );

@@ -23,6 +23,7 @@
     <ProjectReference Include="..\..\src\Nequi.Shared\Nequi.Shared.csproj" />
     <ProjectReference Include="..\..\src\Nequi.Workers\Nequi.Workers.csproj" />
     <ProjectReference Include="..\..\src\Nequi.Realtime\Nequi.Realtime.csproj" />
+    <ProjectReference Include="..\..\src\Nequi.Wallet\Nequi.Wallet.csproj" />
   </ItemGroup>
 
 </Project>

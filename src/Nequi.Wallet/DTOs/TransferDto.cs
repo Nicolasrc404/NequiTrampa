@@ -24,7 +24,8 @@ public record CreateTransferRequestDto(
 );
 
 /// <summary>
-/// Respuesta tras la confirmación atómica (COMMIT) de una transferencia en Cloud Spanner.
+/// Respuesta tras la creación exitosa de una transferencia (MOCK).
+/// En producción: confirmación atómica (COMMIT) en Cloud Spanner (TO-BE).
 /// </summary>
 public record TransferResponseDto(
     string TransferId,

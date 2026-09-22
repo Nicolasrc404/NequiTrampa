@@ -3,7 +3,8 @@ using Nequi.Wallet.DTOs;
 namespace Nequi.Wallet.Interfaces;
 
 /// <summary>
-/// Contrato de servicio para operaciones de billetera y consulta autoritativa de saldo en Spanner.
+/// Contrato de servicio para operaciones de billetera.
+/// Implementación actual: MOCK (MockWalletService). La consulta autoritativa de saldo será desde Cloud Spanner (TO-BE).
 /// </summary>
 public interface IWalletService
 {
@@ -13,7 +14,7 @@ public interface IWalletService
     Task<WalletResponseDto> GetWalletByClientIdAsync(string clientId, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Obtiene el saldo digital oficial y vigente directamente desde Cloud Spanner.
+    /// Obtiene el saldo digital simulado (MOCK). En producción leerá directamente desde Cloud Spanner (TO-BE).
     /// </summary>
     Task<WalletBalanceResponseDto> GetOfficialBalanceAsync(string clientId, CancellationToken cancellationToken = default);
 }

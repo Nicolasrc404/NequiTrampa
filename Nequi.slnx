@@ -1,8 +1,13 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/Nequi.Realtime/Nequi.Realtime.csproj" />
     <Project Path="src/Nequi.Shared/Nequi.Shared.csproj" />
+    <Project Path="src/Nequi.Profile/Nequi.Profile.csproj" />
+    <Project Path="src/Nequi.Finance/Nequi.Finance.csproj" />
+    <Project Path="src/Nequi.Wallet/Nequi.Wallet.csproj" />
+    <Project Path="src/Nequi.Backoffice/Nequi.Backoffice.csproj" />
+    <Project Path="src/Nequi.Assistant/Nequi.Assistant.csproj" />
     <Project Path="src/Nequi.Workers/Nequi.Workers.csproj" />
+    <Project Path="src/Nequi.Realtime/Nequi.Realtime.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Nequi.Tests/Nequi.Tests.csproj" />
