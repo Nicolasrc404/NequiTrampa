@@ -61,9 +61,23 @@ builder.Services.AddControllers(options =>
     });
 
 // 3. Inyección de Dependencias — Servicios de Dominio Wallet
-//    Estado actual: MOCK (simulado). Para producción → SpannerWalletService, SpannerTransferService, SpannerRechargeService
-//    PERSISTENCIA PENDIENTE: DDL de wallets/transfers/recharges/ledger en database/spanner/01_schema.sql (TO-BE: no validado físicamente)
-builder.Services.AddSingleton<IWalletService, MockWalletService>();
+var isGcp = string.Equals(builder.Configuration["Data:Backend"], "gcp", StringComparison.OrdinalIgnoreCase);
+if (isGcp)
+{
+    var spannerDb = builder.Configuration["Spanner:Database"];
+    if (string.IsNullOrWhiteSpace(spannerDb))
+    {
+        throw new InvalidOperationException(
+            "Configuración inválida: 'Data:Backend' es 'gcp' pero la configuración requerida 'Spanner:Database' no está definida.");
+    }
+
+    builder.Services.AddSingleton<IWalletService, SpannerWalletService>();
+}
+else
+{
+    builder.Services.AddSingleton<IWalletService, MockWalletService>();
+}
+
 builder.Services.AddSingleton<ITransferService, MockTransferService>();
 builder.Services.AddSingleton<IRechargeService, MockRechargeService>();
 
