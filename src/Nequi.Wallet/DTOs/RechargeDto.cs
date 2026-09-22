@@ -21,7 +21,8 @@ public record CreateRechargeRequestDto(
 );
 
 /// <summary>
-/// Respuesta tras la acreditación autoritativa en Spanner.
+/// Respuesta tras la creación exitosa de una recarga (MOCK).
+/// En producción: acreditación autoritativa en Spanner (TO-BE).
 /// </summary>
 public record RechargeResponseDto(
     string RechargeId,

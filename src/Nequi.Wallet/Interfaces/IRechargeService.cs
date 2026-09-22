@@ -3,7 +3,8 @@ using Nequi.Wallet.DTOs;
 namespace Nequi.Wallet.Interfaces;
 
 /// <summary>
-/// Contrato de servicio para recargas simuladas de saldo digital sobre Cloud Spanner.
+/// Contrato de servicio para recargas simuladas de saldo digital.
+/// Implementación actual: MOCK (MockRechargeService). En producción: acreditación en Spanner (TO-BE).
 /// </summary>
 public interface IRechargeService
 {
