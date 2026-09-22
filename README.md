@@ -93,16 +93,19 @@ admins        ledger        categorías
  ADMIN     ──► Profile · Wallet · Finance  (auditoría obligatoria)
 ```
 
-### Los seis servicios
+### Servicios Funcionales y Agrupación de Despliegue Físico
 
-| Servicio | Base | Responsabilidad |
+> **Evolución Arquitectónica (ANTERIOR vs. VIGENTE)**:
+> Para un equipo pequeño y optimización de recursos en Cloud Run, los dominios funcionales no se despliegan como 30 microservicios ni como 6 contenedores aislados que aumenten la latencia de red. Se agrupan modularmente en **4 APIs de Cloud Run** y **1 conjunto de workers asíncronos**:
+
+| Unidad Cloud Run | Dominios que Contiene | Persistencia Principal |
 |---|---|---|
-| `profile-service` | Spanner | Cliente, perfil, resolución de destinatarios |
-| `wallet-service` | Spanner | Saldo, transferencias, recargas, ledger |
-| `finance-service` | Firestore | Movimientos, efectivo, categorías, presupuestos |
-| `assistant-service` | ninguna | IA consultiva + procesamiento de voz |
-| `realtime-service` | ninguna | WebSocket y difusión de eventos |
-| `admin-service` | vía los otros | Operaciones administrativas |
+| `core-api` | Profile, Access, Movements, Cash, Categories, Budgets, Goals, Analytics, Sync | Firestore / Spanner / SQLite sync |
+| `wallet-api` | Wallet, Transfers, Recharges, Beneficiaries | Cloud Spanner (Autoridad) |
+| `backoffice-api` | Support, Investigation, Financial Operations, Reversals, Adjustments, Reconciliation, Users, Roles, Config, Audit | Spanner / Firestore |
+| `assistant-api` | Assistant (IA Consultiva), Voice (Speech-to-Text) | Solo lectura (Vertex AI / STT) |
+| `workers` | Outbox Worker, Projection Worker, Notification Worker | Pub/Sub / Cloud Run Jobs |
+
 
 ---
 
