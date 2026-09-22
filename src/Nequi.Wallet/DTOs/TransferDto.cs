@@ -7,9 +7,10 @@ namespace Nequi.Wallet.DTOs;
 /// Límite por operación: $2.000.000 COP. Límite diario acumulado: $5.000.000 COP.
 /// </summary>
 public record CreateTransferRequestDto(
-    [Required]
-    [RegularExpression(@"^3\d{9}$", ErrorMessage = "El número telefónico de destino debe ser un número celular colombiano válido de 10 dígitos que inicie en 3.")]
-    string DestinationPhoneNumber,
+    [Required(ErrorMessage = "El código público de transferencia de destino es obligatorio.")]
+    [StringLength(36, MinimumLength = 3, ErrorMessage = "El código de transferencia debe tener entre 3 y 36 caracteres.")]
+    [RegularExpression(@"^[A-Za-z0-9_-]+$", ErrorMessage = "El código de transferencia solo puede contener caracteres alfanuméricos, guiones y guiones bajos.")]
+    string DestinationTransferCode,
 
     [Required]
     [Range(1, 2000000, ErrorMessage = "El monto debe ser superior a 0 y no exceder $2.000.000 COP por transferencia.")]
@@ -31,7 +32,7 @@ public record TransferResponseDto(
     string TransferId,
     string OriginClientId,
     string DestinationClientId,
-    string DestinationPhoneNumber,
+    string DestinationTransferCode,
     decimal Amount,
     long AmountCents,
     string Currency,

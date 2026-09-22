@@ -65,8 +65,8 @@ public sealed class TransfersController(ITransferService transferService, ILogge
         if (user is null) return Unauthorized();
 
         logger.LogInformation(
-            "Iniciando transferencia cliente {OriginClientId} → {DestinationPhone} por {Amount} COP key={Key}",
-            user.Uid, request.DestinationPhoneNumber, request.Amount, idempotencyKey);
+            "Iniciando transferencia cliente {OriginClientId} → {DestinationCode} por {Amount} COP key={Key}",
+            user.Uid, request.DestinationTransferCode, request.Amount, idempotencyKey);
 
         var result = await transferService.CreateTransferAsync(user.Uid, idempotencyKey, request, cancellationToken);
 
