@@ -72,13 +72,14 @@ if (isGcp)
     }
 
     builder.Services.AddSingleton<IWalletService, SpannerWalletService>();
+    builder.Services.AddSingleton<ITransferService, SpannerTransferService>();
 }
 else
 {
     builder.Services.AddSingleton<IWalletService, MockWalletService>();
+    builder.Services.AddSingleton<ITransferService, MockTransferService>();
 }
 
-builder.Services.AddSingleton<ITransferService, MockTransferService>();
 builder.Services.AddSingleton<IRechargeService, MockRechargeService>();
 
 // 4. OpenAPI / Swagger con documentación de seguridad Bearer JWT
@@ -90,8 +91,8 @@ builder.Services.AddSwaggerGen(c =>
         Title = "NequiTrampa Wallet API",
         Version = "v1",
         Description = "API de billetera digital, transferencias y recargas. " +
-                      "Estado actual: MOCK en memoria (MockWalletService / MockTransferService / MockRechargeService). " +
-                      "La autoridad financiera real será Cloud Spanner (TO-BE, pendiente de DDL). " +
+                      "Data:Backend=gcp → SpannerWalletService + SpannerTransferService (autoritativo en Cloud Spanner). " +
+                      "Data:Backend=memory → MockWalletService + MockTransferService (dev/test). " +
                       "Moneda: COP. Límite por transferencia: $2.000.000. Límite diario: $5.000.000."
     });
 

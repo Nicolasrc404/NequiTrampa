@@ -60,6 +60,7 @@ public sealed class WalletExceptionFilter(ILogger<WalletExceptionFilter> logger)
         StatusCodes.Status404NotFound => "Recurso no encontrado",
         StatusCodes.Status422UnprocessableEntity => "Regla financiera no superada",
         StatusCodes.Status403Forbidden => "Acceso denegado",
+        StatusCodes.Status409Conflict => "Conflicto de concurrencia",
         _ => "Error de dominio"
     };
 }

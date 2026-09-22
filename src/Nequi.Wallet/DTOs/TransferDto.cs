@@ -8,7 +8,7 @@ namespace Nequi.Wallet.DTOs;
 /// </summary>
 public record CreateTransferRequestDto(
     [Required(ErrorMessage = "El código público de transferencia de destino es obligatorio.")]
-    [StringLength(36, MinimumLength = 3, ErrorMessage = "El código de transferencia debe tener entre 3 y 36 caracteres.")]
+    [StringLength(20, MinimumLength = 1, ErrorMessage = "El código de transferencia no puede superar los 20 caracteres.")]
     [RegularExpression(@"^[A-Za-z0-9_-]+$", ErrorMessage = "El código de transferencia solo puede contener caracteres alfanuméricos, guiones y guiones bajos.")]
     string DestinationTransferCode,
 
@@ -44,12 +44,14 @@ public record TransferResponseDto(
 
 /// <summary>
 /// Comprobante formal emitido para visualización y descarga por el cliente.
+/// Los códigos de transferencia se enmascaran: primeros 3 chars + *** + últimos 4 chars.
+/// Ejemplo: TRF-ALE-0001 → TRF***0001
 /// </summary>
 public record TransferReceiptDto(
     string ReceiptNumber,
     string TransferId,
-    string OriginMaskedPhone,
-    string DestinationMaskedPhone,
+    string OriginMaskedTransferCode,
+    string DestinationMaskedTransferCode,
     decimal Amount,
     string Currency,
     DateTimeOffset CompletedAt,
