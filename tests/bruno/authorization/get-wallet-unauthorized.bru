@@ -1,0 +1,15 @@
+meta {
+  name: Get Wallet Unauthorized
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/v1/wallet
+  body: none
+  auth: none
+}
+
+assert {
+  res.status: eq 401
+}

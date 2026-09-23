@@ -20,6 +20,13 @@ using Nequi.Wallet.Services;
 // =============================================================================
 var builder = WebApplication.CreateBuilder(args);
 
+// Cloud Run provee el puerto dinámicamente mediante la variable de entorno PORT (0.0.0.0:$PORT)
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 // 1. Configuración común de la plataforma Nequi (Auth, ProblemDetails, Health, Stores, Logging)
 //    Data:Backend = "gcp" → Firestore + SpannerIdempotencyStore
 //    Data:Backend = cualquier otra cosa → InMemory (dev/test)
@@ -72,14 +79,15 @@ if (isGcp)
     }
 
     builder.Services.AddSingleton<IWalletService, SpannerWalletService>();
+    builder.Services.AddSingleton<ITransferService, SpannerTransferService>();
+    builder.Services.AddSingleton<IRechargeService, SpannerRechargeService>();
 }
 else
 {
     builder.Services.AddSingleton<IWalletService, MockWalletService>();
+    builder.Services.AddSingleton<ITransferService, MockTransferService>();
+    builder.Services.AddSingleton<IRechargeService, MockRechargeService>();
 }
-
-builder.Services.AddSingleton<ITransferService, MockTransferService>();
-builder.Services.AddSingleton<IRechargeService, MockRechargeService>();
 
 // 4. OpenAPI / Swagger con documentación de seguridad Bearer JWT
 builder.Services.AddEndpointsApiExplorer();
@@ -90,8 +98,8 @@ builder.Services.AddSwaggerGen(c =>
         Title = "NequiTrampa Wallet API",
         Version = "v1",
         Description = "API de billetera digital, transferencias y recargas. " +
-                      "Estado actual: MOCK en memoria (MockWalletService / MockTransferService / MockRechargeService). " +
-                      "La autoridad financiera real será Cloud Spanner (TO-BE, pendiente de DDL). " +
+                      "Data:Backend=gcp → SpannerWalletService + SpannerTransferService + SpannerRechargeService (autoritativo en Cloud Spanner). " +
+                      "Data:Backend=memory → MockWalletService + MockTransferService + MockRechargeService (dev/test). " +
                       "Moneda: COP. Límite por transferencia: $2.000.000. Límite diario: $5.000.000."
     });
 
@@ -134,7 +142,11 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
+// HTTPS redirection solo en desarrollo local sin proxy/contenedor; en Cloud Run la terminación TLS ocurre en GFE
+if (app.Environment.IsDevelopment() && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PORT")))
+{
+    app.UseHttpsRedirection();
+}
 
 // 7. Controladores de dominio (WalletController, TransfersController, RechargesController)
 app.MapControllers();

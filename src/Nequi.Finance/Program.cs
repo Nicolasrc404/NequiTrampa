@@ -1,3 +1,4 @@
+using Nequi.Finance.Movements;
 using Nequi.Shared;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -21,6 +22,7 @@ if (app.Environment.IsDevelopment())
 app.UseHttpsRedirection();
 
 app.MapControllers();
+app.MapMovements();
 
 app.Run();
 

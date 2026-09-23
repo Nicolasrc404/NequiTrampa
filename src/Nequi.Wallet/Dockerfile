@@ -18,6 +18,7 @@ RUN dotnet publish "Nequi.Wallet.csproj" -c Release -o /app/publish /p:UseAppHos
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
-# Cloud Run espera el puerto 8080
-ENV ASPNETCORE_URLS=http://+:8080
+# Cloud Run espera el puerto 8080 por defecto o el asignado dinámicamente en $PORT
+ENV ASPNETCORE_HTTP_PORTS=8080 DOTNET_gcServer=0
+USER $APP_UID
 ENTRYPOINT ["dotnet", "Nequi.Wallet.dll"]

@@ -1,0 +1,43 @@
+meta {
+  name: Post Transfer Success
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+  Idempotency-Key: {{transferIdempotencyKey}}
+}
+
+body:json {
+  {
+    "destinationTransferCode": "{{destCode}}",
+    "amount": 25000,
+    "description": "Pago almuerzo",
+    "currency": "COP"
+  }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("transferIdempotencyKey", uuid.v4());
+}
+
+script:post-response {
+  if (res.getStatus() === 201) {
+    bru.setVar("lastTransferId", res.body.transferId);
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.currency: eq COP
+  res.body.status: eq COMPLETED
+}

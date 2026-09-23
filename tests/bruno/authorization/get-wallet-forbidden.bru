@@ -1,0 +1,20 @@
+meta {
+  name: Get Wallet Forbidden
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/v1/wallet
+  body: none
+  auth: none
+}
+
+headers {
+  X-Demo-User: support-agent-1
+  X-Demo-Role: SOPORTE
+}
+
+assert {
+  res.status: eq 403
+}

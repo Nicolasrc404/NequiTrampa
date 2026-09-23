@@ -1,0 +1,30 @@
+meta {
+  name: Post Transfer No Idempotency Key
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+}
+
+body:json {
+  {
+    "destinationTransferCode": "TRF-LAU-0002",
+    "amount": 25000,
+    "description": "Prueba sin idempotencia",
+    "currency": "COP"
+  }
+}
+
+assert {
+  res.status: eq 400
+  res.body.code: eq idempotency_key_required
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Get Transfer Receipt Forbidden (other client)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{baseUrl}}/v1/transfers/{{lastTransferId}}/receipt
+  body: none
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser2}}
+  X-Demo-Role: {{clientRole}}
+}
+
+assert {
+  res.status: eq 403
+  res.body.code: eq FORBIDDEN
+}

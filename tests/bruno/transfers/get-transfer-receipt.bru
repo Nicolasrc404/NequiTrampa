@@ -1,0 +1,22 @@
+meta {
+  name: Get Transfer Receipt (own transfer)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/v1/transfers/{{lastTransferId}}/receipt
+  body: none
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq COMPLETED
+  res.body.currency: eq COP
+}

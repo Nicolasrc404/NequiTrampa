@@ -1,0 +1,22 @@
+meta {
+  name: Get Wallet Balance
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/v1/wallet/balance
+  body: none
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.currency: eq COP
+  res.body.sourceAuthority: eq MOCK_IN_MEMORY
+}

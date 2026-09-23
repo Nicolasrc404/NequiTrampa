@@ -1,0 +1,36 @@
+meta {
+  name: Post Transfer Limit Exceeded (DTO validation > $2.000.000 COP)
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+  Idempotency-Key: {{limitIdempKey}}
+}
+
+body:json {
+  {
+    "destinationTransferCode": "{{destCode}}",
+    "amount": 2500000,
+    "description": "Supera límite individual de $2.000.000 COP",
+    "currency": "COP"
+  }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("limitIdempKey", uuid.v4());
+}
+
+assert {
+  res.status: eq 422
+  res.body.code: eq VALIDATION_ERROR
+}

@@ -1,0 +1,50 @@
+meta {
+  name: Post Transfer Replay Same Key Same Body
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+  Idempotency-Key: {{transferIdempotencyKey}}
+}
+
+body:json {
+  {
+    "destinationTransferCode": "{{destCode}}",
+    "amount": 25000,
+    "description": "Pago almuerzo",
+    "currency": "COP"
+  }
+}
+
+assert {
+  res.status: eq 201
+}
+
+tests {
+  test("Idempotent replay header is true", function() {
+    const headers = res.getHeaders();
+
+    const replayHeader = Array.isArray(headers)
+      ? headers.find(([name]) =>
+          String(name).toLowerCase() === "idempotent-replayed"
+        )?.[1]
+      : Object.entries(headers || {}).find(([name]) =>
+          String(name).toLowerCase() === "idempotent-replayed"
+        )?.[1];
+
+    expect(String(replayHeader).toLowerCase()).to.equal("true");
+  });
+
+  test("Replay returns the same transfer", function() {
+    expect(res.body.transferId).to.equal(bru.getVar("lastTransferId"));
+  });
+}

@@ -1,0 +1,36 @@
+meta {
+  name: Post Recharge Success
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/v1/recharges
+  body: json
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+  Idempotency-Key: {{rechargeIdempKey}}
+}
+
+body:json {
+  {
+    "amount": 50000,
+    "paymentMethod": "SIMULATED_PSE",
+    "currency": "COP"
+  }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("rechargeIdempKey", uuid.v4());
+}
+
+assert {
+  res.status: eq 201
+  res.body.currency: eq COP
+  res.body.status: eq COMPLETED
+}

@@ -26,7 +26,7 @@ builder.Services.AddHostedService<ReportWorker>();
 
 if (gcp)
 {
-    var topic = cfg["PubSub:OutboxTopic"] ?? "ledger-events";
+    var topic = cfg["PubSub:OutboxTopic"] ?? "wallet-events";
     builder.Services.AddSingleton<IEventPublisher>(_ =>
         new PubSubEventPublisher(PublisherClient.Create(TopicName.FromProjectTopic(projectId, topic))));
     builder.Services.AddHealthChecks().AddDelegateCheck("pubsub", async ct =>

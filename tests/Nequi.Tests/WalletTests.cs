@@ -28,7 +28,7 @@ public sealed class WalletTests
         var service = new MockTransferService();
 
         var request = new CreateTransferRequestDto(
-            DestinationPhoneNumber: "3001234567",
+            DestinationTransferCode: "TRF-LAU-0002",
             Amount: 2_000_001m,
             Description: "Prueba límite individual",
             Currency: "COP"
@@ -47,7 +47,7 @@ public sealed class WalletTests
         var service = new MockTransferService();
 
         var request = new CreateTransferRequestDto(
-            DestinationPhoneNumber: "3001234567",
+            DestinationTransferCode: "TRF-LAU-0002",
             Amount: 1_500_000m,
             Description: "Prueba saldo insuficiente",
             Currency: "COP"
@@ -67,7 +67,7 @@ public sealed class WalletTests
         var ownerClientId = $"owner-{Guid.NewGuid():N}";
 
         var request = new CreateTransferRequestDto(
-            DestinationPhoneNumber: "3001234567",
+            DestinationTransferCode: "TRF-LAU-0002",
             Amount: 50_000m,
             Description: "Prueba autorización",
             Currency: "COP"
@@ -93,7 +93,7 @@ public sealed class WalletTests
         for (var i = 0; i < 4; i++)
         {
             var request = new CreateTransferRequestDto(
-                DestinationPhoneNumber: "3001234567",
+                DestinationTransferCode: "TRF-LAU-0002",
                 Amount: 1_250_000m,
                 Description: $"Transferencia diaria {i + 1}",
                 Currency: "COP"
@@ -106,7 +106,7 @@ public sealed class WalletTests
         }
 
         var exceedingRequest = new CreateTransferRequestDto(
-            DestinationPhoneNumber: "3001234567",
+            DestinationTransferCode: "TRF-LAU-0002",
             Amount: 1m,
             Description: "Supera límite diario",
             Currency: "COP"
@@ -154,7 +154,7 @@ public sealed class WalletIntegrationTests : IDisposable
         var client = _factory.CreateClient().As("client-1");
 
         var request = new CreateTransferRequestDto(
-            DestinationPhoneNumber: "3001234567",
+            DestinationTransferCode: "TRF-LAU-0002",
             Amount: 50_000m,
             Description: "Test",
             Currency: "COP"
@@ -194,7 +194,7 @@ public sealed class WalletIntegrationTests : IDisposable
         var key = Guid.NewGuid().ToString();
 
         var request = new CreateTransferRequestDto(
-            DestinationPhoneNumber: "3001234567",
+            DestinationTransferCode: "TRF-LAU-0002",
             Amount: 50_000m,
             Description: "Idempotency replay test",
             Currency: "COP"
@@ -225,14 +225,14 @@ public sealed class WalletIntegrationTests : IDisposable
         var key = Guid.NewGuid().ToString();
 
         var request1 = new CreateTransferRequestDto(
-            DestinationPhoneNumber: "3001234567",
+            DestinationTransferCode: "TRF-LAU-0002",
             Amount: 50_000m,
             Description: "First request",
             Currency: "COP"
         );
 
         var request2 = new CreateTransferRequestDto(
-            DestinationPhoneNumber: "3001234568",
+            DestinationTransferCode: "TRF-OTH-0003",
             Amount: 60_000m,
             Description: "Different request",
             Currency: "COP"
@@ -258,7 +258,7 @@ public sealed class WalletIntegrationTests : IDisposable
         var key = Guid.NewGuid().ToString();
 
         var request = new CreateTransferRequestDto(
-            DestinationPhoneNumber: "3001234567",
+            DestinationTransferCode: "TRF-LAU-0002",
             Amount: 50_000m,
             Description: "Receipt access test",
             Currency: "COP"

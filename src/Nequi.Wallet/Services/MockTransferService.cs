@@ -59,14 +59,14 @@ public sealed class MockTransferService : ITransferService
             throw new InsufficientFundsException();
 
         // Destino simulado inactivo
-        if (request.DestinationPhoneNumber == "3000000000")
+        if (request.DestinationTransferCode == "TRF-INACTIVE-0000")
             throw new InactiveDestinationException();
 
         var transfer = new TransferResponseDto(
             TransferId: $"trf_{Guid.NewGuid():N}"[..18],
             OriginClientId: originClientId,
-            DestinationClientId: $"cli_dest_{request.DestinationPhoneNumber[..5]}",
-            DestinationPhoneNumber: request.DestinationPhoneNumber,
+            DestinationClientId: $"cli_dest_{request.DestinationTransferCode[..Math.Min(8, request.DestinationTransferCode.Length)]}",
+            DestinationTransferCode: request.DestinationTransferCode,
             Amount: request.Amount,
             AmountCents: (long)(request.Amount * 100),
             Currency: request.Currency,
@@ -135,8 +135,8 @@ public sealed class MockTransferService : ITransferService
             var receipt = new TransferReceiptDto(
                 ReceiptNumber: $"REC-{DateTime.UtcNow:yyyyMMdd}-{transferId[..6].ToUpper()}",
                 TransferId: transfer.TransferId,
-                OriginMaskedPhone: "300***1234",
-                DestinationMaskedPhone: $"{transfer.DestinationPhoneNumber[..3]}***{transfer.DestinationPhoneNumber[^4..]}",
+                OriginMaskedTransferCode: MaskTransferCode(transfer.OriginClientId),
+                DestinationMaskedTransferCode: MaskTransferCode(transfer.DestinationTransferCode),
                 Amount: transfer.Amount,
                 Currency: transfer.Currency,
                 CompletedAt: transfer.Timestamp,
@@ -146,5 +146,21 @@ public sealed class MockTransferService : ITransferService
 
             return Task.FromResult(receipt);
         }
+    }
+
+    /// <summary>
+    /// Enmascara un código público de transferencia.
+    /// Formato: primeros 3 caracteres + *** + últimos 4 caracteres.
+    /// Ejemplo: TRF-ALE-0001 → TRF***0001
+    /// Para códigos cortos no lanza IndexOutOfRangeException.
+    /// </summary>
+    private static string MaskTransferCode(string? code)
+    {
+        if (string.IsNullOrWhiteSpace(code)) return "***";
+        if (code.Length >= 7)
+            return $"{code[..3]}***{code[^4..]}";
+        if (code.Length >= 4)
+            return $"{code[..1]}***{code[^2..]}";
+        return $"{code}***";
     }
 }

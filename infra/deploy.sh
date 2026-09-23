@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Builds with Cloud Build (no local Docker needed), deploys to Cloud Run and wires Pub/Sub push subscriptions.
-# Usage: PROJECT_ID=my-proj ./infra/deploy.sh [workers|realtime|all]
+# Usage: PROJECT_ID=my-proj ./infra/deploy.sh [wallet|workers|realtime|all]
 source "$(dirname "$0")/common.sh"
 cd "$(dirname "$0")/.."
 TARGET="${1:-all}"
@@ -9,6 +9,16 @@ DEMO="${AUTH_DEMO_HEADERS:-false}"   # true => X-Demo-User smoke-test scheme; on
 build() { # $1=service dir name, $2=image name
   gcloud builds submit . --project "$PROJECT_ID" --config infra/cloudbuild.yaml \
     --substitutions "_SERVICE=$1,_IMAGE=${IMAGE_BASE}/$2:latest"
+}
+
+deploy_wallet() {
+  build Nequi.Wallet wallet
+  local secrets=""
+  exists gcloud secrets versions describe latest --secret nequi-spanner-database && secrets="--set-secrets Spanner__Database=nequi-spanner-database:latest"
+  gcloud run deploy nequi-wallet --project "$PROJECT_ID" --region "$REGION" \
+    --image "${IMAGE_BASE}/wallet:latest" --service-account "$(sa_email $SA_WALLET)" \
+    --no-allow-unauthenticated --min-instances 0 --max-instances 5 --memory 512Mi \
+    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Data__Backend=gcp,Auth__DemoHeaders=${DEMO}" $secrets
 }
 
 deploy_workers() {
@@ -48,6 +58,9 @@ subscribe() { # $1=name $2=service $3=path
 }
 
 case "$TARGET" in
+  wallet|all)   deploy_wallet ;;
+esac
+case "$TARGET" in
   workers|all)  deploy_workers ;;
 esac
 case "$TARGET" in
@@ -61,5 +74,6 @@ case "$TARGET" in
   realtime|all) subscribe realtime-push nequi-realtime /internal/pubsub/realtime ;;
 esac
 
+echo "wallet  : $(url_of nequi-wallet 2>/dev/null || true)"
 echo "workers : $(url_of nequi-workers 2>/dev/null || true)"
 echo "realtime: $(url_of nequi-realtime 2>/dev/null || true)"
