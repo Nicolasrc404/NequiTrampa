@@ -3,7 +3,7 @@
 set -euo pipefail
 
 export PATH="$PATH:/c/Users/PC/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin"
-export PROJECT_ID="${PROJECT_ID:-finanzas-mvp-2026}"
+export PROJECT_ID="${PROJECT_ID:-full-stack-2026}"
 export REGION="${REGION:-southamerica-west1}"
 export AR_REPO="${AR_REPO:-servicios}"                 # Artifact Registry repo (reused if it already exists)
 export TOPIC="${TOPIC:-wallet-events}"             # outbox events topic (reused if it already exists)
