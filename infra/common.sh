@@ -15,6 +15,7 @@ export SPANNER_DATABASE="${SPANNER_DATABASE:-projects/${PROJECT_ID}/instances/fi
 export SA_WORKERS="outbox-dispatcher"
 export SA_REALTIME="realtime-service"
 export SA_PUSH="pubsub-push-invoker"
+export SA_WALLET="${SA_WALLET:-wallet-service}"
 sa_email() { echo "$1@${PROJECT_ID}.iam.gserviceaccount.com"; }
 
 exists() { "$@" >/dev/null 2>&1; }              # exists gcloud x describe y

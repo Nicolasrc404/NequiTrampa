@@ -3,7 +3,7 @@
   "variables": [
     {
       "name": "baseUrl",
-      "value": "https://wallet-api-placeholder.a.run.app",
+      "value": "",
       "enabled": true
     },
     {

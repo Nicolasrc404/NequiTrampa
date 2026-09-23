@@ -14,7 +14,7 @@ exists gcloud artifacts repositories describe "$AR_REPO" --location "$REGION" ||
   gcloud artifacts repositories create "$AR_REPO" --repository-format docker --location "$REGION" --description "Nequi images"
 
 echo "== Service accounts (least privilege) =="
-for sa in "$SA_WORKERS" "$SA_REALTIME" "$SA_PUSH"; do
+for sa in "$SA_WORKERS" "$SA_REALTIME" "$SA_PUSH" "$SA_WALLET"; do
   exists gcloud iam service-accounts describe "$(sa_email $sa)" ||
     gcloud iam service-accounts create "$sa" --display-name "$sa"
 done
@@ -29,6 +29,11 @@ bind "$SA_WORKERS" roles/logging.logWriter
 bind "$SA_WORKERS" roles/monitoring.metricWriter
 bind "$SA_REALTIME" roles/logging.logWriter
 bind "$SA_REALTIME" roles/monitoring.metricWriter
+# wallet: operaciones financieras autoritativas, saldos, ledger y outbox en Spanner
+bind "$SA_WALLET" roles/spanner.databaseUser
+bind "$SA_WALLET" roles/secretmanager.secretAccessor
+bind "$SA_WALLET" roles/logging.logWriter
+bind "$SA_WALLET" roles/monitoring.metricWriter
 
 echo "== Pub/Sub =="
 for t in "$TOPIC" "$DLQ_TOPIC"; do exists gcloud pubsub topics describe "$t" || gcloud pubsub topics create "$t"; done
@@ -48,6 +53,7 @@ exists gcloud secrets describe nequi-spanner-database ||
 exists gcloud secrets versions describe latest --secret nequi-spanner-database ||
   printf %s "$SPANNER_DATABASE" | gcloud secrets versions add nequi-spanner-database --data-file=-
 gcloud secrets add-iam-policy-binding nequi-spanner-database --member "serviceAccount:$(sa_email $SA_WORKERS)" --role roles/secretmanager.secretAccessor >/dev/null
+gcloud secrets add-iam-policy-binding nequi-spanner-database --member "serviceAccount:$(sa_email $SA_WALLET)" --role roles/secretmanager.secretAccessor >/dev/null
 
 echo "== Observability =="
 exists gcloud logging metrics describe nequi_http_5xx ||

@@ -20,6 +20,13 @@ using Nequi.Wallet.Services;
 // =============================================================================
 var builder = WebApplication.CreateBuilder(args);
 
+// Cloud Run provee el puerto dinámicamente mediante la variable de entorno PORT (0.0.0.0:$PORT)
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 // 1. Configuración común de la plataforma Nequi (Auth, ProblemDetails, Health, Stores, Logging)
 //    Data:Backend = "gcp" → Firestore + SpannerIdempotencyStore
 //    Data:Backend = cualquier otra cosa → InMemory (dev/test)
@@ -135,7 +142,11 @@ if (app.Environment.IsDevelopment())
     });
 }
 
-app.UseHttpsRedirection();
+// HTTPS redirection solo en desarrollo local sin proxy/contenedor; en Cloud Run la terminación TLS ocurre en GFE
+if (app.Environment.IsDevelopment() && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PORT")))
+{
+    app.UseHttpsRedirection();
+}
 
 // 7. Controladores de dominio (WalletController, TransfersController, RechargesController)
 app.MapControllers();
