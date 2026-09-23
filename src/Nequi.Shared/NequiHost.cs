@@ -26,7 +26,10 @@ public static class NequiHost
         var services = builder.Services;
         var gcp = string.Equals(cfg["Data:Backend"], "gcp", StringComparison.OrdinalIgnoreCase);
         var projectId = cfg["Gcp:ProjectId"] ?? "local";
+        var firestoreProjectId = cfg["Firestore:ProjectId"] ?? projectId;
+
         cfg["Gcp:ProjectId"] = projectId;
+        cfg["Firestore:ProjectId"] = firestoreProjectId;
 
         builder.Logging.ClearProviders();
         builder.Logging.AddConsole(o => o.FormatterName = GcpJsonConsoleFormatter.FormatterName);
@@ -38,9 +41,9 @@ public static class NequiHost
 
         if (gcp)
         {
-            services.AddSingleton(_ => FirestoreDb.Create(projectId));
+            services.AddSingleton(_ => FirestoreDb.Create(firestoreProjectId));
             services.AddSingleton<IDocumentStore, FirestoreDocumentStore>();
-            health.AddDelegateCheck("firestore", async ct => await new FirestoreDocumentStore(FirestoreDb.Create(projectId)).PingAsync(ct));
+            health.AddDelegateCheck("firestore", async ct => await new FirestoreDocumentStore(FirestoreDb.Create(firestoreProjectId)).PingAsync(ct));
         }
         else
         {
