@@ -97,6 +97,10 @@ public sealed class DemoHeaderHandler(IOptionsMonitor<AuthenticationSchemeOption
         var claims = new List<Claim> { new("user_id", uid) };
         foreach (var r in (Request.Headers["X-Demo-Role"].FirstOrDefault() ?? Roles.Cliente).Split(','))
             if (Roles.All.Contains(r.Trim())) claims.Add(new Claim(ClaimTypes.Role, r.Trim()));
+        // X-Demo-Client-Id carries the domain clientId (UUID from Spanner) when it differs from the auth subject.
+        var clientId = Request.Headers["X-Demo-Client-Id"].FirstOrDefault();
+        if (!string.IsNullOrWhiteSpace(clientId))
+            claims.Add(new Claim("client_id", clientId));
         var id = new ClaimsIdentity(claims, AuthExtensions.DemoScheme);
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(id), AuthExtensions.DemoScheme)));
     }

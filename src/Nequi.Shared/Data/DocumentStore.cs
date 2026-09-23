@@ -11,6 +11,16 @@ public interface IDocumentStore
     Task UpsertAsync(string collection, string id, IDictionary<string, object?> data, CancellationToken ct);
     Task<IDictionary<string, object?>?> GetAsync(string collection, string id, CancellationToken ct);
     Task<IReadOnlyList<IDictionary<string, object?>>> QueryEqualsAsync(string collection, string field, object value, int limit, CancellationToken ct);
+
+    /// <summary>
+    /// Queries documents where <paramref name="field"/> equals <paramref name="value"/>,
+    /// ordered by <paramref name="orderByField"/> descending, returning at most <paramref name="limit"/> results.
+    /// In Firestore this requires a composite index on (field ASC, orderByField DESC).
+    /// </summary>
+    Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedAsync(
+        string collection, string field, object value,
+        string orderByField, int limit, CancellationToken ct);
+
     Task PingAsync(CancellationToken ct);
 }
 
@@ -35,6 +45,16 @@ public sealed class InMemoryDocumentStore : IDocumentStore
     public Task<IReadOnlyList<IDictionary<string, object?>>> QueryEqualsAsync(string collection, string field, object value, int limit, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<IDictionary<string, object?>>>(Col(collection).Values
             .Where(d => d.TryGetValue(field, out var v) && Equals(v, value)).Take(limit).Select(Copy).ToList());
+
+    public Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedAsync(
+        string collection, string field, object value,
+        string orderByField, int limit, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<IDictionary<string, object?>>>(Col(collection).Values
+            .Where(d => d.TryGetValue(field, out var v) && Equals(v, value))
+            .OrderByDescending(d => d.TryGetValue(orderByField, out var v) ? v?.ToString() : null)
+            .Take(limit)
+            .Select(Copy)
+            .ToList());
 
     public Task PingAsync(CancellationToken ct) => Task.CompletedTask;
 }
@@ -67,6 +87,21 @@ public sealed class FirestoreDocumentStore(FirestoreDb db) : IDocumentStore
     {
         var snap = await db.Collection(collection).WhereEqualTo(field, value).Limit(limit).GetSnapshotAsync(ct);
         return snap.Documents.Select(d => (IDictionary<string, object?>)d.ToDictionary().ToDictionary(kv => kv.Key, kv => (object?)kv.Value)).ToList();
+    }
+
+    public async Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedAsync(
+        string collection, string field, object value,
+        string orderByField, int limit, CancellationToken ct)
+    {
+        // Requires a composite index on (field ASC, orderByField DESC) in Firestore.
+        var snap = await db.Collection(collection)
+            .WhereEqualTo(field, value)
+            .OrderByDescending(orderByField)
+            .Limit(limit)
+            .GetSnapshotAsync(ct);
+        return snap.Documents
+            .Select(d => (IDictionary<string, object?>)d.ToDictionary().ToDictionary(kv => kv.Key, kv => (object?)kv.Value))
+            .ToList();
     }
 
     public async Task PingAsync(CancellationToken ct) =>
