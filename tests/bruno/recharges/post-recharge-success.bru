@@ -13,7 +13,7 @@ post {
 headers {
   X-Demo-User: {{clientUser}}
   X-Demo-Role: {{clientRole}}
-  Idempotency-Key: idemp-rcg-001
+  Idempotency-Key: {{rechargeIdempKey}}
 }
 
 body:json {
@@ -22,6 +22,11 @@ body:json {
     "paymentMethod": "SIMULATED_PSE",
     "currency": "COP"
   }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("rechargeIdempKey", uuid.v4());
 }
 
 assert {

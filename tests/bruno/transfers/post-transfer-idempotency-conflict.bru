@@ -1,5 +1,5 @@
 meta {
-  name: Post Transfer Idempotency Conflict
+  name: Post Transfer Idempotency Conflict (same key, different body)
   type: http
   seq: 3
 }
@@ -13,7 +13,7 @@ post {
 headers {
   X-Demo-User: {{clientUser}}
   X-Demo-Role: {{clientRole}}
-  Idempotency-Key: idemp-trf-001
+  Idempotency-Key: {{transferIdempotencyKey}}
 }
 
 body:json {

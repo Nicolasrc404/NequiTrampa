@@ -18,4 +18,5 @@ headers {
 assert {
   res.status: eq 200
   res.body.currency: eq COP
+  res.body.sourceAuthority: eq MOCK_IN_MEMORY
 }

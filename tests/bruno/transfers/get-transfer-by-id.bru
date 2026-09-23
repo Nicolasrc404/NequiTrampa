@@ -1,11 +1,11 @@
 meta {
-  name: Get Transfer Receipt (own transfer)
+  name: Get Transfer By Id
   type: http
-  seq: 6
+  seq: 5
 }
 
 get {
-  url: {{baseUrl}}/v1/transfers/{{lastTransferId}}/receipt
+  url: {{baseUrl}}/v1/transfers/{{lastTransferId}}
   body: none
   auth: none
 }
@@ -17,6 +17,6 @@ headers {
 
 assert {
   res.status: eq 200
-  res.body.status: eq COMPLETED
   res.body.currency: eq COP
+  res.body.status: eq COMPLETED
 }
