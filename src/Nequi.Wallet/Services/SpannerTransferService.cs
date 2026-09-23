@@ -18,9 +18,9 @@ namespace Nequi.Wallet.Services;
 ///      b. public_transfer_code → clients.client_id (destino, estado ACTIVE).
 ///      c. Validar origen != destino.
 ///   2. Resolver cuentas CLIENT_WALLET ACTIVE para origen y destino; validar currency = COP.
-///   3. Validar saldo suficiente en origen (amountMinor <= originBalanceMinor).
+///   3. Validar saldo suficiente en origen (amountMinor &lt;= originBalanceMinor).
 ///   4. Calcular local_day usando clients.timezone del cliente origen (convertido a DATE de Spanner).
-///   5. Validar y actualizar daily_transfer_usage transaccionalmente (outgoing_total_minor + amount <= $5.000.000 COP).
+///   5. Validar y actualizar daily_transfer_usage transaccionalmente (outgoing_total_minor + amount &lt;= $5.000.000 COP).
 ///   6. Generar operation_id (UUID) y public_reference única (máximo 32 caracteres).
 ///   7. INSERT ledger_operations (type='INTERNAL_TRANSFER', status='COMPLETED', actor_id=originClientId, actor_type='CLIENT').
 ///   8. INSERT ledger_entries x2 (entry_no=1 débito origen con delta negativo, entry_no=2 crédito destino con delta positivo).

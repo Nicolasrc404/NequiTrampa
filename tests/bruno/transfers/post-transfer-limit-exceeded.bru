@@ -1,0 +1,31 @@
+meta {
+  name: Post Transfer Limit Exceeded
+  type: http
+  seq: 4
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+  Idempotency-Key: idemp-trf-limit-001
+}
+
+body:json {
+  {
+    "destinationTransferCode": "TRF-LAU-0002",
+    "amount": 2500000,
+    "description": "Supera límite individual de $2.000.000 COP",
+    "currency": "COP"
+  }
+}
+
+assert {
+  res.status: eq 422
+  res.body.code: eq VALIDATION_ERROR
+}

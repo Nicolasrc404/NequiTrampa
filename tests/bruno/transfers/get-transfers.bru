@@ -1,0 +1,20 @@
+meta {
+  name: Get Transfers List
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/v1/transfers?page=1&pageSize=20
+  body: none
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+}
+
+assert {
+  res.status: eq 200
+}

@@ -1,0 +1,15 @@
+{
+  "name": "gcp",
+  "variables": [
+    {
+      "name": "baseUrl",
+      "value": "https://wallet-api-placeholder.a.run.app",
+      "enabled": true
+    },
+    {
+      "name": "bearerToken",
+      "value": "",
+      "enabled": true
+    }
+  ]
+}

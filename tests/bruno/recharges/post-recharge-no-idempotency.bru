@@ -1,0 +1,29 @@
+meta {
+  name: Post Recharge No Idempotency Key
+  type: http
+  seq: 2
+}
+
+post {
+  url: {{baseUrl}}/v1/recharges
+  body: json
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+}
+
+body:json {
+  {
+    "amount": 50000,
+    "paymentMethod": "SIMULATED_PSE",
+    "currency": "COP"
+  }
+}
+
+assert {
+  res.status: eq 400
+  res.body.code: eq idempotency_key_required
+}

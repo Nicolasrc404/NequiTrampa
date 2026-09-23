@@ -1,0 +1,24 @@
+meta {
+  name: Get Transfer Receipt
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{baseUrl}}/v1/transfers/{{transferId}}/receipt
+  body: none
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+}
+
+vars:pre-request {
+  transferId: TRF-MOCK-0001
+}
+
+assert {
+  res.status: in [200, 404]
+}

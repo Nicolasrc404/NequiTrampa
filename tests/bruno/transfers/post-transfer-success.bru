@@ -1,0 +1,32 @@
+meta {
+  name: Post Transfer Success
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+  Idempotency-Key: idemp-trf-001
+}
+
+body:json {
+  {
+    "destinationTransferCode": "TRF-LAU-0002",
+    "amount": 25000,
+    "description": "Pago almuerzo",
+    "currency": "COP"
+  }
+}
+
+assert {
+  res.status: eq 201
+  res.body.currency: eq COP
+  res.body.status: eq COMPLETED
+}
