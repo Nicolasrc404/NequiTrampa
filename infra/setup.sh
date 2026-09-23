@@ -43,9 +43,14 @@ PUBSUB_SA="service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com"
 gcloud pubsub topics add-iam-policy-binding "$DLQ_TOPIC" --member "serviceAccount:$PUBSUB_SA" --role roles/pubsub.publisher >/dev/null
 
 echo "== Firestore (native) =="
-exists gcloud firestore databases describe --database='(default)' ||
-  gcloud firestore databases create --location "${FIRESTORE_LOCATION:-southamerica-west1}" --type firestore-native
+gcloud services enable firestore.googleapis.com --project "$FIRESTORE_PROJECT_ID"
 
+exists gcloud firestore databases describe --database='(default)' --project "$FIRESTORE_PROJECT_ID" ||
+  gcloud firestore databases create \
+    --database='(default)' \
+    --location "${FIRESTORE_LOCATION:-southamerica-west1}" \
+    --type firestore-native \
+    --project "$FIRESTORE_PROJECT_ID"
 echo "== Secret Manager =="
 # Value lives only in Secret Manager (never in the repo).
 exists gcloud secrets describe nequi-spanner-database ||

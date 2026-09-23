@@ -2,8 +2,15 @@
 # Shared settings. Override via environment: PROJECT_ID, REGION, AR_REPO, TOPIC.
 set -euo pipefail
 
-export PATH="$PATH:/c/Users/PC/AppData/Local/Google/Cloud SDK/google-cloud-sdk/bin"
+if ! command -v gcloud >/dev/null 2>&1; then
+  for gcloud_dir in /c/Users/*/AppData/Local/Google/Cloud\ SDK/google-cloud-sdk/bin; do
+    [ -d "$gcloud_dir" ] || continue
+    export PATH="$PATH:$gcloud_dir"
+    break
+  done
+fi
 export PROJECT_ID="${PROJECT_ID:-full-stack-2026}"
+export FIRESTORE_PROJECT_ID="${FIRESTORE_PROJECT_ID:-fullstack-d3be5}"
 export REGION="${REGION:-southamerica-west1}"
 export AR_REPO="${AR_REPO:-servicios}"                 # Artifact Registry repo (reused if it already exists)
 export TOPIC="${TOPIC:-wallet-events}"             # outbox events topic (reused if it already exists)

@@ -11,6 +11,7 @@ get {
 }
 
 headers {
+  X-Serverless-Authorization: Bearer {{serverlessToken}}
   X-Demo-User: {{clientUser}}
   X-Demo-Role: {{clientRole}}
 }
@@ -18,5 +19,5 @@ headers {
 assert {
   res.status: eq 200
   res.body.currency: eq COP
-  res.body.sourceAuthority: eq MOCK_IN_MEMORY
+  res.body.sourceAuthority: eq {{expectedSourceAuthority}}
 }

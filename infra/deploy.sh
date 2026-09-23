@@ -18,7 +18,7 @@ deploy_wallet() {
   gcloud run deploy nequi-wallet --project "$PROJECT_ID" --region "$REGION" \
     --image "${IMAGE_BASE}/wallet:latest" --service-account "$(sa_email $SA_WALLET)" \
     --no-allow-unauthenticated --min-instances 0 --max-instances 5 --memory 512Mi \
-    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Data__Backend=gcp,Auth__DemoHeaders=${DEMO}" $secrets
+    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Firestore__ProjectId=${FIRESTORE_PROJECT_ID},Data__Backend=gcp,Auth__DemoHeaders=${DEMO}" $secrets
 }
 
 deploy_workers() {
@@ -29,7 +29,7 @@ deploy_workers() {
   gcloud run deploy nequi-workers --project "$PROJECT_ID" --region "$REGION" \
     --image "${IMAGE_BASE}/workers:latest" --service-account "$(sa_email $SA_WORKERS)" \
     --no-allow-unauthenticated --no-cpu-throttling --min-instances 1 --max-instances 3 --memory 512Mi \
-    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Data__Backend=gcp,PubSub__OutboxTopic=${TOPIC},Auth__DemoHeaders=${DEMO}" $secrets
+    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Firestore__ProjectId=${FIRESTORE_PROJECT_ID},Data__Backend=gcp,PubSub__OutboxTopic=${TOPIC},Auth__DemoHeaders=${DEMO}" $secrets
 }
 
 deploy_realtime() {
