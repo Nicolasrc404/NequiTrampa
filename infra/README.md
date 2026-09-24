@@ -68,7 +68,7 @@ Pasos:
 
    | SA | Roles IAM |
    |---|---|
-   | `outbox-dispatcher` | `spanner.databaseUser`, `datastore.user`, `pubsub.publisher`, `secretmanager.secretAccessor`, `logging.logWriter`, `monitoring.metricWriter` |
+   | `outbox-dispatcher` | `spanner.databaseUser`, `datastore.user`, `pubsub.publisher` (proyecto), `pubsub.viewer` sobre `wallet-events`, `secretmanager.secretAccessor`, `logging.logWriter`, `monitoring.metricWriter` |
    | `realtime-service` | `logging.logWriter`, `monitoring.metricWriter` |
    | `wallet-service` | `spanner.databaseUser`, `secretmanager.secretAccessor`, `logging.logWriter`, `monitoring.metricWriter` |
    | `pubsub-push-invoker` | Creada aquí; el rol `roles/run.invoker` se otorga en `deploy.sh` |
@@ -77,9 +77,10 @@ Pasos:
    bindings son los que el script aplica; no implica una garantía global de
    mínimo privilegio sobre todo el IAM del proyecto.
 
-4. **Pub/Sub**: crea topics `wallet-events` y `wallet-events-dlq`; otorga al
-   agente de servicio de Pub/Sub el rol `roles/pubsub.publisher` sobre el
-   DLQ.
+4. **Pub/Sub**: crea topics `wallet-events` y `wallet-events-dlq`; otorga a
+   `outbox-dispatcher` `roles/pubsub.viewer` sobre `wallet-events` (sin subir
+   el permiso a nivel de proyecto); y al agente de servicio de Pub/Sub el rol
+   `roles/pubsub.publisher` sobre el DLQ.
 5. **Firestore**: habilita `firestore.googleapis.com` en `fullstack-d3be5` y
    crea la base `(default)` en modo nativo si no existe.
 6. **Secret Manager**: crea `nequi-spanner-database` con el identificador del

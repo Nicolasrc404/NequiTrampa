@@ -37,6 +37,13 @@ bind "$SA_WALLET" roles/monitoring.metricWriter
 
 echo "== Pub/Sub =="
 for t in "$TOPIC" "$DLQ_TOPIC"; do exists gcloud pubsub topics describe "$t" || gcloud pubsub topics create "$t"; done
+
+# Workers publishes to the topic and its readiness check verifies that the
+# configured topic exists/is accessible.
+gcloud pubsub topics add-iam-policy-binding "$TOPIC" \
+  --member "serviceAccount:$(sa_email $SA_WORKERS)" \
+  --role roles/pubsub.viewer \
+  >/dev/null
 # Pub/Sub service agent must publish to the DLQ and ack from subscriptions
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format 'value(projectNumber)')
 PUBSUB_SA="service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com"
