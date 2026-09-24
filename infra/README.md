@@ -68,10 +68,13 @@ Pasos:
 
    | SA | Roles IAM |
    |---|---|
-   | `outbox-dispatcher` | `spanner.databaseUser`, `datastore.user`, `pubsub.publisher` (proyecto), `pubsub.viewer` sobre `wallet-events`, `secretmanager.secretAccessor`, `logging.logWriter`, `monitoring.metricWriter` |
+   | `outbox-dispatcher` | `spanner.databaseUser`, `pubsub.publisher` (proyecto), `pubsub.viewer` sobre `wallet-events`, `secretmanager.secretAccessor`, `logging.logWriter`, `monitoring.metricWriter`, y `datastore.user` en `fullstack-d3be5` |
    | `realtime-service` | `logging.logWriter`, `monitoring.metricWriter` |
-   | `wallet-service` | `spanner.databaseUser`, `secretmanager.secretAccessor`, `logging.logWriter`, `monitoring.metricWriter` |
+   | `wallet-service` | `spanner.databaseUser`, `secretmanager.secretAccessor`, `logging.logWriter`, `monitoring.metricWriter`, y `datastore.user` en `fullstack-d3be5` |
    | `pubsub-push-invoker` | Creada aquí; el rol `roles/run.invoker` se otorga en `deploy.sh` |
+
+   `roles/datastore.user` de `outbox-dispatcher` y `wallet-service` se otorga en
+   `FIRESTORE_PROJECT_ID` (`fullstack-d3be5`), no en `PROJECT_ID`.
 
    Service Accounts dedicadas y roles IAM configurados por `setup.sh`: estos
    bindings son los que el script aplica; no implica una garantía global de
@@ -79,10 +82,13 @@ Pasos:
 
 4. **Pub/Sub**: crea topics `wallet-events` y `wallet-events-dlq`; otorga a
    `outbox-dispatcher` `roles/pubsub.viewer` sobre `wallet-events` (sin subir
-   el permiso a nivel de proyecto); y al agente de servicio de Pub/Sub el rol
-   `roles/pubsub.publisher` sobre el DLQ.
+   el permiso a nivel de proyecto); al agente de servicio de Pub/Sub el rol
+   `roles/pubsub.publisher` sobre el DLQ y `roles/iam.serviceAccountTokenCreator`
+   sobre `pubsub-push-invoker` (habilita el push OIDC).
 5. **Firestore**: habilita `firestore.googleapis.com` en `fullstack-d3be5` y
-   crea la base `(default)` en modo nativo si no existe.
+   crea la base `(default)` en modo nativo si no existe; otorga
+   `roles/datastore.user` a `outbox-dispatcher` y `wallet-service` en
+   `fullstack-d3be5` (no en `PROJECT_ID`).
 6. **Secret Manager**: crea `nequi-spanner-database` con el identificador del
    recurso Spanner (proveniente de `SPANNER_DATABASE` de `common.sh`) y
    otorga `secretAccessor` a `outbox-dispatcher` y `wallet-service`.

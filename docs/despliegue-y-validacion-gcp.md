@@ -114,18 +114,18 @@ En el entorno validado, la entrega push por OIDC requirió que el agente de
 servicio de Pub/Sub (`service-{número}@gcp-sa-pubsub.iam.gserviceaccount.com`)
 tuviera capacidad de generar tokens OIDC para la *push service account*, es
 decir `roles/iam.serviceAccountTokenCreator` sobre `pubsub-push-invoker`.
-Ese binding **no aparece en `setup.sh`/`deploy.sh`**: se documenta como
-requisito observado del entorno validado, no como algo que los scripts
-configuren actualmente.
+`setup.sh` automatiza ese binding de forma idempotente; no requiere aplicación
+manual.
 
 Service Accounts relevantes **creadas/reutilizadas por `setup.sh`**:
 `wallet-service`, `outbox-dispatcher` y `pubsub-push-invoker`.
 
 `setup.sh` asigna los roles de proyecto correspondientes a `wallet-service` y
-`outbox-dispatcher`. Para `pubsub-push-invoker`, `deploy.sh` asigna
-`roles/run.invoker` sobre `nequi-workers`. El requisito observado de
-`roles/iam.serviceAccountTokenCreator` para el agente de servicio de Pub/Sub
-no está automatizado actualmente por los scripts.
+`outbox-dispatcher`, y `roles/datastore.user` a ambos en `FIRESTORE_PROJECT_ID`
+(`fullstack-d3be5`), donde vive Firestore — no en `PROJECT_ID`. Para
+`pubsub-push-invoker`, `deploy.sh` asigna `roles/run.invoker` sobre
+`nequi-workers`, y `setup.sh` automatiza el `roles/iam.serviceAccountTokenCreator`
+del agente de servicio de Pub/Sub.
 
 ---
 
