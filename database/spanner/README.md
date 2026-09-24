@@ -122,6 +122,17 @@ PRIMARY KEY (actor_id, scope, idempotency_key)
 | `status STRING(16)` | Estado: `IN_PROGRESS` o `COMPLETED`. El store además reconoce `FAILED` para reiniciar el ciclo; `AbandonAsync` elimina el registro `IN_PROGRESS` (no persiste un estado "abandonada"). |
 | `http_status INT64` / `response_body JSON` | Respuesta almacenada para replay. |
 
+> **Limitación AS-IS (commit gap)**: la idempotencia se gestiona con
+> `IdempotencyActionFilter` sobre este registro, **fuera** de la transacción del
+> movimiento financiero. `BeginAsync` reserva `IN_PROGRESS`, el movimiento se
+> confirma en su propia transacción y después `CompleteAsync` marca `COMPLETED`
+> en otra (no comparte transacción con el movimiento). Si el movimiento ya hizo
+> commit y `CompleteAsync` falla, el catch puede ejecutar `AbandonAsync` y
+> eliminar el registro `IN_PROGRESS`, dejando una ventana en la que un retry con
+> la misma clave podría volver a ejecutar el movimiento. El replay idéntico y el
+> conflicto de payload están validados por Bruno; no existe garantía atómica
+> end-to-end entre el efecto financiero y el `COMPLETED`.
+
 ### 7. `outbox_events` — Transactional Outbox
 
 Eventos de dominio confirmados junto al ledger para publicación asíncrona por
@@ -143,8 +154,14 @@ Eventos de dominio confirmados junto al ledger para publicación asíncrona por
 
 ## Invariantes financieros
 
-- **Saldo nunca negativo**: `current_balance_minor >= 0`, validado dentro de
-  la transacción; saldo insuficiente aborta la operación.
+- **Saldo de cuenta de cliente no negativo**: en `CLIENT_WALLET`,
+  `current_balance_minor >= 0` es validado por el servicio financiero; saldo
+  insuficiente aborta la operación.
+- **`SYSTEM_FUNDING` admite sobregiro (AS-IS)**: el comportamiento actual
+  permite saldo negativo en la cuenta central de fondeo; el dataset histórico
+  de integración contiene saldo negativo.
+- **El DDL por sí solo no impone `CHECK current_balance_minor >= 0`**: la
+  restricción es responsabilidad del servicio, no del esquema.
 - **Dinero en unidades menores** con `NUMERIC` de precisión fija; nunca
   `float`/`double`.
 - **Límites**: hasta $2.000.000 COP por operación y $5.000.000 COP

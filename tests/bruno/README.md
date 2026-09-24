@@ -154,6 +154,13 @@ La suite de pruebas fue ejecutada de forma automatizada sobre Google Cloud Platf
 - **Ledger contable real**: inserción inmutable de operaciones en `ledger_operations` y asientos balanceados por partida doble en `ledger_entries` ($\sum \Delta = 0$).
 - **Límite diario acumulado real**: control de tope diario ($5.000.000 COP) y límite individual ($2.000.000 COP) con persistencia en `daily_transfer_usage`.
 - **Idempotencia persistente**: validada en `idempotency_records`; reintento idéntico devuelve `201 Created` con encabezado `Idempotent-Replayed: true`, y reintento con payload incompatible devuelve `409 Conflict` (`code=idempotency_key_conflict`).
+
+> **Alcance AS-IS**: replay y conflicto están validados en el camino normal,
+> pero no existe garantía atómica end-to-end entre el efecto financiero y el
+> `COMPLETED` de `idempotency_records`: `CompleteAsync` no comparte transacción
+> con el movimiento, por lo que un fallo intermedio puede dejar un *commit gap*
+> en el que un retry con la misma `Idempotency-Key` vuelva a ejecutar el
+> movimiento.
 - **Transactional Outbox**: generación atómica de eventos en `outbox_events` por cada cliente afectado dentro de la transacción de Spanner.
 - **Autorización por recurso**: se verificó con el usuario outsider `idp-sub-outsider` que no es posible consultar comprobantes de transferencias de terceros, devolviendo `403` (`code=FORBIDDEN`).
 - **Sondas de salud**: `/health/live` y `/health/ready` respondiendo `200 OK` con dependencias activas.

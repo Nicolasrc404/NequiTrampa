@@ -114,7 +114,9 @@ admins        ledger        categorías
 Estas reglas no son opcionales: definen qué es el proyecto.
 
 - **Partida doble.** Toda operación cumple `Σ delta = 0` en `ledger_entries`.
-- **Saldo nunca negativo.** `current_balance >= 0`, validado dentro de la transacción.
+- **Saldo no negativo en cuentas de cliente.** `current_balance >= 0` lo valida
+  el servicio financiero para `CLIENT_WALLET`; la cuenta `SYSTEM_FUNDING` admite
+  sobregiro en el AS-IS y el DDL no impone `CHECK current_balance >= 0`.
 - **Dinero en centavos.** Enteros en todas las capas; `decimal` en C#, `NUMERIC` en
   Spanner, `int64` en Firestore. Nunca `float` ni `double`.
 - **COP es constante de dominio.** Cualquier otra moneda se rechaza.
@@ -229,8 +231,8 @@ Para profundizar en cada subsistema, consulte las guías especializadas:
 | Etapa | Qué se construye | Prueba obligatoria |
 |---|---|---|
 | Fundamento | Identity + API Gateway + Cloud Run | Sin JWT → 401 |
-| SQL | Cliente/admin + billetera + ledger | Nunca saldo negativo |
-| Transacciones | Transferencia + recarga + idempotencia | Doble tap → un solo efecto |
+| SQL | Cliente/admin + billetera + ledger | Saldo de cliente nunca negativo |
+| Transacciones | Transferencia + recarga + idempotencia | Reintento idéntico → replay 201; misma key con payload distinto → 409. Limitación AS-IS: commit gap entre el efecto financiero y `CompleteAsync`; sin garantía atómica E2E de un solo efecto |
 | NoSQL | Movimientos + categorías + efectivo | Historial correcto |
 | Reversos | Compensaciones | El original permanece |
 | Realtime | Outbox + Pub/Sub + WebSocket | Dos sesiones reciben el saldo |

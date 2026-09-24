@@ -138,13 +138,19 @@ imagen en Artifact Registry.
 
 ### `smoke-test.sh`
 
-Prueba de humo **sintética** post-despliegue (requiere
+Inspección **sintética** post-despliegue (requiere
 `AUTH_DEMO_HEADERS=true` en el despliegue):
 
 - Publica un `DomainEvent` **directamente** en `wallet-events`.
-- Verifica en `nequi-workers`: `/health/live`, `/health/ready`, movimientos,
-  notificaciones, `/v1/me/access`, creación de reportes y `401` sin usuario.
+- Llama endpoints de `nequi-workers` (`/health/live`, `/health/ready`,
+  movimientos, notificaciones, `/v1/me/access`, reportes, `401` sin usuario) y
+  **muestra las respuestas**.
 
+> No contiene assertions exhaustivas de status/contenido ni polling robusto (cruza
+> un sleep fijo); su exit code por sí solo no certifica que todas las
+> verificaciones hayan pasado. Debe tratarse como smoke/inspección operativa. La
+> evidencia automatizada del núcleo financiero es la suite **Bruno** y las
+> comprobaciones explícitas.
 > No valida `Wallet → Spanner → Outbox`: el evento se inyecta en Pub/Sub, no
 > proviene de una transacción financiera real. Su alcance es Workers /
 > Firestore / APIs.

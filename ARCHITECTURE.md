@@ -88,10 +88,24 @@ En la misma transacción atómica en Spanner:
 3. Se incrementa el balance del receptor.
 4. Se insertan las entradas débito/crédito en el ledger.
 5. Se verifica el límite diario acumulado ($\le \$5.000.000\text{ COP}$) en `daily_transfer_usage`.
-6. Se persiste el registro de **Idempotencia** (`idempotency_records`).
-7. Se inserta el evento en la tabla `outbox_events` (**Transactional Outbox Pattern**).
+6. Se inserta el evento en la tabla `outbox_events` (**Transactional Outbox Pattern**).
 
-Si alguna restricción falla (por ejemplo, saldo insuficiente o conflicto de idempotencia), la transacción se aborta completamente (**Rollback**), garantizando que jamás existan asientos contables huérfanos.
+Si alguna restricción contable falla (por ejemplo, saldo insuficiente), la
+transacción se aborta completamente (**Rollback**), garantizando que jamás
+existan asientos contables huérfanos.
+
+La idempotencia HTTP se gestiona **fuera** de esa transacción con
+`IdempotencyActionFilter` sobre `idempotency_records`: `BeginAsync` reserva
+`IN_PROGRESS`, el movimiento financiero se confirma en su propia transacción y
+después `CompleteAsync` marca `COMPLETED` en otra transacción. El conflicto de
+clave/hash se detecta en `BeginAsync`. Como `CompleteAsync` **no comparte
+transacción** con el movimiento, si este ya hizo commit y `CompleteAsync` falla,
+el catch puede ejecutar `AbandonAsync` y eliminar el registro `IN_PROGRESS`:
+existe una **ventana de commit gap** en la que un retry con la misma
+`Idempotency-Key` podría volver a ejecutar el movimiento. El replay idéntico y
+el conflicto de payload están validados por Bruno, pero no hay garantía atómica
+end-to-end entre el efecto financiero y el `COMPLETED` del registro de
+idempotencia; su cierre atómico queda pendiente.
 
 #### C. Inmutabilidad y Correcciones Compensatorias
 De acuerdo con las reglas de negocio congeladas:
@@ -121,7 +135,7 @@ Firestore es una base de datos NoSQL documental orientada al cliente. Aunque sop
 | **Modelo de Datos** | Relacional Distribuido (GoogleSQL) | NoSQL Documental (Colecciones/Documentos) | Relacional Ligero embebido |
 | **Garantía Transaccional** | Serializabilidad Estricta (ACID global, TrueTime) | ACID por transacción documental (Optimistic) | Transaccional local a nivel de proceso |
 | **Entidades Principales** | `clients`, `wallet_accounts`, `ledger_operations`, `ledger_entries`, `idempotency_records`, `outbox_events` | `financial_movements`, `categories`, `budgets`, `goals`, `support_cases`, `cash_movements` | Caché de movimientos, último saldo conocido, cola `cash_sync_queue` |
-| **Invariante Crítico** | `current_balance >= 0` y $\sum \Delta = 0$ | Proyección idempotente de eventos | No autoriza transferencias ni recargas |
+| **Invariante Crítico** | $\sum \Delta = 0$; saldo no negativo en `CLIENT_WALLET` (validado por el servicio; `SYSTEM_FUNDING` admite sobregiro en el AS-IS) | Proyección idempotente de eventos | No autoriza transferencias ni recargas |
 | **Resolución de Conflictos** | Prevalece ante cualquier contradicción | Se reconstruye desde el Outbox de Spanner | Sobrescrito por datos sincronizados del servidor |
 
 ---
@@ -479,8 +493,8 @@ src/backend/
 1. **Fase 1: Núcleo Financiero Autoritativo en `wallet-api`** — ✅ **COMPLETADO / AS-IS VERIFICADO**:
    * Esquema DDL de Cloud Spanner desplegado en GCP ([database/spanner/01_schema.sql](database/spanner/01_schema.sql)).
    * Implementaciones autoritativas `SpannerWalletService`, `SpannerTransferService` y `SpannerRechargeService` conectadas a Spanner (`finanzas-core`). Mocks preservados en `Data__Backend=memory` para desarrollo/pruebas locales.
-   * Transacción atómica de transferencia con doble partida contable ($\sum \Delta = 0$), validación estricta de saldo no negativo, límite acumulado diario en `daily_transfer_usage` e inserción del evento en `outbox_events`.
-   * Idempotencia persistente en Spanner mediante `idempotency_records`, con soporte de replay y detección de conflicto.
+   * Transacción atómica de transferencia con doble partida contable ($\sum \Delta = 0$), validación de saldo no negativo en `CLIENT_WALLET`, límite acumulado diario en `daily_transfer_usage` e inserción del evento en `outbox_events`.
+   * Idempotencia persistente en Spanner mediante `idempotency_records`, con soporte de replay y detección de conflicto. **Limitación AS-IS**: `CompleteAsync` no comparte transacción con el movimiento financiero; existe un *commit gap* en el que un retry con la misma clave podría re-ejecutar el efecto. El cierre atómico entre idempotencia y efecto financiero queda **pendiente**.
    * Validación automatizada en GCP mediante suite Bruno (18/18 requests PASS, 2/2 tests PASS, 34/34 assertions PASS, exit code: 0).
 
 2. **Fase 2: Pipeline Asíncrono de Eventos y Proyecciones** — ✅ **NÚCLEO COMPLETADO / AS-IS VERIFICADO**:

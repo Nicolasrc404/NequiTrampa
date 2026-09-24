@@ -156,7 +156,7 @@ bash infra/smoke-test.sh
 | `infra/setup.sh` | APIs, Artifact Registry, SA, Pub/Sub + DLQ, Firestore, Secret Manager, métricas |
 | `infra/deploy.sh` | Build con Cloud Build (`infra/cloudbuild.yaml`) y despliegue a Cloud Run |
 | `infra/cloudbuild.yaml` | Definición del build: docker build con `_SERVICE` y `_IMAGE` |
-| `infra/smoke-test.sh` | Verificación sintética post-despliegue |
+| `infra/smoke-test.sh` | Inspección sintética post-despliegue (muestra respuestas; sin assertions exhaustivas) |
 
 Detalle en [infra/README.md](../infra/README.md).
 
@@ -185,10 +185,16 @@ Es importante distinguir dos validaciones con alcances diferentes.
 
 - Publica un `DomainEvent` **directamente** en el topic `wallet-events`
   (`gcloud pubsub topics publish`), sin pasar por Wallet ni Spanner.
-- Verifica `nequi-workers`: health checks, `financial_movements`,
-  `notifications`, acceso de roles y creación de reportes.
-- **NO valida** el flujo `Wallet → Spanner → Outbox`: el evento se inyecta
-  en Pub/Sub, no se produce a partir de una transacción financiera real.
+- Llama los endpoints de `nequi-workers` (health checks, `financial_movements`,
+  `notifications`, `/v1/me/access`, reportes, `401` sin usuario) y **muestra
+  las respuestas**.
+- No contiene assertions exhaustivas de status/contenido ni polling robusto
+  (sleep fijo único); su exit code por sí solo no certifica que todas las
+  verificaciones hayan pasado.
+- Debe tratarse como smoke/inspección operativa; la evidencia automatizada del
+  núcleo financiero es la suite **Bruno** y las comprobaciones explícitas.
+- **NO valida** el flujo `Wallet → Spanner → Outbox`: el evento se inyecta en
+  Pub/Sub, no se produce a partir de una transacción financiera real.
 
 ### B) E2E real validado (integración GCP)
 
