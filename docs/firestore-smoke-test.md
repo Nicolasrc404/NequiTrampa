@@ -16,13 +16,17 @@ Este documento describe la arquitectura, prerrequisitos, ejecución y validació
 
 ```
 ========================================================================================
-ESTA PRUEBA DEMUESTRA:
-  DomainEvent sintético -> PushEnvelope -> /internal/pubsub/projection
-                        -> ProjectionService -> FirestoreDocumentStore -> financial_movements
-========================================================================================
+1. SMOKE TEST SINTÉTICO (Aislamiento de la Proyección):
+   DomainEvent sintético -> PushEnvelope -> POST /internal/pubsub/projection
+                         -> ProjectionService -> FirestoreDocumentStore -> financial_movements
 
-NO DEMUESTRA TODAVÍA (Requiere Cloud Spanner activo):
-  Spanner (Transacción Contable + Outbox) -> Outbox Worker -> Pub/Sub Topic -> Push Subscription -> Workers
+2. VALIDACIÓN REAL END-TO-END (Flujo Completo Verificado en GCP):
+   Nequi.Wallet -> Cloud Spanner (Transacción Contable + outbox_events)
+                -> Outbox Worker (Nequi.Workers)
+                -> Cloud Pub/Sub (wallet-events)
+                -> Push Subscription con autenticación OIDC
+                -> Nequi.Workers (/internal/pubsub/projection y /internal/pubsub/notifications)
+                -> Cloud Firestore (financial_movements y notifications)
 ========================================================================================
 ```
 
@@ -43,8 +47,8 @@ flowchart LR
         E --> F["FirestoreDocumentStore.CreateIfAbsentAsync"]
     end
 
-    subgraph GCP["Google Cloud (full-stack-2026)"]
-        F --> G[("Firestore (default)<br/>southamerica-west1<br/>collection: financial_movements")]
+    subgraph GCP["Google Cloud / Firebase (fullstack-d3be5)"]
+        F --> G[("Firestore (default)<br/>southamerica-west1<br/>collections: financial_movements / notifications")]
     end
 ```
 
@@ -83,14 +87,16 @@ Al decodificar `message.data` en Base64, se obtiene el JSON del `DomainEvent`:
 ## 3. Prerrequisitos
 
 1. **Variables de Entorno para Workers:**
-   - `Data:Backend = "gcp"`
-   - `Gcp:ProjectId = "full-stack-2026"`
+   - `Data__Backend = "gcp"`
+   - `Gcp__ProjectId = "full-stack-2026"`
+   - `Firestore__ProjectId = "fullstack-d3be5"`
    - Credenciales de GCP activas en el entorno local (vía `gcloud auth application-default login` o `GOOGLE_APPLICATION_CREDENTIALS`).
 2. **Acceso a Firestore:**
-   - Proyecto GCP: `full-stack-2026`
+   - Proyecto Firebase / GCP: `fullstack-d3be5`
    - Base de datos: `(default)`
+   - Modo: `FIRESTORE_NATIVE`
    - Región: `southamerica-west1`
-   - Colección existente: `financial_movements`
+   - Colecciones existentes: `financial_movements` y `notifications`
 
 ---
 
@@ -98,11 +104,12 @@ Al decodificar `message.data` en Base64, se obtiene el JSON del `DomainEvent`:
 
 ### Paso 1: Iniciar el servicio `Nequi.Workers`
 
-En una terminal de PowerShell, iniciar Workers configurando el backend GCP:
+En una terminal de PowerShell, iniciar Workers configurando el backend GCP y el proyecto Firestore:
 
 ```powershell
 $env:Data__Backend = "gcp"
 $env:Gcp__ProjectId = "full-stack-2026"
+$env:Firestore__ProjectId = "fullstack-d3be5"
 dotnet run --project src/Nequi.Workers
 ```
 
@@ -143,7 +150,7 @@ Ejecutar exactamente el mismo comando:
 ## 5. Verificación en Firebase Console
 
 1. Ingrese a [Firebase Console](https://console.firebase.google.com/) o a Google Cloud Console.
-2. Seleccione el proyecto `full-stack-2026`.
+2. Seleccione el proyecto `fullstack-d3be5`.
 3. Navegue a **Firestore Database** -> Base `(default)`.
 4. Ubique la colección **`financial_movements`**.
 5. Busque el documento con ID exacto: `smoke-firestore-001`.

@@ -6,8 +6,9 @@ using Nequi.Shared;
 // Responsabilidades: Profile · Access
 // Nota: GET /v1/me/access ya está implementado en NequiHost.UseNequiCommon()
 //       vía AuthExtensions.MapAccessEndpoint()
-// Estado general: PARCIAL — estructura lista, implementación pendiente de modelo Spanner
-// PERSISTENCIA PENDIENTE: tabla business_users / clients en Spanner
+// Estado general: PARCIAL — estructura y contratos listos.
+// Modelo de datos: tabla 'clients' existente en Cloud Spanner (database/spanner/01_schema.sql).
+// PERSISTENCIA PENDIENTE: integración funcional y repositorios Spanner para Profile aún en desarrollo.
 // =============================================================================
 
 var builder = WebApplication.CreateBuilder(args);
