@@ -16,7 +16,11 @@ using Nequi.Wallet.Services;
 // Exception mapping: Nequi.Wallet.Filters.WalletExceptionFilter (WalletDomainException→status, 401/403)
 // Health: Nequi.Shared.Health (/health/live + /health/ready)
 // Observabilidad: Nequi.Shared.Observability (CorrelationMiddleware + GCP JSON logs)
-// IMPORTANTE: Estado actual MOCK — la autoridad financiera real (Cloud Spanner) es TO-BE.
+// Modos de persistencia soportados:
+//   - Data:Backend = "gcp"    → implementaciones autoritativas respaldadas por Cloud Spanner
+//     (SpannerWalletService, SpannerTransferService, SpannerRechargeService).
+//   - Data:Backend = "memory" → mocks en memoria para desarrollo local y pruebas
+//     (MockWalletService, MockTransferService, MockRechargeService).
 // =============================================================================
 var builder = WebApplication.CreateBuilder(args);
 

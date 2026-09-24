@@ -38,10 +38,10 @@ Spanner.** Todo lo demás es proyección, caché o interfaz.
 ### Backend
 | Tecnología | Uso |
 |---|---|
-| ASP.NET Core (C#) | Los seis servicios web |
+| ASP.NET Core (.NET 10.0 / C#) | Microservicios de dominio y workers asíncronos |
 | Cloud Run | Ejecución de contenedores, HTTPS y WebSockets |
-| API Gateway | Entrada única de APIs y validación de JWT |
-| REST | Contrato público (sin SOAP, sin GraphQL, sin gRPC público) |
+| API Gateway | Entrada única de APIs y validación de JWT (TO-BE) |
+| REST | Contrato público HTTP/REST; sin SOAP, GraphQL ni gRPC público. Errores mediante RFC 9457 Problem Details. |
 
 ### Datos
 | Tecnología | Uso |
@@ -114,7 +114,9 @@ admins        ledger        categorías
 Estas reglas no son opcionales: definen qué es el proyecto.
 
 - **Partida doble.** Toda operación cumple `Σ delta = 0` en `ledger_entries`.
-- **Saldo nunca negativo.** `current_balance >= 0`, validado dentro de la transacción.
+- **Saldo no negativo en cuentas de cliente.** `current_balance >= 0` lo valida
+  el servicio financiero para `CLIENT_WALLET`; la cuenta `SYSTEM_FUNDING` admite
+  sobregiro en el AS-IS y el DDL no impone `CHECK current_balance >= 0`.
 - **Dinero en centavos.** Enteros en todas las capas; `decimal` en C#, `NUMERIC` en
   Spanner, `int64` en Firestore. Nunca `float` ni `double`.
 - **COP es constante de dominio.** Cualquier otra moneda se rechaza.
@@ -160,30 +162,67 @@ distintos: que un gasto ya haya ocurrido en la vida real no significa que ya est
 
 ## Estado actual
 
-| Componente | Estado |
-|---|---|
-| Documento de arquitectura | ✅ Congelado |
-| Esquema Spanner `finanzas-core` | ✅ Desplegado en GCP (9 tablas, 18 índices, 25 CHECK, 5 FK) e invariantes verificados contra producción |
-| Infraestructura GCP | ✅ APIs, service accounts con mínimo privilegio, Pub/Sub con DLQ, Artifact Registry |
-| Firestore | 🚧 Parcial — faltan colecciones y el enlace `operationId` |
-| Servicios internos (`Nequi.Workers`, `Nequi.Realtime`, `Nequi.Shared`) | ✅ Desplegados en Cloud Run (`southamerica-west1`, privados por IAM); probados de punta a punta con Spanner, Pub/Sub y Firestore |
-| Los 6 servicios de negocio ASP.NET Core | ⬜ Pendientes (carpetas y contrato en `src/`) |
-| API Gateway · Identity Platform · Cloud Scheduler | ⬜ Pendientes (necesitan las URLs de Cloud Run) |
-| App React Native | ⬜ Pendiente |
+El proyecto superó la fase puramente mock y cuenta con persistencia financiera autoritativa y pipeline asíncrono validados en **Google Cloud Platform**. Para máxima transparencia arquitectónica, el repositorio clasifica sus componentes en tres estados:
 
-Este repositorio todavía no contiene código de aplicación. El esquema SQL, los scripts de
-despliegue y la documentación de infraestructura viven por ahora en las carpetas hermanas
-`spanner/` e `infra/` del proyecto.
+### 1. Clasificación de Estado de Componentes
 
-### Tablas en Spanner
+| Componente | Estado | Detalle y Persistencia |
+|---|:---:|---|
+| **Arquitectura y Reglas Financieras** | ✅ AS-IS Verificado | Congeladas y validadas contra principios contables y RFCs |
+| **Esquema Spanner (`finanzas-core`)** | ✅ AS-IS Verificado | DDL en [database/spanner/01_schema.sql](database/spanner/01_schema.sql) (7 tablas: `clients`, `wallet_accounts`, `daily_transfer_usage`, `ledger_operations`, `ledger_entries`, `idempotency_records`, `outbox_events`) |
+| **Infraestructura Core (`full-stack-2026`)** | ✅ AS-IS Verificado | Cloud Run (`nequi-wallet`, `nequi-workers`), Spanner, Pub/Sub con DLQ, Secret Manager, Artifact Registry y Service Accounts dedicadas |
+| **Persistencia NoSQL (`fullstack-d3be5`)** | ✅ AS-IS Verificado | Firestore Nativo `(default)`, colecciones `financial_movements` y `notifications` proyectadas desde eventos de dominio |
+| **`Nequi.Wallet` (wallet-api)** | ✅ AS-IS Verificado | Soporte dual: Spanner autoritativo (`Data__Backend=gcp`) y Mocks (`Data__Backend=memory`). Validado en Cloud Run con Bruno (18/18 PASS) |
+| **`Nequi.Workers` (Outbox / Proyecciones)** | ✅ AS-IS Verificado | Pipeline E2E validado: Spanner Outbox → `OutboxWorker` → Pub/Sub → Push OIDC → `ProjectionService` / `NotificationService` → Firestore |
+| **`Nequi.Realtime` (WebSockets)** | 🟡 Implementado (No validado E2E) | Proyecto en `src/Nequi.Realtime`; sin validación end-to-end con clientes |
+| **`Nequi.Profile` / `Nequi.Finance` / `Nequi.Backoffice`** | 🟡 Implementado (Parcial) | Estructura de proyectos y contratos HTTP en `src/`; pendiente cierre funcional completo contra Spanner/Firestore |
+| **Autenticación Identity Platform + API Gateway** | ⚪ TO-BE (Pendiente) | Cloud Run validado privadamente vía IAM (`X-Serverless-Authorization`) y `Auth__DemoHeaders=true` para integración; JWT perimetral productivo pendiente |
+| **App Móvil (React Native / Expo + SQLite)** | ⚪ TO-BE (Pendiente) | Cliente móvil y persistencia local SQLite pendientes de consolidación/documentación en este repositorio |
 
-`clients` · `administrators` · `wallet_accounts` · `ledger_operations` · `ledger_entries` ·
-`idempotency_records` · `daily_transfer_usage` · `outbox_events` · `reconciliation_issues`
+---
 
-### Colecciones en Firestore
+### 2. Proyectos GCP y Distribución de Infraestructura
 
-`financial_movements` · `categories` · `budgets` · `cash_summaries` ·
-`finance_idempotency` · `audit_events`
+El despliegue en la región `southamerica-west1` está dividido en dos proyectos de Google Cloud Platform para desacoplar el plano transaccional bancario del plano documental de experiencia de usuario:
+
+#### Proyecto Principal: `full-stack-2026`
+* **Cloud Run (Serverless Privado)**:
+  * `nequi-wallet`: Microservicio autoritativo de billetera, transferencias y recargas.
+  * `nequi-workers`: Host de background jobs (`OutboxWorker`) y endpoints push (`/internal/pubsub/projection`, `/internal/pubsub/notifications`).
+* **Google Cloud Spanner**:
+  * Instancia: `finanzas-mvp`
+  * Base de datos: `finanzas-core`
+  * Recurso: `projects/full-stack-2026/instances/finanzas-mvp/databases/finanzas-core`
+* **Google Cloud Pub/Sub**:
+  * Topic de eventos: `wallet-events`
+  * Dead Letter Queue: `wallet-events-dlq`
+  * Suscripciones Push OIDC autenticadas: `workers-projection` y `workers-notifications`
+* **Configuración e Identidades**:
+  * Secret Manager: `nequi-spanner-database` (resource identifier/configuración de la base Spanner).
+  * Artifact Registry: Repositorio Docker `servicios`.
+  * Service Accounts dedicadas verificadas: `wallet-service`, `outbox-dispatcher`, `pubsub-push-invoker`.
+
+#### Proyecto Firebase / Firestore: `fullstack-d3be5`
+* **Google Cloud Firestore**:
+  * Base de datos: `(default)`
+  * Modo: `FIRESTORE_NATIVE`
+  * Región: `southamerica-west1`
+  * Colecciones verificadas: `financial_movements` (proyecciones de transferencias y recargas) y `notifications` (alertas de usuario).
+
+---
+
+### 3. Documentación Técnica del Repositorio
+
+Para profundizar en cada subsistema, consulte las guías especializadas:
+
+* [Índice General de Documentación](docs/README.md)
+* [Guía de Despliegue y Validación en GCP (AS-IS)](docs/despliegue-y-validacion-gcp.md)
+* [Documentación del Servicio Nequi.Wallet](src/Nequi.Wallet/README.md)
+* [Documentación del Servicio Nequi.Workers](src/Nequi.Workers/README.md)
+* [Modelo Físico de Cloud Spanner (DDL)](database/spanner/README.md)
+* [Scripts de Automatización e Infraestructura](infra/README.md)
+* [Suite de Pruebas Automatizadas Bruno](tests/bruno/README.md)
+* [Bitácora de Troubleshooting](TROUBLESHOOTING.md)
 
 ---
 
@@ -192,8 +231,8 @@ despliegue y la documentación de infraestructura viven por ahora en las carpeta
 | Etapa | Qué se construye | Prueba obligatoria |
 |---|---|---|
 | Fundamento | Identity + API Gateway + Cloud Run | Sin JWT → 401 |
-| SQL | Cliente/admin + billetera + ledger | Nunca saldo negativo |
-| Transacciones | Transferencia + recarga + idempotencia | Doble tap → un solo efecto |
+| SQL | Cliente/admin + billetera + ledger | Saldo de cliente nunca negativo |
+| Transacciones | Transferencia + recarga + idempotencia | Reintento idéntico → replay 201; misma key con payload distinto → 409. Limitación AS-IS: commit gap entre el efecto financiero y `CompleteAsync`; sin garantía atómica E2E de un solo efecto |
 | NoSQL | Movimientos + categorías + efectivo | Historial correcto |
 | Reversos | Compensaciones | El original permanece |
 | Realtime | Outbox + Pub/Sub + WebSocket | Dos sesiones reciben el saldo |

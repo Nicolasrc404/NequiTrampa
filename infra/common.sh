@@ -9,8 +9,20 @@ if ! command -v gcloud >/dev/null 2>&1; then
     break
   done
 fi
-export PROJECT_ID="${PROJECT_ID:-full-stack-2026}"
-export FIRESTORE_PROJECT_ID="${FIRESTORE_PROJECT_ID:-fullstack-d3be5}"
+DEFAULT_PROJECT_ID="full-stack-2026"
+DEFAULT_FIRESTORE_PROJECT_ID="fullstack-d3be5"
+
+export PROJECT_ID="${PROJECT_ID:-$DEFAULT_PROJECT_ID}"
+
+if [[ -z "${FIRESTORE_PROJECT_ID:-}" ]]; then
+  if [[ "$PROJECT_ID" != "$DEFAULT_PROJECT_ID" ]]; then
+    echo "ERROR: FIRESTORE_PROJECT_ID must be set when PROJECT_ID is overridden." >&2
+    exit 1
+  fi
+  export FIRESTORE_PROJECT_ID="$DEFAULT_FIRESTORE_PROJECT_ID"
+else
+  export FIRESTORE_PROJECT_ID
+fi
 export REGION="${REGION:-southamerica-west1}"
 export AR_REPO="${AR_REPO:-servicios}"                 # Artifact Registry repo (reused if it already exists)
 export TOPIC="${TOPIC:-wallet-events}"             # outbox events topic (reused if it already exists)

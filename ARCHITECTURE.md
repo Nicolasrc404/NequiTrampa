@@ -30,7 +30,7 @@ Para resolver esto sin caer en compromisos de rendimiento ni comprometer la inte
                                            v
 +-----------------------------------------------------------------------------------+
 |                        CAPA DE SERVICIOS (Cloud Run)                              |
-|                       ASP.NET Core 8 / C# (Serverless)                            |
+|                   ASP.NET Core (.NET 10) / C# (Serverless)                        |
 |                                                                                   |
 |   +---------------+  +---------------+  +------------------+  +---------------+   |
 |   |   core-api    |  |  wallet-api   |  |  backoffice-api  |  | assistant-api |   |
@@ -88,10 +88,24 @@ En la misma transacción atómica en Spanner:
 3. Se incrementa el balance del receptor.
 4. Se insertan las entradas débito/crédito en el ledger.
 5. Se verifica el límite diario acumulado ($\le \$5.000.000\text{ COP}$) en `daily_transfer_usage`.
-6. Se persiste el registro de **Idempotencia** (`idempotency_records`).
-7. Se inserta el evento en la tabla `outbox_events` (**Transactional Outbox Pattern**).
+6. Se inserta el evento en la tabla `outbox_events` (**Transactional Outbox Pattern**).
 
-Si alguna restricción falla (por ejemplo, saldo insuficiente o conflicto de idempotencia), la transacción se aborta completamente (**Rollback**), garantizando que jamás existan asientos contables huérfanos.
+Si alguna restricción contable falla (por ejemplo, saldo insuficiente), la
+transacción se aborta completamente (**Rollback**), garantizando que jamás
+existan asientos contables huérfanos.
+
+La idempotencia HTTP se gestiona **fuera** de esa transacción con
+`IdempotencyActionFilter` sobre `idempotency_records`: `BeginAsync` reserva
+`IN_PROGRESS`, el movimiento financiero se confirma en su propia transacción y
+después `CompleteAsync` marca `COMPLETED` en otra transacción. El conflicto de
+clave/hash se detecta en `BeginAsync`. Como `CompleteAsync` **no comparte
+transacción** con el movimiento, si este ya hizo commit y `CompleteAsync` falla,
+el catch puede ejecutar `AbandonAsync` y eliminar el registro `IN_PROGRESS`:
+existe una **ventana de commit gap** en la que un retry con la misma
+`Idempotency-Key` podría volver a ejecutar el movimiento. El replay idéntico y
+el conflicto de payload están validados por Bruno, pero no hay garantía atómica
+end-to-end entre el efecto financiero y el `COMPLETED` del registro de
+idempotencia; su cierre atómico queda pendiente.
 
 #### C. Inmutabilidad y Correcciones Compensatorias
 De acuerdo con las reglas de negocio congeladas:
@@ -121,14 +135,14 @@ Firestore es una base de datos NoSQL documental orientada al cliente. Aunque sop
 | **Modelo de Datos** | Relacional Distribuido (GoogleSQL) | NoSQL Documental (Colecciones/Documentos) | Relacional Ligero embebido |
 | **Garantía Transaccional** | Serializabilidad Estricta (ACID global, TrueTime) | ACID por transacción documental (Optimistic) | Transaccional local a nivel de proceso |
 | **Entidades Principales** | `clients`, `wallet_accounts`, `ledger_operations`, `ledger_entries`, `idempotency_records`, `outbox_events` | `financial_movements`, `categories`, `budgets`, `goals`, `support_cases`, `cash_movements` | Caché de movimientos, último saldo conocido, cola `cash_sync_queue` |
-| **Invariante Crítico** | `current_balance >= 0` y $\sum \Delta = 0$ | Proyección idempotente de eventos | No autoriza transferencias ni recargas |
+| **Invariante Crítico** | $\sum \Delta = 0$; saldo no negativo en `CLIENT_WALLET` (validado por el servicio; `SYSTEM_FUNDING` admite sobregiro en el AS-IS) | Proyección idempotente de eventos | No autoriza transferencias ni recargas |
 | **Resolución de Conflictos** | Prevalece ante cualquier contradicción | Se reconstruye desde el Outbox de Spanner | Sobrescrito por datos sincronizados del servidor |
 
 ---
 
 ## 3. Justificación de Cómputo: Cloud Run (Serverless Container Platform)
 
-Para la ejecución del backend desarrollado en **ASP.NET Core 8 / C#**, se seleccionó **Google Cloud Run** frente a Google Kubernetes Engine (GKE), Compute Engine (VMs) y Cloud Functions.
+Para la ejecución del backend desarrollado en **ASP.NET Core (.NET 10) / C#**, se seleccionó **Google Cloud Run** frente a Google Kubernetes Engine (GKE), Compute Engine (VMs) y Cloud Functions.
 
 ### 3.1 Ventajas Técnicas para el Proyecto
 1. **Container-Native (Docker/OCI)**: Permite compilar y empaquetar aplicaciones C# 8 altamente optimizadas (`dotnet 8.0-chiseled` para mínima superficie de ataque), con arranque ultrarrápido y portabilidad total entre desarrollo local y nube.
@@ -322,14 +336,14 @@ Para evitar errores comunes de diseño distribuido (como la sobrefragmentación 
 | **Profile** | `/v1/me` | GET | `CLIENTE` | `RequireCliente` | `sub == me` | Spanner | ⚪ DEFINIDO |
 | **Profile** | `/v1/me` | PATCH | `CLIENTE` | `RequireCliente` | `sub == me` | Spanner | ⚪ DEFINIDO |
 | **Access** | `/v1/me/access` | GET | `CLIENTE` | `RequireCliente` | `sub == me` | Identity Platform / Claims | ⚪ DEFINIDO |
-| **Wallet** | `/v1/wallet` | GET | `CLIENTE` | `RequireCliente` | `wallet.clientId == sub` | Spanner | 🟡 PARCIAL (Mock) |
-| **Wallet** | `/v1/wallet/balance` | GET | `CLIENTE` | `RequireCliente` | `wallet.clientId == sub` | Spanner | 🟡 PARCIAL (Mock) |
-| **Transfers** | `/v1/transfers` | POST | `CLIENTE` | `CanTransferOrRecharge` | `originClientId == sub` | Spanner (ACID) $\rightarrow$ Outbox | 🟡 PARCIAL (Mock) |
-| **Transfers** | `/v1/transfers` | GET | `CLIENTE` | `RequireCliente` | `transfer.clientId == sub` | Spanner | 🟡 PARCIAL (Mock) |
-| **Transfers** | `/v1/transfers/{id}` | GET | `CLIENTE` | `RequireCliente` | `origin == sub \|\| dest == sub` | Spanner | 🟡 PARCIAL (Mock) |
-| **Transfers** | `/v1/transfers/{id}/receipt` | GET | `CLIENTE` | `RequireCliente` | `origin == sub \|\| dest == sub` | Spanner | 🟡 PARCIAL (Mock) |
-| **Recharges** | `/v1/recharges` | POST | `CLIENTE` | `CanTransferOrRecharge` | `clientId == sub` | Spanner (ACID) $\rightarrow$ Outbox | 🟡 PARCIAL (Mock) |
-| **Recharges** | `/v1/recharges` | GET | `CLIENTE` | `RequireCliente` | `clientId == sub` | Spanner | 🟡 PARCIAL (Mock) |
+| **Wallet** | `/v1/wallet` | GET | `CLIENTE` | `RequireCliente` | `wallet.clientId == sub` | Spanner | ✅ AS-IS Verificado (GCP / Cloud Spanner) |
+| **Wallet** | `/v1/wallet/balance` | GET | `CLIENTE` | `RequireCliente` | `wallet.clientId == sub` | Spanner | ✅ AS-IS Verificado (GCP / Cloud Spanner) |
+| **Transfers** | `/v1/transfers` | POST | `CLIENTE` | `CanTransferOrRecharge` | `originClientId == sub` | Spanner (ACID) $\rightarrow$ Outbox | ✅ AS-IS Verificado (GCP / Cloud Spanner) |
+| **Transfers** | `/v1/transfers` | GET | `CLIENTE` | `RequireCliente` | `transfer.clientId == sub` | Spanner | ✅ AS-IS Verificado (GCP / Cloud Spanner) |
+| **Transfers** | `/v1/transfers/{id}` | GET | `CLIENTE` | `RequireCliente` | `origin == sub \|\| dest == sub` | Spanner | ✅ AS-IS Verificado (GCP / Cloud Spanner) |
+| **Transfers** | `/v1/transfers/{id}/receipt` | GET | `CLIENTE` | `RequireCliente` | `origin == sub \|\| dest == sub` | Spanner | ✅ AS-IS Verificado (GCP / Cloud Spanner) |
+| **Recharges** | `/v1/recharges` | POST | `CLIENTE` | `CanTransferOrRecharge` | `clientId == sub` | Spanner (ACID) $\rightarrow$ Outbox | ✅ AS-IS Verificado (GCP / Cloud Spanner) |
+| **Recharges** | `/v1/recharges` | GET | `CLIENTE` | `RequireCliente` | `clientId == sub` | Spanner | ✅ AS-IS Verificado (GCP / Cloud Spanner) |
 | **Beneficiaries** | `/v1/beneficiaries` | GET | `CLIENTE` | `RequireCliente` | `ownerId == sub` | Firestore / Spanner | ⚪ DEFINIDO |
 | **Beneficiaries** | `/v1/beneficiaries` | POST | `CLIENTE` | `RequireCliente` | `ownerId == sub` | Firestore / Spanner | ⚪ DEFINIDO |
 | **Beneficiaries** | `/v1/beneficiaries/{id}` | DELETE | `CLIENTE` | `RequireCliente` | `ownerId == sub` | Firestore / Spanner | ⚪ DEFINIDO |
@@ -392,6 +406,10 @@ Para evitar errores comunes de diseño distribuido (como la sobrefragmentación 
 | **Audit** | `/v1/admin/audit-events/{id}` | GET | `ADMIN` | `RequireAdmin` | Detalle del evento | Spanner | ⚪ DEFINIDO |
 | **Health** | `/health/live` | GET | Anónimo | N/A | Liveness probe | N/A | ✅ IMPLEMENTADO |
 | **Health** | `/health/ready` | GET | Anónimo | N/A | Readiness probe | Spanner Check | ✅ IMPLEMENTADO |
+
+> [!NOTE]
+> `Data__Backend=gcp` usa Cloud Spanner como persistencia autoritativa.
+> `Data__Backend=memory` mantiene implementaciones in-memory para desarrollo/pruebas locales.
 
 ---
 
@@ -457,38 +475,51 @@ src/backend/
 
 ## 12. Auditoría del Estado del Repositorio y Contradicciones
 
-### 12.1 Contradicciones Encontradas
-1. **Ausencia Física de Esquemas SQL y Scripts en el Repositorio Local**:
-   * *Descripción*: La directriz global indica la existencia de `database/spanner/01_schema.sql`, `database/firestore/` y `database/sqlite/01_schema_local.sql`. Sin embargo, en el árbol de trabajo local de `NequiTrampa` dicha carpeta no existe físicamente en este commit de `main`.
-   * *Impacto*: Para implementar la persistencia real de Spanner y Firestore se requerirá importar o sincronizar los archivos DDL y de seed correspondientes.
+### 12.1 Contradicciones y Resoluciones
+1. **Consolidación del Esquema Spanner en el Repositorio**:
+   * *Descripción*: Los esquemas DDL de Cloud Spanner (`database/spanner/01_schema.sql`, `02_opcional_fk_autoreferencia.sql`) y el archivo de datos semilla `03_datos_prueba.sql` están formalmente consolidados en el repositorio. El esquema transaccional está desplegado en la instancia `finanzas-mvp` (base `finanzas-core`); el dataset actualmente presente en GCP corresponde a datos históricos de integración y no coincide necesariamente con el seed versionado.
+   * *Estado*: Resuelto para el núcleo transaccional de Spanner; los datos semilla versionados se consideran referencia para entornos de prueba nuevos.
 2. **Representación de Dinero en Spanner (`NUMERIC`) vs. Contratos (`long` / `decimal`)**:
    * *Descripción*: En el código de `wallet-api` se manejan montos en centavos enteros (`long AmountCents`) y en `decimal Amount`. En Google Cloud Spanner, la documentación y buenas prácticas recomiendan el tipo de datos `NUMERIC` para montos monetarios de precisión fija.
-   * *Resolución*: Se adopta la regla de que el modelo de base de datos en Spanner persiste montos como `NUMERIC` (o centavos enteros en columna `INT64 amount_cents` según se fije en el DDL), y el backend mapea hacia `decimal` de C# garantizando exactitud matemática sin pérdidas por redondeo.
+   * *Resolución*: Se adopta la regla de que el modelo de base de datos en Spanner persiste montos como `NUMERIC` (unidades menores enteras, 100 minor = 1 COP), y el backend mapea hacia `decimal` de C# garantizando exactitud matemática sin pérdidas por redondeo (sin float/double).
 3. **Persistencia de Colecciones en Firestore**:
    * *Descripción*: Colecciones como `budgets`, `goals` y `support_cases` figuran en el diseño pero aún no cuentan con colecciones físicas o reglas desplegadas en Firestore.
-   * *Resolución*: Se declaran formalmente como `⚪ DEFINIDO / NO IMPLEMENTADO` para evitar que el código asuma contratos que aún no existen en base de datos.
+   * *Resolución*: Se declaran formalmente como `⚪ DEFINIDO / NO IMPLEMENTADO` para evitar que el código asuma contratos que aún no existen en base de datos. Las colecciones activas y verificadas son `financial_movements` y `notifications` en el proyecto `fullstack-d3be5`.
 
 ---
 
 ## 13. Roadmap Técnico Priorizado
 
-1. **Fase 1: Cierre del Núcleo Financiero Autoritativo en `wallet-api`**:
-   * Sincronización e integración del esquema DDL de Cloud Spanner.
-   * Reemplazo de `MockWalletService`, `MockTransferService` y `MockRechargeService` por repositorios reales conectados a Spanner (utilizando emulador local `SPANNER_EMULATOR_HOST=localhost:9010`).
-   * Implementación de la transacción atómica de transferencia con doble partida ($\sum \Delta = 0$), verificación estricta de saldo no negativo, validación de límite acumulado diario en `daily_transfer_usage` e inserción en `outbox_events`.
-   * Implementación de idempotencia persistente en tabla `idempotency_records`.
-   * Pruebas automatizadas de concurrencia, idempotencia (doble clic) y saldo insuficiente.
-2. **Fase 2: Pipeline Asíncrono de Eventos y Proyecciones**:
-   * Implementación del `Outbox Worker` para lectura de eventos confirmados en Spanner y publicación en Cloud Pub/Sub.
-   * Implementación del `Projection Worker` suscrito a Pub/Sub para materializar documentos en Cloud Firestore (`financial_movements`).
-   * Integración del `Realtime Service` para emisión de eventos WebSocket hacia la interfaz de usuario.
-3. **Fase 3: Operaciones Compensatorias y Reconciliación en `backoffice-api`**:
+1. **Fase 1: Núcleo Financiero Autoritativo en `wallet-api`** — ✅ **COMPLETADO / AS-IS VERIFICADO**:
+   * Esquema DDL de Cloud Spanner desplegado en GCP ([database/spanner/01_schema.sql](database/spanner/01_schema.sql)).
+   * Implementaciones autoritativas `SpannerWalletService`, `SpannerTransferService` y `SpannerRechargeService` conectadas a Spanner (`finanzas-core`). Mocks preservados en `Data__Backend=memory` para desarrollo/pruebas locales.
+   * Transacción atómica de transferencia con doble partida contable ($\sum \Delta = 0$), validación de saldo no negativo en `CLIENT_WALLET`, límite acumulado diario en `daily_transfer_usage` e inserción del evento en `outbox_events`.
+   * Idempotencia persistente en Spanner mediante `idempotency_records`, con soporte de replay y detección de conflicto. **Limitación AS-IS**: `CompleteAsync` no comparte transacción con el movimiento financiero; existe un *commit gap* en el que un retry con la misma clave podría re-ejecutar el efecto. El cierre atómico entre idempotencia y efecto financiero queda **pendiente**.
+   * Validación automatizada en GCP mediante suite Bruno (18/18 requests PASS, 2/2 tests PASS, 34/34 assertions PASS, exit code: 0).
+
+2. **Fase 2: Pipeline Asíncrono de Eventos y Proyecciones** — ✅ **NÚCLEO COMPLETADO / AS-IS VERIFICADO**:
+   * Implementación de `OutboxWorker` en `Nequi.Workers` para publicación confiable de eventos confirmados a Google Cloud Pub/Sub (`wallet-events`).
+   * Suscripciones push de Pub/Sub con autenticación OIDC (`workers-projection` y `workers-notifications`) hacia Cloud Run privado.
+   * `ProjectionService` proyectando eventos a Cloud Firestore en la colección `financial_movements` (proyecto `fullstack-d3be5`).
+   * `NotificationService` proyectando alertas en la colección `notifications` de Firestore.
+   * `Nequi.Realtime` implementado, pero fuera del alcance de la validación E2E completada del pipeline de persistencia/proyección; integración WebSocket con clientes pendiente.
+
+3. **Fase 3: Operaciones Compensatorias y Reconciliación en `backoffice-api`** — ⚪ **PENDIENTE**:
    * Endpoints de `Reversals` y `Adjustments` que generan asientos compensatorios inmutables en Spanner.
    * Proceso de reconciliación contable programada (suma de ledger vs. saldo materializado).
-4. **Fase 4: Expansión de Servicios del Cliente en `core-api`**:
+
+4. **Fase 4: Expansión de Servicios del Cliente en `core-api`** — ⚪ **PENDIENTE**:
    * Implementación de `Movements`, `Cash`, `Categories`, `Budgets` y `Goals` sobre Cloud Firestore.
    * Sincronización offline de SQLite para movimientos de efectivo.
-5. **Fase 5: Módulos Consultivos de Soporte, Voz e IA (`assistant-api`)**:
+
+5. **Fase 5: Módulos Consultivos de Soporte, Voz e IA (`assistant-api`)** — ⚪ **PENDIENTE**:
    * Integración de Vertex AI / Gemini para consultas de solo lectura con flag `AI_ENABLED`.
    * Integración de Speech-to-Text para borradores de gastos en efectivo.
+
+6. **Fase 6: Autenticación Perimetral Productiva** — ⚪ **PENDIENTE**:
+   * Despliegue de Google Cloud Identity Platform y API Gateway.
+   * Validación perimetral de JWT y transición a `Auth__DemoHeaders=false` en Cloud Run.
+
+7. **Fase 7: Aplicación Móvil** — ⚪ **PENDIENTE**:
+   * Cliente React Native / Expo con base de datos SQLite para caché offline y sincronización.
 

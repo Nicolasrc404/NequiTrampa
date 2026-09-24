@@ -4,6 +4,12 @@
 
 ---
 
+> [!NOTE]
+> **Alcance Documental**: Este documento representa principalmente la **arquitectura objetivo (TO-BE)** y las decisiones arquitectónicas del sistema. El estado real implementado y verificado (AS-IS) debe consultarse en:
+> - [README.md](README.md)
+> - [ARCHITECTURE.md](ARCHITECTURE.md)
+> - [docs/despliegue-y-validacion-gcp.md](docs/despliegue-y-validacion-gcp.md)
+
 ## 1. Resumen Ejecutivo y Decisiones Vigentes
 
 | Elemento | Decisión Vigente |

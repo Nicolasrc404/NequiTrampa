@@ -19,10 +19,10 @@ for sa in "$SA_WORKERS" "$SA_REALTIME" "$SA_PUSH" "$SA_WALLET"; do
     gcloud iam service-accounts create "$sa" --display-name "$sa"
 done
 bind() { gcloud projects add-iam-policy-binding "$PROJECT_ID" --member "serviceAccount:$(sa_email $1)" --role "$2" --condition None >/dev/null; }
+bind_project() { gcloud projects add-iam-policy-binding "$1" --member "serviceAccount:$(sa_email $2)" --role "$3" --condition None >/dev/null; }
 # workers: read outbox in Spanner (no write to balances), publish events, write projections/notifications/reports
 # outbox_events (mark published) + idempotency_records need writes; balances are only ever written by wallet-service
 bind "$SA_WORKERS" roles/spanner.databaseUser
-bind "$SA_WORKERS" roles/datastore.user
 bind "$SA_WORKERS" roles/pubsub.publisher
 bind "$SA_WORKERS" roles/secretmanager.secretAccessor
 bind "$SA_WORKERS" roles/logging.logWriter
@@ -37,10 +37,23 @@ bind "$SA_WALLET" roles/monitoring.metricWriter
 
 echo "== Pub/Sub =="
 for t in "$TOPIC" "$DLQ_TOPIC"; do exists gcloud pubsub topics describe "$t" || gcloud pubsub topics create "$t"; done
+
+# Workers publishes to the topic and its readiness check verifies that the
+# configured topic exists/is accessible.
+gcloud pubsub topics add-iam-policy-binding "$TOPIC" \
+  --member "serviceAccount:$(sa_email $SA_WORKERS)" \
+  --role roles/pubsub.viewer \
+  >/dev/null
 # Pub/Sub service agent must publish to the DLQ and ack from subscriptions
 PROJECT_NUMBER=$(gcloud projects describe "$PROJECT_ID" --format 'value(projectNumber)')
 PUBSUB_SA="service-${PROJECT_NUMBER}@gcp-sa-pubsub.iam.gserviceaccount.com"
 gcloud pubsub topics add-iam-policy-binding "$DLQ_TOPIC" --member "serviceAccount:$PUBSUB_SA" --role roles/pubsub.publisher >/dev/null
+# Attest OIDC push happens as pubsub-push-invoker: the Pub/Sub service agent must mint its tokens.
+gcloud iam service-accounts add-iam-policy-binding "$(sa_email "$SA_PUSH")" \
+  --project "$PROJECT_ID" \
+  --member "serviceAccount:$PUBSUB_SA" \
+  --role roles/iam.serviceAccountTokenCreator \
+  >/dev/null
 
 echo "== Firestore (native) =="
 gcloud services enable firestore.googleapis.com --project "$FIRESTORE_PROJECT_ID"
@@ -51,6 +64,11 @@ exists gcloud firestore databases describe --database='(default)' --project "$FI
     --location "${FIRESTORE_LOCATION:-southamerica-west1}" \
     --type firestore-native \
     --project "$FIRESTORE_PROJECT_ID"
+
+# Firestore lives in FIRESTORE_PROJECT_ID, so datastore roles are granted there (not in PROJECT_ID).
+# outbox-dispatcher writes projections/notifications (user); wallet-service only pings _health/ping on readiness (viewer).
+bind_project "$FIRESTORE_PROJECT_ID" "$SA_WORKERS" roles/datastore.user
+bind_project "$FIRESTORE_PROJECT_ID" "$SA_WALLET" roles/datastore.viewer
 echo "== Secret Manager =="
 # Value lives only in Secret Manager (never in the repo).
 exists gcloud secrets describe nequi-spanner-database ||
