@@ -463,8 +463,8 @@ src/backend/
 
 ### 12.1 Contradicciones y Resoluciones
 1. **Consolidación del Esquema Spanner en el Repositorio**:
-   * *Descripción*: Los esquemas DDL de Cloud Spanner (`database/spanner/01_schema.sql`, `02_opcional_fk_autoreferencia.sql` y datos semilla `03_datos_prueba.sql`) están formalmente consolidados en el repositorio y desplegados en la instancia `finanzas-mvp` (base `finanzas-core`).
-   * *Estado*: Resuelto para el núcleo transaccional de Spanner.
+   * *Descripción*: Los esquemas DDL de Cloud Spanner (`database/spanner/01_schema.sql`, `02_opcional_fk_autoreferencia.sql`) y el archivo de datos semilla `03_datos_prueba.sql` están formalmente consolidados en el repositorio. El esquema transaccional está desplegado en la instancia `finanzas-mvp` (base `finanzas-core`); el dataset actualmente presente en GCP corresponde a datos históricos de integración y no coincide necesariamente con el seed versionado.
+   * *Estado*: Resuelto para el núcleo transaccional de Spanner; los datos semilla versionados se consideran referencia para entornos de prueba nuevos.
 2. **Representación de Dinero en Spanner (`NUMERIC`) vs. Contratos (`long` / `decimal`)**:
    * *Descripción*: En el código de `wallet-api` se manejan montos en centavos enteros (`long AmountCents`) y en `decimal Amount`. En Google Cloud Spanner, la documentación y buenas prácticas recomiendan el tipo de datos `NUMERIC` para montos monetarios de precisión fija.
    * *Resolución*: Se adopta la regla de que el modelo de base de datos en Spanner persiste montos como `NUMERIC` (unidades menores enteras, 100 minor = 1 COP), y el backend mapea hacia `decimal` de C# garantizando exactitud matemática sin pérdidas por redondeo (sin float/double).
