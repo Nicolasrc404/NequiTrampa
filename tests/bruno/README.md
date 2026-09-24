@@ -152,7 +152,8 @@ La suite de pruebas fue ejecutada de forma automatizada sobre Google Cloud Platf
 - **`sourceAuthority = CLOUD_SPANNER`** en el balance oficial (`GET /v1/wallet/balance`).
 - **Saldo persistente y real** tras recargas simuladas y transferencias entre cuentas activas.
 - **Ledger contable real**: inserción inmutable de operaciones en `ledger_operations` y asientos balanceados por partida doble en `ledger_entries` ($\sum \Delta = 0$).
-- **Límite diario acumulado real**: control de tope diario ($5.000.000 COP) y límite individual ($2.000.000 COP) con persistencia en `daily_transfer_usage`.
+- **Límites de transferencia implementados y persistidos** en `daily_transfer_usage`: tope individual ($2.000.000 COP) y tope diario acumulado ($5.000.000 COP).
+- El run Bruno documentado valida el **límite individual** (`> $2.000.000` → `422 VALIDATION_ERROR`, `post-transfer-limit-exceeded`); **no** ejercita la **acumulación diaria hasta superar los $5.000.000 COP** (no encadena varias transferencias), escenario que queda **pendiente de una prueba dedicada** y no se declara validado por la suite 18/18.
 - **Idempotencia persistente**: validada en `idempotency_records`; reintento idéntico devuelve `201 Created` con encabezado `Idempotent-Replayed: true`, y reintento con payload incompatible devuelve `409 Conflict` (`code=idempotency_key_conflict`).
 
 > **Alcance AS-IS**: replay y conflicto están validados en el camino normal,

@@ -11,7 +11,7 @@ Microservicio transaccional financiero de la plataforma **NequiTrampa** (`wallet
 - Procesamiento de transferencias internas entre clientes registrados.
 - Procesamiento de recargas simuladas fondeadas desde la cuenta central del sistema.
 - Contabilidad de partida doble (*Double-Entry Ledger*).
-- Control estricto de saldos no negativos y límites acumulados diarios.
+- Control de saldo no negativo en cuentas de cliente (`CLIENT_WALLET`) y límites acumulados diarios.
 - Idempotencia HTTP perimetral coordinada con persistencia en base de datos.
 - Registro transaccional de eventos de dominio mediante el patrón **Transactional Outbox**.
 
@@ -86,7 +86,11 @@ En modo `gcp`, `Nequi.Wallet` interactúa con las siguientes tablas físicas def
 
 * **Moneda única**: Pesos colombianos (**COP**). Cualquier otra moneda es rechazada.
 * **Representación de dinero**: Unidades menores enteras (100 unidades = 1 COP). En Spanner se utiliza `NUMERIC` de precisión fija. En C# se manipula mediante `decimal` y centavos enteros `long AmountCents`. Está estrictamente prohibido el uso de `float` o `double`.
-* **Invariante de saldo no negativo**: En toda operación se garantiza que `current_balance_minor >= 0`. La transacción aborta inmediatamente si el saldo es insuficiente (`422 Unprocessable Content`).
+* **Invariante de saldo no negativo (acotado)**: en `CLIENT_WALLET`,
+  `current_balance_minor >= 0` es validado por el servicio financiero; la
+  transacción aborta inmediatamente si el saldo es insuficiente (`422
+  Unprocessable Content`). La cuenta `SYSTEM_FUNDING` admite sobregiro en el
+  AS-IS y el DDL no impone un `CHECK` global `current_balance_minor >= 0`.
 * **Límites de transferencia**:
   * Tope por operación individual: Hasta $2.000.000 COP.
   * Tope acumulado diario por cliente: Hasta $5.000.000 COP (calculado en fecha local de Colombia).
@@ -218,7 +222,7 @@ docker run --rm -p 8080:8080 -e PORT=8080 -e Data__Backend=memory -e Auth__DemoH
 Despliegue automatizado a través de los scripts de infraestructura:
 ```bash
 # Despliegue con Cloud Build hacia Cloud Run:
-./infra/deploy.sh wallet
+bash infra/deploy.sh wallet
 ```
 El servicio corre en Cloud Run bajo la service account dedicada `wallet-service@full-stack-2026.iam.gserviceaccount.com`, con permisos `roles/spanner.databaseUser` y acceso de lectura al secreto `nequi-spanner-database`.
 
