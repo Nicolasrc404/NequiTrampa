@@ -65,10 +65,10 @@ exists gcloud firestore databases describe --database='(default)' --project "$FI
     --type firestore-native \
     --project "$FIRESTORE_PROJECT_ID"
 
-# Firestore lives in FIRESTORE_PROJECT_ID, so datastore.user is granted there (not in PROJECT_ID).
-# wallet-service reads Firestore in its readiness check; outbox-dispatcher writes projections/notifications.
+# Firestore lives in FIRESTORE_PROJECT_ID, so datastore roles are granted there (not in PROJECT_ID).
+# outbox-dispatcher writes projections/notifications (user); wallet-service only pings _health/ping on readiness (viewer).
 bind_project "$FIRESTORE_PROJECT_ID" "$SA_WORKERS" roles/datastore.user
-bind_project "$FIRESTORE_PROJECT_ID" "$SA_WALLET" roles/datastore.user
+bind_project "$FIRESTORE_PROJECT_ID" "$SA_WALLET" roles/datastore.viewer
 echo "== Secret Manager =="
 # Value lives only in Secret Manager (never in the repo).
 exists gcloud secrets describe nequi-spanner-database ||

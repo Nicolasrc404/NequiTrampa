@@ -35,6 +35,18 @@ proyecta eventos de dominio a Firestore.
 > El resultado E2E del pipeline de proyecciones no se extiende a los módulos
 > de Workers que no cuentan con evidencia específica.
 
+> **Identidad (limitación AS-IS)**: `DomainEvent.ClientId` usa
+> `clients.client_id` resuelto desde Spanner y Firestore lo persiste tal cual
+> en `financial_movements`/`notifications`. `CurrentUser.Uid` representa
+> `user_id`/`sub`/`auth_subject`, mientras que `CurrentUser.ClientId` puede
+> contener el claim `client_id`. Los endpoints actuales de
+> `ProjectionService`/`NotificationService` consultan/otorgan ownership por
+> `user.Uid` y **no** resuelven automáticamente `auth_subject → client_id`. El
+> mapping queda **pendiente**; mientras no exista, el acceso end-user a
+> proyecciones financieras reales no debe declararse E2E validado. El smoke
+> sintético usa `clientId=smoke-user` y `X-Demo-User=smoke-user`, por lo que no
+> prueba esta diferencia.
+
 ---
 
 ## Componentes (verificados en código)
@@ -106,8 +118,8 @@ por sí solo lo dejaría leer.
 | Método | Ruta | Autorización |
 |:---:|---|---|
 | `GET` | `/v1/outbox/stats` | `InternalStaff` (Soporte, OperadorFinanciero, Admin). |
-| `GET` | `/v1/projections/movements` | Autenticado + `ResourceAccess.CanRead` (propietario **o staff**). |
-| `GET` | `/v1/notifications` | Autenticado + ownership (`clientId == sub`). |
+| `GET` | `/v1/projections/movements` | Autenticado + `ResourceAccess.CanRead` (propietario **o staff**), ownership por `user.Uid`. |
+| `GET` | `/v1/notifications` | Autenticado + ownership (`clientId == sub`) por `user.Uid`; sin resolución `auth_subject → client_id`. |
 | `PATCH` | `/v1/notifications/{id}/read` | Autenticado + ownership; 404 para ajeno o inexistente. |
 | `POST` | `/v1/reports` | `CanGenerateReports` + `ResourceAccess.CanRead` sobre el `clientId` objetivo + idempotencia (`RequireIdempotency`). |
 | `GET` | `/v1/reports` | `CanGenerateReports`; devuelve solo reportes con `requestedBy == usuario`. |
@@ -182,3 +194,6 @@ AUTH_DEMO_HEADERS=true bash infra/deploy.sh workers
 2. **Reportes**: implementados en código; sin validación E2E documentada en GCP.
 3. **Nequi.Realtime**: servicio separado (`src/Nequi.Realtime`); sin validación
    E2E ni despliegue verificado para esta guía.
+4. **Identidad pendiente**: mapping `auth_subject → client_id` / uso consistente
+   de `CurrentUser.ClientId`. Los endpoints consultan por `user.Uid`; el acceso
+   end-user a proyecciones financieras reales no está E2E verificado.

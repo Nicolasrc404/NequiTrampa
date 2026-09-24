@@ -121,8 +121,10 @@ Service Accounts relevantes **creadas/reutilizadas por `setup.sh`**:
 `wallet-service`, `outbox-dispatcher` y `pubsub-push-invoker`.
 
 `setup.sh` asigna los roles de proyecto correspondientes a `wallet-service` y
-`outbox-dispatcher`, y `roles/datastore.user` a ambos en `FIRESTORE_PROJECT_ID`
-(`fullstack-d3be5`), donde vive Firestore — no en `PROJECT_ID`. Para
+`outbox-dispatcher`, y en `FIRESTORE_PROJECT_ID` (`fullstack-d3be5`), donde vive
+Firestore — no en `PROJECT_ID`: `roles/datastore.user` a `outbox-dispatcher`
+(escribe proyecciones/notificaciones) y `roles/datastore.viewer` a
+`wallet-service` (su readiness solo lee `_health/ping`). Para
 `pubsub-push-invoker`, `deploy.sh` asigna `roles/run.invoker` sobre
 `nequi-workers`, y `setup.sh` automatiza el `roles/iam.serviceAccountTokenCreator`
 del agente de servicio de Pub/Sub.
@@ -209,6 +211,14 @@ push OIDC → Nequi.Workers → Firestore
   Spanner autoritativo.
 - Las proyecciones en Firestore se verificaron a partir de transacciones
   financieras reales (transferencias y recargas) y no de eventos inyectados.
+
+> **Identidad en Workers (limitación AS-IS)**: el E2E verifica el pipeline de
+> **escritura** a Firestore (`client_id` de dominio resuelto desde Spanner y
+> persistido en `financial_movements`/`notifications`). El acceso end-user a esas
+> proyecciones consulta por `CurrentUser.Uid` (auth subject) y no resuelve aún
+> `auth_subject → client_id`; el mapping y el uso consistente de
+> `CurrentUser.ClientId` quedan **pendientes**, por lo que el acceso de cliente
+> a proyecciones financieras reales no se declara E2E validado.
 
 Este alcance E2E cubre el pipeline de proyección y notificación; no se
 extiende a módulos sin evidencia específica.

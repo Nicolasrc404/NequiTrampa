@@ -30,7 +30,10 @@ Automatizar, de forma reproducible:
 | `fullstack-d3be5` | Plano documental: Firestore | `setup.sh` (creación de Firestore) |
 
 Definidos en `common.sh` como `PROJECT_ID` y `FIRESTORE_PROJECT_ID`
-(override por variable de entorno).
+(override por variable de entorno). Si se hace override de `PROJECT_ID`
+(respecto de `full-stack-2026`), `FIRESTORE_PROJECT_ID` **debe** especificarse
+también: en caso contrario `common.sh` falla con `exit 1` para evitar aplicar
+IAM cross-project sobre el Firestore histórico.
 
 ---
 
@@ -56,7 +59,7 @@ Incluye `sa_email()` y el helper `exists()` (idempotencia).
 ### `setup.sh`
 
 Diseñado para **habilitar APIs y crear/reutilizar recursos de forma
-idempotente** (`PROJECT_ID=my-proj REGION=us-central1 ./infra/setup.sh`).
+idempotente** (`PROJECT_ID=my-proj FIRESTORE_PROJECT_ID=my-proj-firestore REGION=us-central1 ./infra/setup.sh`).
 Pasos:
 
 1. **APIs**: habilita `run`, `cloudbuild`, `artifactregistry`, `pubsub`,
@@ -70,11 +73,12 @@ Pasos:
    |---|---|
    | `outbox-dispatcher` | `spanner.databaseUser`, `pubsub.publisher` (proyecto), `pubsub.viewer` sobre `wallet-events`, `secretmanager.secretAccessor`, `logging.logWriter`, `monitoring.metricWriter`, y `datastore.user` en `fullstack-d3be5` |
    | `realtime-service` | `logging.logWriter`, `monitoring.metricWriter` |
-   | `wallet-service` | `spanner.databaseUser`, `secretmanager.secretAccessor`, `logging.logWriter`, `monitoring.metricWriter`, y `datastore.user` en `fullstack-d3be5` |
+   | `wallet-service` | `spanner.databaseUser`, `secretmanager.secretAccessor`, `logging.logWriter`, `monitoring.metricWriter`, y `datastore.viewer` en `fullstack-d3be5` |
    | `pubsub-push-invoker` | Creada aquí; el rol `roles/run.invoker` se otorga en `deploy.sh` |
 
-   `roles/datastore.user` de `outbox-dispatcher` y `wallet-service` se otorga en
-   `FIRESTORE_PROJECT_ID` (`fullstack-d3be5`), no en `PROJECT_ID`.
+   `roles/datastore.user` de `outbox-dispatcher` se otorga en `FIRESTORE_PROJECT_ID`
+   (`fullstack-d3be5`), no en `PROJECT_ID`. `wallet-service` recibe únicamente
+   `roles/datastore.viewer` (su readiness solo lee `_health/ping`).
 
    Service Accounts dedicadas y roles IAM configurados por `setup.sh`: estos
    bindings son los que el script aplica; no implica una garantía global de
@@ -87,8 +91,8 @@ Pasos:
    sobre `pubsub-push-invoker` (habilita el push OIDC).
 5. **Firestore**: habilita `firestore.googleapis.com` en `fullstack-d3be5` y
    crea la base `(default)` en modo nativo si no existe; otorga
-   `roles/datastore.user` a `outbox-dispatcher` y `wallet-service` en
-   `fullstack-d3be5` (no en `PROJECT_ID`).
+   `roles/datastore.user` a `outbox-dispatcher` y `roles/datastore.viewer` a
+   `wallet-service` en `fullstack-d3be5` (no en `PROJECT_ID`).
 6. **Secret Manager**: crea `nequi-spanner-database` con el identificador del
    recurso Spanner (proveniente de `SPANNER_DATABASE` de `common.sh`) y
    otorga `secretAccessor` a `outbox-dispatcher` y `wallet-service`.
@@ -104,7 +108,7 @@ Pasos:
 
 ### `deploy.sh`
 
-Construye y despliega (`PROJECT_ID=my-proj ./infra/deploy.sh [wallet|workers|realtime|all]`):
+Construye y despliega (`PROJECT_ID=my-proj FIRESTORE_PROJECT_ID=my-proj-firestore ./infra/deploy.sh [wallet|workers|realtime|all]`):
 
 - `build <dir> <imagen>`: `gcloud builds submit` con `infra/cloudbuild.yaml`
   y substitutions `_SERVICE` / `_IMAGE`.
