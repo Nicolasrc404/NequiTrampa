@@ -1,0 +1,41 @@
+meta {
+  name: Post Recharge Idempotency Key Too Long (65 chars)
+  type: http
+  seq: 7
+}
+
+post {
+  url: {{baseUrl}}/v1/recharges
+  body: json
+  auth: none
+}
+
+headers {
+  X-Serverless-Authorization: Bearer {{serverlessToken}}
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+  Idempotency-Key: {{longRechargeKey}}
+}
+
+body:json {
+  {
+    "amount": 50000,
+    "paymentMethod": "SIMULATED_PSE",
+    "currency": "COP"
+  }
+}
+
+script:pre-request {
+  bru.setVar("longRechargeKey", "nequitrampa-".padEnd(65, "k"));
+}
+
+assert {
+  res.status: eq 400
+  res.body.code: eq idempotency_key_required
+}
+
+tests {
+  test("La key enviada excede los 64 caracteres permitidos", function() {
+    expect(bru.getVar("longRechargeKey").length).to.be.above(64);
+  });
+}

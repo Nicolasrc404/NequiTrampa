@@ -1,0 +1,33 @@
+meta {
+  name: Get Me Access
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{baseUrl}}/v1/me/access
+  body: none
+  auth: none
+}
+
+headers {
+  X-Serverless-Authorization: Bearer {{serverlessToken}}
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+}
+
+assert {
+  res.status: eq 200
+  res.body.uid: eq {{clientUser}}
+  res.body.isStaff: eq false
+}
+
+tests {
+  test("El token de identidad resuelve los claims del actor", function() {
+    expect(res.body.uid).to.equal(bru.getEnvVar("clientUser"));
+  });
+
+  test("El rol CLIENTE se refleja en la lista de roles", function() {
+    expect(res.body.roles).to.include("CLIENTE");
+  });
+}

@@ -16,6 +16,11 @@ headers {
   X-Demo-Role: {{clientRole}}
 }
 
+script:pre-request {
+  const known = bru.getEnvVar("knownTransferId");
+  if (known) bru.setVar("lastTransferId", known);
+}
+
 assert {
   res.status: eq 200
   res.body.currency: eq COP

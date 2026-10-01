@@ -1,0 +1,36 @@
+meta {
+  name: Post Recharge Idempotency Conflict (same key, different body)
+  type: http
+  seq: 9
+}
+
+post {
+  url: {{baseUrl}}/v1/recharges
+  body: json
+  auth: none
+}
+
+headers {
+  X-Serverless-Authorization: Bearer {{serverlessToken}}
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+  Idempotency-Key: {{rechargeDemoKey}}
+}
+
+body:json {
+  {
+    "amount": 77000,
+    "paymentMethod": "SIMULATED_CARD",
+    "currency": "COP"
+  }
+}
+
+assert {
+  res.status: eq 409
+  res.body.code: eq idempotency_key_conflict
+}
+
+docs {
+  Reutiliza {{rechargeDemoKey}} con un body distinto al de post-recharge-success.bru,
+  por lo que el hash SHA-256 no coincide y el store responde 409.
+}

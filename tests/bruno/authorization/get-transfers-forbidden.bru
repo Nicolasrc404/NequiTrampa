@@ -1,0 +1,21 @@
+meta {
+  name: Get Transfers Forbidden (role SOPORTE)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/v1/transfers
+  body: none
+  auth: none
+}
+
+headers {
+  X-Serverless-Authorization: Bearer {{serverlessToken}}
+  X-Demo-User: support-agent-1
+  X-Demo-Role: SOPORTE
+}
+
+assert {
+  res.status: eq 403
+}

@@ -1,11 +1,11 @@
 meta {
-  name: Post Transfer Replay Same Key Same Body
+  name: Post Recharge Replay Same Key Same Body
   type: http
-  seq: 2
+  seq: 8
 }
 
 post {
-  url: {{baseUrl}}/v1/transfers
+  url: {{baseUrl}}/v1/recharges
   body: json
   auth: none
 }
@@ -14,14 +14,13 @@ headers {
   X-Serverless-Authorization: Bearer {{serverlessToken}}
   X-Demo-User: {{clientUser}}
   X-Demo-Role: {{clientRole}}
-  Idempotency-Key: {{transferDemoKey}}
+  Idempotency-Key: {{rechargeDemoKey}}
 }
 
 body:json {
   {
-    "destinationTransferCode": "{{destCode}}",
-    "amount": 25000,
-    "description": "Pago almuerzo",
+    "amount": 50000,
+    "paymentMethod": "SIMULATED_PSE",
     "currency": "COP"
   }
 }
@@ -45,7 +44,12 @@ tests {
     expect(String(replayHeader).toLowerCase()).to.equal("true");
   });
 
-  test("Replay returns the same transfer", function() {
-    expect(res.body.transferId).to.equal(bru.getVar("lastTransferId"));
+  test("Replay devuelve la misma recarga y no duplica fondos", function() {
+    expect(res.body.rechargeId).to.equal(bru.getVar("lastRechargeId"));
   });
+}
+
+docs {
+  El cuerpo debe ser identico byte a byte al de post-recharge-success.bru:
+  el idempotency store compara el SHA-256 de los bytes crudos del body.
 }

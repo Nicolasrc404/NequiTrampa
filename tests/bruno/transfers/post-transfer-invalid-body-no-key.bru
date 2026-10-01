@@ -1,0 +1,37 @@
+meta {
+  name: Post Transfer Invalid Body Without Key (precedence 422 over 400)
+  type: http
+  seq: 16
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Serverless-Authorization: Bearer {{serverlessToken}}
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+}
+
+body:json {
+  {
+    "destinationTransferCode": "{{destCode}}",
+    "amount": 0,
+    "description": "Cuerpo invalido y sin Idempotency-Key",
+    "currency": "COP"
+  }
+}
+
+assert {
+  res.status: eq 422
+  res.body.code: eq VALIDATION_ERROR
+}
+
+docs {
+  El cuerpo se valida antes que la idempotencia: un body invalido sin
+  Idempotency-Key responde 422 VALIDATION_ERROR, no 400 idempotency_key_required.
+  Esto prueba que el filtro de ModelState corre antes que IdempotencyActionFilter.
+}

@@ -1,0 +1,2257 @@
+{
+  "info": {
+    "_postman_id": "b7f1c2d4-9a3e-4c5b-8e21-6d0a2f5c7e91",
+    "name": "NequiTrampa — Nequi.Wallet API",
+    "description": "Contratos HTTP de `Nequi.Wallet` bajo RFC 9457 (Problem Details), RFC 8725 (JWT) y las reglas de negocio financieras.\n\n> ⚠️ **AVISO — NO uses *Run Collection* contra GCP.**\n> Esta colección contiene requests que mueven dinero real en Spanner. *Run Collection*\n> no respeta tags ni exclusiones: ejecuta TODO, incluidos los requests `[MANUAL]`\n> condicionales y los `[FREE-RUN]` que crean movimientos nuevos.\n\nCómo ejecutar sin riesgo: abre la colección y lanza **carpeta por carpeta**, dejando\nfuera `Manual (condicional)` y `Free-run (movimiento nuevo)`. Si necesitas la suite\ncompleta automatizada en local, usa la colección Bruno (`tests/bruno/`), que sí\nsoporta `--exclude-tags`.\n\nEsta colección **no tiene equivalente de los tags de Bruno**: el filtrado por tags\nsolo existe en el CLI. Aquí la separación es por carpeta y por prefijo de nombre.\n\nAlcance: 45 requests. 39 automatizados con assertions, 4 manuales condicionales\n(sin assertions) y 2 free-run.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Health",
+      "description": "Sondas de vida y readiness. No mueven dinero.",
+      "item": [
+        {
+          "name": "Get Health Live",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health/live",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 200\", function () {\n  pm.response.to.have.status(200);\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Health Ready",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/health/ready",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 200\", function () {\n  pm.response.to.have.status(200);\n});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Authorization",
+      "description": "Deny-by-default, resolución de claims y autorización por rol.",
+      "item": [
+        {
+          "name": "Get Wallet Unauthorized",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/wallet",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "wallet"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 401\", function () {\n  pm.response.to.have.status(401);\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Wallet Forbidden (role SOPORTE)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "support-agent-1"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "SOPORTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/wallet",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "wallet"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 403\", function () {\n  pm.response.to.have.status(403);\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Me Access",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me/access",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "access"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 200\", function () {\n  pm.response.to.have.status(200);\n});",
+                  "\npm.test(\"Campo uid refleja ${clientUser}\", function () {\n  pm.expect(pm.response.json().uid).to.eql(pm.environment.get(\"clientUser\"));\n});",
+                  "\npm.test(\"Campo isStaff correcto\", function () {\n  pm.expect(pm.response.json().isStaff).to.eql(\"false\");\n});",
+                  "pm.test(\"El rol CLIENTE se refleja en la lista de roles\", function () {\n  pm.expect(pm.response.json().roles).to.include(\"CLIENTE\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Me Access Unauthorized",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/me/access",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "access"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 401\", function () {\n  pm.response.to.have.status(401);\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Transfers Unauthorized",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 401\", function () {\n  pm.response.to.have.status(401);\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Recharges Unauthorized",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/recharges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 401\", function () {\n  pm.response.to.have.status(401);\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Transfers Forbidden (role SOPORTE)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "support-agent-1"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "SOPORTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 403\", function () {\n  pm.response.to.have.status(403);\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Recharges Forbidden (role SOPORTE)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "support-agent-1"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "SOPORTE"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/recharges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 403\", function () {\n  pm.response.to.have.status(403);\n});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Wallet",
+      "description": "Lectura de la billetera propia.",
+      "item": [
+        {
+          "name": "Get Wallet",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/wallet",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "wallet"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 200\", function () {\n  pm.response.to.have.status(200);\n});",
+                  "\npm.test(\"Campo currency correcto\", function () {\n  pm.expect(pm.response.json().currency).to.eql(\"COP\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Wallet Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/wallet/balance",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "wallet",
+                "balance"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 200\", function () {\n  pm.response.to.have.status(200);\n});",
+                  "\npm.test(\"Campo currency correcto\", function () {\n  pm.expect(pm.response.json().currency).to.eql(\"COP\");\n});",
+                  "pm.test(\"sourceAuthority coincide con el entorno\", function () {\n  pm.expect(pm.response.json().sourceAuthority).to.eql(pm.environment.get(\"expectedSourceAuthority\"));\n});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Transfers",
+      "description": "Transferencias: happy path, idempotencia, validación de DTO y no-encontrado.\n\n**Orden**: los requests dependen de `lastTransferId`; ejecuta la carpeta completa, no requests sueltos. `knownTransferId` (vacío en el environment) sirve de fallback si necesitas lanzar solo los GET.",
+      "item": [
+        {
+          "name": "Post Transfer Success",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{transferDemoKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{destCode}}\",\n  \"amount\": 25000,\n  \"description\": \"Pago almuerzo\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 201\", function () {\n  pm.response.to.have.status(201);\n});",
+                  "\npm.test(\"Campo currency correcto\", function () {\n  pm.expect(pm.response.json().currency).to.eql(\"COP\");\n});",
+                  "\npm.test(\"Campo status correcto\", function () {\n  pm.expect(pm.response.json().status).to.eql(\"COMPLETED\");\n});",
+                  "pm.collectionVariables.set(\"lastTransferId\", pm.response.json().transferId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Transfer Replay Same Key Same Body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{transferDemoKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{destCode}}\",\n  \"amount\": 25000,\n  \"description\": \"Pago almuerzo\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "El cuerpo debe permanecer idéntico byte a byte al de Post Transfer Success: el idempotency store compara el SHA-256 de los bytes crudos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 201\", function () {\n  pm.response.to.have.status(201);\n});",
+                  "\npm.test(\"Idempotent-Replayed: true\", function () {\n  pm.expect(String(pm.response.headers.get('Idempotent-Replayed')).toLowerCase()).to.eql(\"true\");\n});",
+                  "pm.test(\"Replay devuelve la misma transferencia\", function () {\n  pm.expect(pm.response.json().transferId).to.eql(pm.collectionVariables.get(\"lastTransferId\"));\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Transfer Idempotency Conflict (same key, different body)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{transferDemoKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"TRF-OTH-9999\",\n  \"amount\": 99000,\n  \"description\": \"Payload modificado con la misma key\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 409\", function () {\n  pm.response.to.have.status(409);\n});",
+                  "\npm.test(\"code = idempotency_key_conflict\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"idempotency_key_conflict\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Transfer Limit Exceeded (DTO validation > $2.000.000 COP)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{destCode}}\",\n  \"amount\": 2500000,\n  \"description\": \"Supera límite individual de $2.000.000 COP\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 422\", function () {\n  pm.response.to.have.status(422);\n});",
+                  "\npm.test(\"code = VALIDATION_ERROR\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"VALIDATION_ERROR\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Transfer No Idempotency Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"TRF-LAU-0002\",\n  \"amount\": 25000,\n  \"description\": \"Prueba sin idempotencia\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 400\", function () {\n  pm.response.to.have.status(400);\n});",
+                  "\npm.test(\"code = idempotency_key_required\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"idempotency_key_required\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Transfer Amount Zero (DTO Range)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{destCode}}\",\n  \"amount\": 0,\n  \"description\": \"Monto cero: viola Range(1, 2000000)\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 422\", function () {\n  pm.response.to.have.status(422);\n});",
+                  "\npm.test(\"code = VALIDATION_ERROR\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"VALIDATION_ERROR\");\n});",
+                  "\npm.test(\"invalidParams señala Amount\", function () {\n  var keys = Object.keys(pm.response.json().invalidParams || {}).join();\n  pm.expect(keys).to.include(\"Amount\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Transfer Amount Negative (DTO Range)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{destCode}}\",\n  \"amount\": -5000,\n  \"description\": \"Monto negativo: viola Range(1, 2000000)\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 422\", function () {\n  pm.response.to.have.status(422);\n});",
+                  "\npm.test(\"code = VALIDATION_ERROR\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"VALIDATION_ERROR\");\n});",
+                  "\npm.test(\"invalidParams señala Amount\", function () {\n  var keys = Object.keys(pm.response.json().invalidParams || {}).join();\n  pm.expect(keys).to.include(\"Amount\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Transfer Currency Not COP (DTO regexp)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{destCode}}\",\n  \"amount\": 25000,\n  \"description\": \"Moneda no autorizada\",\n  \"currency\": \"USD\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 422\", function () {\n  pm.response.to.have.status(422);\n});",
+                  "\npm.test(\"code = VALIDATION_ERROR\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"VALIDATION_ERROR\");\n});",
+                  "\npm.test(\"invalidParams señala Currency\", function () {\n  var keys = Object.keys(pm.response.json().invalidParams || {}).join();\n  pm.expect(keys).to.include(\"Currency\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Transfer Missing Destination (DTO Required)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 25000,\n  \"description\": \"Falta destinationTransferCode\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 422\", function () {\n  pm.response.to.have.status(422);\n});",
+                  "\npm.test(\"code = VALIDATION_ERROR\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"VALIDATION_ERROR\");\n});",
+                  "\npm.test(\"invalidParams señala DestinationTransferCode\", function () {\n  var keys = Object.keys(pm.response.json().invalidParams || {}).join();\n  pm.expect(keys).to.include(\"DestinationTransferCode\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Transfer Destination Malformed (DTO regexp)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"TRF LAU 0002!\",\n  \"amount\": 25000,\n  \"description\": \"Codigo con espacios y signos: viola ^[A-Za-z0-9_-]+$\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 422\", function () {\n  pm.response.to.have.status(422);\n});",
+                  "\npm.test(\"code = VALIDATION_ERROR\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"VALIDATION_ERROR\");\n});",
+                  "\npm.test(\"invalidParams señala DestinationTransferCode\", function () {\n  var keys = Object.keys(pm.response.json().invalidParams || {}).join();\n  pm.expect(keys).to.include(\"DestinationTransferCode\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Transfer Idempotency Key Too Long (65 chars)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "nequitrampa-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{destCode}}\",\n  \"amount\": 25000,\n  \"description\": \"Cuerpo valido; la key excede el maximo de 64 caracteres\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 400\", function () {\n  pm.response.to.have.status(400);\n});",
+                  "\npm.test(\"code = idempotency_key_required\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"idempotency_key_required\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Transfer Invalid Body Without Key (precedence 422 over 400)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{destCode}}\",\n  \"amount\": 0,\n  \"description\": \"Cuerpo invalido y sin Idempotency-Key\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "El cuerpo se valida antes que la idempotencia: un body inválido sin Idempotency-Key responde 422 VALIDATION_ERROR, no 400 idempotency_key_required. Prueba que el filtro de ModelState corre antes que IdempotencyActionFilter."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 422\", function () {\n  pm.response.to.have.status(422);\n});",
+                  "\npm.test(\"code = VALIDATION_ERROR\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"VALIDATION_ERROR\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Transfer By Id",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers/{{lastTransferId}}",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers",
+                "{{lastTransferId}}"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('lastTransferId')) {\n  var known = pm.environment.get('knownTransferId');\n  if (known) { pm.collectionVariables.set('lastTransferId', known); }\n}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 200\", function () {\n  pm.response.to.have.status(200);\n});",
+                  "\npm.test(\"Campo currency correcto\", function () {\n  pm.expect(pm.response.json().currency).to.eql(\"COP\");\n});",
+                  "\npm.test(\"Campo status correcto\", function () {\n  pm.expect(pm.response.json().status).to.eql(\"COMPLETED\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Transfer Receipt (own transfer)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers/{{lastTransferId}}/receipt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers",
+                "{{lastTransferId}}",
+                "receipt"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('lastTransferId')) {\n  var known = pm.environment.get('knownTransferId');\n  if (known) { pm.collectionVariables.set('lastTransferId', known); }\n}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 200\", function () {\n  pm.response.to.have.status(200);\n});",
+                  "\npm.test(\"Campo status correcto\", function () {\n  pm.expect(pm.response.json().status).to.eql(\"COMPLETED\");\n});",
+                  "\npm.test(\"Campo currency correcto\", function () {\n  pm.expect(pm.response.json().currency).to.eql(\"COP\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Transfer Receipt Forbidden (other client)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser2}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers/{{lastTransferId}}/receipt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers",
+                "{{lastTransferId}}",
+                "receipt"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "if (!pm.collectionVariables.get('lastTransferId')) {\n  var known = pm.environment.get('knownTransferId');\n  if (known) { pm.collectionVariables.set('lastTransferId', known); }\n}"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 403\", function () {\n  pm.response.to.have.status(403);\n});",
+                  "\npm.test(\"code = FORBIDDEN\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"FORBIDDEN\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Transfer Not Found",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers/trf_noexiste_0000000000",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers",
+                "trf_noexiste_0000000000"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 404\", function () {\n  pm.response.to.have.status(404);\n});",
+                  "\npm.test(\"code = RESOURCE_NOT_FOUND\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"RESOURCE_NOT_FOUND\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Transfer Receipt Not Found",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers/trf_noexiste_0000000000/receipt",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers",
+                "trf_noexiste_0000000000",
+                "receipt"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 404\", function () {\n  pm.response.to.have.status(404);\n});",
+                  "\npm.test(\"code = RESOURCE_NOT_FOUND\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"RESOURCE_NOT_FOUND\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Transfers List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers?page=1&pageSize=20",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20"
+                }
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 200\", function () {\n  pm.response.to.have.status(200);\n});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Recharges",
+      "description": "Recargas simuladas: happy path, idempotencia y validación de DTO.\n\n**Orden**: replay y conflicto dependen de `lastRechargeId`.",
+      "item": [
+        {
+          "name": "Post Recharge Success",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{rechargeDemoKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/recharges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50000,\n  \"paymentMethod\": \"SIMULATED_PSE\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 201\", function () {\n  pm.response.to.have.status(201);\n});",
+                  "\npm.test(\"Campo currency correcto\", function () {\n  pm.expect(pm.response.json().currency).to.eql(\"COP\");\n});",
+                  "\npm.test(\"Campo status correcto\", function () {\n  pm.expect(pm.response.json().status).to.eql(\"COMPLETED\");\n});",
+                  "pm.collectionVariables.set(\"lastRechargeId\", pm.response.json().rechargeId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Recharge Replay Same Key Same Body",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{rechargeDemoKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/recharges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50000,\n  \"paymentMethod\": \"SIMULATED_PSE\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "El cuerpo debe permanecer idéntico byte a byte al de Post Recharge Success: el idempotency store compara el SHA-256 de los bytes crudos."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 201\", function () {\n  pm.response.to.have.status(201);\n});",
+                  "\npm.test(\"Idempotent-Replayed: true\", function () {\n  pm.expect(String(pm.response.headers.get('Idempotent-Replayed')).toLowerCase()).to.eql(\"true\");\n});",
+                  "pm.test(\"Replay devuelve la misma recarga y no duplica fondos\", function () {\n  pm.expect(pm.response.json().rechargeId).to.eql(pm.collectionVariables.get(\"lastRechargeId\"));\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Recharge Idempotency Conflict (same key, different body)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{rechargeDemoKey}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/recharges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 77000,\n  \"paymentMethod\": \"SIMULATED_CARD\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 409\", function () {\n  pm.response.to.have.status(409);\n});",
+                  "\npm.test(\"code = idempotency_key_conflict\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"idempotency_key_conflict\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Recharge No Idempotency Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/recharges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50000,\n  \"paymentMethod\": \"SIMULATED_PSE\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 400\", function () {\n  pm.response.to.have.status(400);\n});",
+                  "\npm.test(\"code = idempotency_key_required\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"idempotency_key_required\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Recharge Below Minimum (DTO Range)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/recharges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 999,\n  \"paymentMethod\": \"SIMULATED_PSE\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 422\", function () {\n  pm.response.to.have.status(422);\n});",
+                  "\npm.test(\"code = VALIDATION_ERROR\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"VALIDATION_ERROR\");\n});",
+                  "\npm.test(\"invalidParams señala Amount\", function () {\n  var keys = Object.keys(pm.response.json().invalidParams || {}).join();\n  pm.expect(keys).to.include(\"Amount\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Recharge Above Maximum (DTO Range)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/recharges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 5000001,\n  \"paymentMethod\": \"SIMULATED_PSE\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 422\", function () {\n  pm.response.to.have.status(422);\n});",
+                  "\npm.test(\"code = VALIDATION_ERROR\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"VALIDATION_ERROR\");\n});",
+                  "\npm.test(\"invalidParams señala Amount\", function () {\n  var keys = Object.keys(pm.response.json().invalidParams || {}).join();\n  pm.expect(keys).to.include(\"Amount\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Recharge Invalid Payment Method (DTO regexp)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/recharges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50000,\n  \"paymentMethod\": \"PAYPAL\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 422\", function () {\n  pm.response.to.have.status(422);\n});",
+                  "\npm.test(\"code = VALIDATION_ERROR\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"VALIDATION_ERROR\");\n});",
+                  "\npm.test(\"invalidParams señala PaymentMethod\", function () {\n  var keys = Object.keys(pm.response.json().invalidParams || {}).join();\n  pm.expect(keys).to.include(\"PaymentMethod\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Post Recharge Idempotency Key Too Long (65 chars)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "nequitrampa-kkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkkk"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/recharges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50000,\n  \"paymentMethod\": \"SIMULATED_PSE\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 400\", function () {\n  pm.response.to.have.status(400);\n});",
+                  "\npm.test(\"code = idempotency_key_required\", function () {\n  pm.expect(pm.response.json().code).to.eql(\"idempotency_key_required\");\n});"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "Get Recharges List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/recharges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            }
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 200\", function () {\n  pm.response.to.have.status(200);\n});"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Manual (condicional)",
+      "description": "4 requests SIN assertions: el resultado depende del estado vivo del entorno.\n\n⚠️ No forman parte de la corrida por defecto. Requieren revisar las variables `selfTransferCode`, `inactiveDestCode`, `insufficientAmount` y `dailyLimitAmount` antes de lanzarlos.",
+      "item": [
+        {
+          "name": "[MANUAL] Post Transfer Self",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{selfTransferCode}}\",\n  \"amount\": 25000,\n  \"description\": \"Transferencia a si mismo\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "CONDICIONAL: sin assertions. El resultado depende del estado vivo del entorno y se interpreta a mano.\n\nEsperado: 422 SELF_TRANSFER_NOT_ALLOWED, pero solo si {{selfTransferCode}} es realmente el código público del propio {{clientUser}} en Spanner. El valor por defecto viene del seed versionado y NO está verificado contra la base GCP en vivo: si el código no existe, la respuesta será 404 RESOURCE_NOT_FOUND.\n\nEn el backend memory (mock) la regla NO está implementada: devuelve 201.\n\nSTATEFUL: consume cupo si llega a ejecutarse como movimiento válido."
+          },
+          "event": []
+        },
+        {
+          "name": "[MANUAL] Post Transfer Destination Inactive",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{inactiveDestCode}}\",\n  \"amount\": 25000,\n  \"description\": \"Destino inactivo o bloqueado\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "CONDICIONAL: sin assertions. El resultado depende del estado vivo del entorno y se interpreta a mano.\n\nEsperado: 422 DESTINATION_ACCOUNT_INACTIVE, pero solo si {{inactiveDestCode}} existe en Spanner con status distinto de ACTIVE. Si el código no existe, la respuesta será 404 RESOURCE_NOT_FOUND.\n\nEn el backend memory (mock) el único código inactivo soportado es TRF-INACTIVE-0000."
+          },
+          "event": []
+        },
+        {
+          "name": "[MANUAL] Post Transfer Insufficient Funds",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{destCode}}\",\n  \"amount\": {{insufficientAmount}},\n  \"description\": \"Monto por encima del saldo disponible\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "CONDICIONAL: sin assertions. El resultado depende del estado vivo del entorno y se interpreta a mano.\n\nEsperado: 422 INSUFFICIENT_FUNDS, pero solo si {{insufficientAmount}} supera el saldo REAL del actor. Debe quedar por debajo del límite individual de $2.000.000 COP; si lo supera, el DTO responde 422 VALIDATION_ERROR y no se prueba la regla de fondos.\n\nEn el backend memory (mock) el saldo es fijo en $1.250.000 COP."
+          },
+          "event": []
+        },
+        {
+          "name": "[MANUAL] Post Transfer Daily Limit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{destCode}}\",\n  \"amount\": {{dailyLimitAmount}},\n  \"description\": \"Consumo del cupo diario acumulado\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "CONDICIONAL: sin assertions. El resultado depende del estado vivo del entorno y se interpreta a mano.\n\nACUMULATIVO: este request por sí solo NUNCA supera el tope diario de $5.000.000 COP (hora local America/Bogota, persistido en daily_transfer_usage). Hay que ejecutarlo varias veces con keys distintas hasta que la suma del día cruce el límite y la última responda 422 LIMIT_EXCEEDED.\n\nEl resultado varía entre días y entre entornos. La suite automatizada no cubre este escenario."
+          },
+          "event": []
+        }
+      ]
+    },
+    {
+      "name": "Free-run (movimiento nuevo)",
+      "description": "2 requests que crean un movimiento financiero nuevo en cada ejecución (Idempotency-Key nueva).\n\n⚠️ NO forman parte de la corrida por defecto. Úsalos solo para provocar tráfico a demanda.",
+      "item": [
+        {
+          "name": "[FREE-RUN] Post Transfer New Movement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/transfers",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{destCode}}\",\n  \"amount\": 25000,\n  \"description\": \"Movimiento libre\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "FREE-RUN: genera una Idempotency-Key nueva en cada ejecución, por lo que SIEMPRE crea un movimiento financiero nuevo, nunca es replay y consume cupo diario. Fuera de la corrida por defecto por diseño."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 201\", function () {\n  pm.response.to.have.status(201);\n});",
+                  "\npm.test(\"Campo currency correcto\", function () {\n  pm.expect(pm.response.json().currency).to.eql(\"COP\");\n});",
+                  "\npm.test(\"Campo status correcto\", function () {\n  pm.expect(pm.response.json().status).to.eql(\"COMPLETED\");\n});",
+                  "pm.collectionVariables.set(\"lastTransferId\", pm.response.json().transferId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "[FREE-RUN] Post Recharge New Movement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Serverless-Authorization",
+                "value": "Bearer {{serverlessToken}}"
+              },
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/v1/recharges",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50000,\n  \"paymentMethod\": \"SIMULATED_PSE\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "FREE-RUN: genera una Idempotency-Key nueva en cada ejecución, por lo que SIEMPRE acredita saldo de nuevo, nunca es replay. Fuera de la corrida por defecto por diseño."
+          },
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "\npm.test(\"Estado 201\", function () {\n  pm.response.to.have.status(201);\n});",
+                  "\npm.test(\"Campo currency correcto\", function () {\n  pm.expect(pm.response.json().currency).to.eql(\"COP\");\n});",
+                  "\npm.test(\"Campo status correcto\", function () {\n  pm.expect(pm.response.json().status).to.eql(\"COMPLETED\");\n});",
+                  "pm.collectionVariables.set(\"lastRechargeId\", pm.response.json().rechargeId);"
+                ]
+              }
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "lastTransferId",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "lastRechargeId",
+      "value": "",
+      "type": "string"
+    }
+  ]
+}

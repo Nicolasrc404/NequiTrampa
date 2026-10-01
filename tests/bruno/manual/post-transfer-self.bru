@@ -1,0 +1,49 @@
+meta {
+  name: Post Transfer Self (MANUAL condicional)
+  type: http
+  seq: 1
+  tags: [
+    manual
+    stateful
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Serverless-Authorization: Bearer {{serverlessToken}}
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+  Idempotency-Key: {{manualSelfKey}}
+}
+
+body:json {
+  {
+    "destinationTransferCode": "{{selfTransferCode}}",
+    "amount": 25000,
+    "description": "Transferencia a si mismo",
+    "currency": "COP"
+  }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("manualSelfKey", uuid.v4());
+}
+
+docs {
+  CONDICIONAL. El resultado esperado es 422 SELF_TRANSFER_NOT_ALLOWED, pero depende de
+  que {{selfTransferCode}} sea REALMENTE el codigo publico del propio {{clientUser}} en
+  Spanner. El valor por defecto proviene de database/spanner/03_datos_prueba.sql y no esta
+  verificado contra la base GCP en vivo: si el codigo no existe, la respuesta sera
+  404 RESOURCE_NOT_FOUND en lugar de 422.
+
+  En el backend memory (mock) la regla NO esta implementada: devuelve 201.
+
+  Ajusta {{selfTransferCode}} con el public_transfer_code real del actor antes de ejecutar.
+  No hay assertions a proposito: el resultado se interpreta a mano.
+}

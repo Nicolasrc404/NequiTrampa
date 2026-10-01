@@ -1,0 +1,48 @@
+meta {
+  name: Post Transfer Insufficient Funds (MANUAL condicional)
+  type: http
+  seq: 3
+  tags: [
+    manual
+    stateful
+  ]
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Serverless-Authorization: Bearer {{serverlessToken}}
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+  Idempotency-Key: {{manualInsufficientKey}}
+}
+
+body:json {
+  {
+    "destinationTransferCode": "{{destCode}}",
+    "amount": {{insufficientAmount}},
+    "description": "Monto por encima del saldo disponible",
+    "currency": "COP"
+  }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("manualInsufficientKey", uuid.v4());
+}
+
+docs {
+  CONDICIONAL. El resultado esperado es 422 INSUFFICIENT_FUNDS, pero depende del saldo
+  REAL del actor en Spanner. {{insufficientAmount}} debe ser mayor que ese saldo y menor
+  que el limite individual de $2.000.000 COP (si lo supera, el DTO responde 422
+  VALIDATION_ERROR y no se prueba la regla de fondos).
+
+  En el backend memory (mock) el saldo es fijo en $1.250.000 COP, por eso el environment
+  local usa 1300000.
+
+  No hay assertions a proposito: el resultado se interpreta a mano.
+}

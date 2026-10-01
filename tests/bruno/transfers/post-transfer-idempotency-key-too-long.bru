@@ -1,0 +1,42 @@
+meta {
+  name: Post Transfer Idempotency Key Too Long (65 chars)
+  type: http
+  seq: 15
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Serverless-Authorization: Bearer {{serverlessToken}}
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+  Idempotency-Key: {{longTransferKey}}
+}
+
+body:json {
+  {
+    "destinationTransferCode": "{{destCode}}",
+    "amount": 25000,
+    "description": "Cuerpo valido; la key excede el maximo de 64 caracteres",
+    "currency": "COP"
+  }
+}
+
+script:pre-request {
+  bru.setVar("longTransferKey", "nequitrampa-".padEnd(65, "k"));
+}
+
+assert {
+  res.status: eq 400
+  res.body.code: eq idempotency_key_required
+}
+
+tests {
+  test("La key enviada excede los 64 caracteres permitidos", function() {
+    expect(bru.getVar("longTransferKey").length).to.be.above(64);
+  });
+}

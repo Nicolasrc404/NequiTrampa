@@ -1,0 +1,19 @@
+meta {
+  name: Get Me Access Unauthorized
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/v1/me/access
+  body: none
+  auth: none
+}
+
+headers {
+  X-Serverless-Authorization: Bearer {{serverlessToken}}
+}
+
+assert {
+  res.status: eq 401
+}

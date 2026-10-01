@@ -1,0 +1,22 @@
+meta {
+  name: Get Transfer Not Found
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{baseUrl}}/v1/transfers/trf_noexiste_0000000000
+  body: none
+  auth: none
+}
+
+headers {
+  X-Serverless-Authorization: Bearer {{serverlessToken}}
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+}
+
+assert {
+  res.status: eq 404
+  res.body.code: eq RESOURCE_NOT_FOUND
+}

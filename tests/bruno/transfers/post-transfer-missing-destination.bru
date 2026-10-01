@@ -1,0 +1,42 @@
+meta {
+  name: Post Transfer Missing Destination (DTO Required)
+  type: http
+  seq: 13
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Serverless-Authorization: Bearer {{serverlessToken}}
+  X-Demo-User: {{clientUser}}
+  X-Demo-Role: {{clientRole}}
+  Idempotency-Key: {{negMissingDestKey}}
+}
+
+body:json {
+  {
+    "amount": 25000,
+    "description": "Falta destinationTransferCode",
+    "currency": "COP"
+  }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("negMissingDestKey", uuid.v4());
+}
+
+assert {
+  res.status: eq 422
+  res.body.code: eq VALIDATION_ERROR
+}
+
+tests {
+  test("El error señala el campo DestinationTransferCode", function() {
+    expect(Object.keys(res.body.invalidParams || {}).join()).to.include("DestinationTransferCode");
+  });
+}
