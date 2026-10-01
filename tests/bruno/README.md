@@ -295,35 +295,75 @@ Códigos que sí se pueden afirmar porque los produce el `code` de Problem Detai
 
 ---
 
-## 10. Alcance AS-IS de la validación en GCP
+## 10. Alcance AS-IS de la validación
 
-### 10.1 Evidencia HTTP directa de la corrida Bruno en GCP
+> [!IMPORTANT]
+> Hay que distinguir **dos corridas distintas**. La evidencia histórica de GCP viene de una
+> suite de **18 requests**; la colección actual tiene **39 requests automatizados** y su
+> validación completa es **local**. No son la misma corrida y no deben mezclarse.
 
-Lo que los asserts de la corrida **observan de verdad** sobre el endpoint desplegado. Todo
-esto es evidencia de **nivel HTTP** contra Cloud Run con Spanner detrás:
+### 10.1 A) Evidencia histórica verificada contra GCP (suite de 18 requests)
+
+Resultado registrado de aquella corrida:
+
+| Métrica | Resultado |
+|---|---|
+| Requests | **18/18 PASS** |
+| Tests | **2/2 PASS** |
+| Assertions | **34/34 PASS** |
+| Exit code | `0` |
+
+Casos **realmente cubiertos** por esa corrida:
 
 - `GET /health/live` y `GET /health/ready` → `200`.
+- `401` y `403` originales sobre `GET /v1/wallet`.
 - `GET /v1/wallet` → `200` con `currency = COP`.
 - `GET /v1/wallet/balance` → `200` con `sourceAuthority = CLOUD_SPANNER`. Esto **sí**
   demuestra que la lectura del saldo sale de Spanner y no de un mock.
 - `POST /v1/transfers` → `201` con `status = COMPLETED`.
-- `POST /v1/recharges` → `201` con `status = COMPLETED`.
-- Replay de ambas operaciones → `201` con cabecera `Idempotent-Replayed: true`. Esto
-  **sí** demuestra que la idempotencia persiste entre peticiones, en Spanner.
-- Misma key con body distinto → `409` con `code = idempotency_key_conflict`.
-- Body válido sin `Idempotency-Key` → `400` con `code = idempotency_key_required`.
-- Monto superior a $2.000.000 COP → `422 VALIDATION_ERROR`. Lo rechaza el **DTO**, no la
-  regla de dominio: el límite individual se observa, pero como validación de contrato.
-- `GET /v1/transfers/{id}` inexistente → `404 RESOURCE_NOT_FOUND`.
-- Comprobante de un tercero (`idp-sub-outsider`) → `403` con `code = FORBIDDEN`.
-- `401` sin credenciales y `403` por rol `SOPORTE` sobre rutas `Policies.Client` (solo
-  status; ver §9).
+- Replay de transferencia → `201` con `Idempotent-Replayed: true`.
+- Conflicto de idempotencia de transferencia → `409`.
+- Límite individual > $2.000.000 COP.
+- `POST /v1/transfers` sin `Idempotency-Key`.
+- `GET /v1/transfers/{id}` → `200`.
+- `GET` receipt propio → `200`.
+- `GET` receipt de un tercero → `403` con `code = FORBIDDEN`.
+- `GET /v1/transfers` (lista) → `200`.
+- `POST /v1/recharges` → `201`.
+- `POST /v1/recharges` sin `Idempotency-Key`.
+- `GET /v1/recharges` (lista) → `200`.
 
-### 10.2 Evidencia separada: E2E, código y documentación del proyecto
+**No** atribuir a esa corrida histórica: replay y conflicto de **recarga**, las nuevas
+validaciones de DTO, los nuevos `404`, la autorización ampliada, el límite diario
+acumulado, ni nada del ledger, el outbox o el pipeline de proyección (ver §10.3).
 
-Lo siguiente **no lo observa la suite Bruno** y no debe atribuirse a ella. Su evidencia es
-de otra naturaleza (consulta directa a la base, pruebas end-to-end del proyecto, lectura
-del código y de `ARCHITECTURE.md` / los README de servicio):
+### 10.2 B) Suite ampliada actual (39 requests automatizados)
+
+Estado real de esta colección:
+
+| Aspecto | Estado |
+|---|---|
+| Requests automatizados | **39** |
+| Validación **local** (mocks) | **39/39 requests PASS**, **16/16 tests PASS**, **71/71 assertions PASS** |
+| Validación contra GCP | **No ejecutada de forma completa.** La suite está **preparada** para GCP, pero **no** se afirma que los 39 hayan pasado contra GCP |
+
+Para reproducir la validación local:
+
+```bash
+cd tests/bruno
+bru run --env local --exclude-tags=manual,stateful   # esperado: 39/39
+```
+
+Para correrla contra GCP hace falta un `serverlessToken` de IAM y **no es estrictamente
+read-only**: la primera ejecución con `transferDemoKey` / `rechargeDemoKey` nuevas crea una
+transferencia y una recarga persistentes en Spanner (ver §3).
+
+### 10.3 C) Evidencia separada: E2E, código, base de datos y documentación
+
+Lo siguiente **no lo observa ninguna corrida Bruno HTTP**, ni la histórica de 18 requests ni
+la ampliada de 39, y no debe atribuirse a ninguna de las dos. Su evidencia es de otra
+naturaleza: consulta directa a la base de datos, pruebas end-to-end del proyecto, lectura del
+código y de `ARCHITECTURE.md` / los README de servicio.
 
 - **Partida doble en `ledger_entries` (`Σ Δ = 0`)**: propiedad del ledger en Spanner. Para
   comprobarla hay que consultar la tabla, no la API.
@@ -338,7 +378,7 @@ del código y de `ARCHITECTURE.md` / los README de servicio):
 - **Consistencia del pipeline Spanner → Pub/Sub → Firestore**: es **eventual**;
   `published_at` en `outbox_events` solo certifica la publicación en el bus.
 
-### 10.3 Limitación conocida, no resuelta
+### 10.4 Limitación conocida, no resuelta
 
 `CompleteAsync` no comparte transacción con el movimiento de saldo. Un fallo intermedio
 puede dejar un *commit gap* en el que un retry con la misma `Idempotency-Key` vuelva a

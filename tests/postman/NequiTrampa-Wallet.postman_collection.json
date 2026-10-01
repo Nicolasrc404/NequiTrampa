@@ -194,7 +194,7 @@
                 "exec": [
                   "\npm.test(\"Estado 200\", function () {\n  pm.response.to.have.status(200);\n});",
                   "\npm.test(\"Campo uid refleja ${clientUser}\", function () {\n  pm.expect(pm.response.json().uid).to.eql(pm.environment.get(\"clientUser\"));\n});",
-                  "\npm.test(\"Campo isStaff correcto\", function () {\n  pm.expect(pm.response.json().isStaff).to.eql(\"false\");\n});",
+                  "\npm.test(\"Campo isStaff correcto\", function () {\n  pm.expect(pm.response.json().isStaff).to.eql(false);\n});",
                   "pm.test(\"El rol CLIENTE se refleja en la lista de roles\", function () {\n  pm.expect(pm.response.json().roles).to.include(\"CLIENTE\");\n});"
                 ]
               }
