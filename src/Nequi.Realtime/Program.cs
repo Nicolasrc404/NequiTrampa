@@ -5,13 +5,17 @@ using System.Text.Json;
 using Nequi.Shared;
 using Nequi.Shared.Events;
 using Nequi.Shared.Http;
+using Nequi.Shared.OpenApi;
 using Nequi.Shared.Security;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNequiCommon();
+builder.AddNequiSwagger("NequiTrampa Realtime API",
+    "WebSocket /ws para refrescar la app en tiempo real (no documentable en OpenAPI) y receptor push de Pub/Sub.");
 builder.Services.AddSingleton<ConnectionRegistry>();
 
 var app = builder.Build();
+app.UseNequiSwagger(); // antes de UseNequiCommon: deny-by-default bloquearía la UI
 app.UseNequiCommon();
 app.UseWebSockets(new WebSocketOptions { KeepAliveInterval = TimeSpan.FromSeconds(30) });
 
@@ -23,9 +27,10 @@ app.Map("/ws", async (HttpContext ctx, ConnectionRegistry registry, ILogger<Conn
         return Problems.Problem(ctx, 400, "WebSocket upgrade required", code: "websocket_required");
 
     var user = CurrentUser.From(ctx.User)!;
+    var owner = ResourceAccess.OwnerKey(user); // events carry the domain client_id (falls back to the auth subject)
     using var socket = await ctx.WebSockets.AcceptWebSocketAsync();
-    var id = registry.Add(user.Uid, socket);
-    log.LogInformation("WebSocket connected ({Connections} for client)", registry.Count(user.Uid));
+    var id = registry.Add(owner, socket);
+    log.LogInformation("WebSocket connected ({Connections} for client)", registry.Count(owner));
     try
     {
         var buffer = new byte[1024];
@@ -38,7 +43,7 @@ app.Map("/ws", async (HttpContext ctx, ConnectionRegistry registry, ILogger<Conn
             await socket.CloseAsync(WebSocketCloseStatus.NormalClosure, null, CancellationToken.None);
     }
     catch (Exception e) when (e is WebSocketException or OperationCanceledException) { }
-    finally { registry.Remove(user.Uid, id); }
+    finally { registry.Remove(owner, id); }
     return Results.Empty;
 });
 

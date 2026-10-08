@@ -1,0 +1,25 @@
+meta {
+  name: Support Case Assign
+  type: http
+  seq: 21
+}
+
+post {
+  url: {{backofficeUrl}}/v1/support/cases/{{caseId}}/assignments
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+body:json {
+  { "assigneeId": "{{supportUser}}" }
+}
+
+assert {
+  res.status: eq 201
+  res.body.status: eq IN_PROGRESS
+  res.body.assignedTo: eq {{supportUser}}
+}

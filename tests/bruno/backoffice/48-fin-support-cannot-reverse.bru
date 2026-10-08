@@ -1,0 +1,29 @@
+meta {
+  name: Fin: Soporte no puede revertir (403)
+  type: http
+  seq: 48
+}
+
+post {
+  url: {{backofficeUrl}}/v1/financial-operations/{{finOpId}}/reversals
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: support
+  Idempotency-Key: {{revSupportKey}}
+}
+
+body:json {
+  { "reason": "intento no autorizado" }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("revSupportKey", uuid.v4());
+}
+
+assert {
+  res.status: eq 403
+}

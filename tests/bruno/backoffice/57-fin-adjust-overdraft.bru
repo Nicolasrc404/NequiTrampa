@@ -1,0 +1,30 @@
+meta {
+  name: Fin: Debit Over Balance (409)
+  type: http
+  seq: 57
+}
+
+post {
+  url: {{backofficeUrl}}/v1/financial-adjustments
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: operator
+  Idempotency-Key: {{adjOverKey}}
+}
+
+body:json {
+  { "clientId": "{{clientGuid}}", "direction": "DEBIT", "amount": 99999999, "reason": "Debito excesivo" }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("adjOverKey", uuid.v4());
+}
+
+assert {
+  res.status: eq 409
+  res.body.code: eq insufficient_funds
+}

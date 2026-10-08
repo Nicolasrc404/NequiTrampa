@@ -91,7 +91,7 @@ public static class ReportEndpoints
         g.MapPost("/", async (HttpContext ctx, CreateReportRequest req, IDocumentStore docs, ReportQueue queue) =>
         {
             var user = CurrentUser.From(ctx.User)!;
-            var target = req.ClientId ?? user.Uid;
+            var target = req.ClientId ?? ResourceAccess.OwnerKey(user);
             if (!ResourceAccess.CanRead(user, target))
                 return Problems.Problem(ctx, 403, "Forbidden", "Clients can only request their own reports.", "forbidden");
             if (req.From is { } f && req.To is { } t && f > t)

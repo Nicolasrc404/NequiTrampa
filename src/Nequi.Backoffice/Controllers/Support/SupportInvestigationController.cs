@@ -1,75 +1,94 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Nequi.Backoffice.Services;
+using Nequi.Shared.Data;
+using Nequi.Shared.Http;
 using Nequi.Shared.Security;
 
 namespace Nequi.Backoffice.Controllers.Support;
 
+public sealed record TimelineStep(string At, string Step, string Detail, string? EventId);
+public sealed record ProjectionItem(string EventId, string EventType, bool Published, long Attempts, string? LastError, bool Projected);
+
 /// <summary>
-/// Investigación de operaciones financieras por parte de SOPORTE.
+/// Investigación de operaciones financieras por parte de SOPORTE (solo lectura sobre Spanner + estado de proyección en Firestore).
 /// Regla: SOPORTE puede investigar dinero, pero NO moverlo.
-/// Estado: TO-BE — requiere acceso de solo lectura a operaciones en Spanner.
-/// PERSISTENCIA PENDIENTE: lectura de transfers, ledger_entries en Spanner.
 /// </summary>
 [ApiController]
 [Route("v1/support")]
 [Authorize(Policy = Policies.CanViewSupport)]
 [Produces("application/json")]
-public sealed class SupportInvestigationController : ControllerBase
+public sealed class SupportInvestigationController(LedgerReader ledger, IDocumentStore docs) : ControllerBase
 {
-    /// <summary>
-    /// Consulta el estado de una operación financiera específica.
-    /// SOPORTE: solo lectura. NO puede modificar ni revertir.
-    /// </summary>
+    /// <summary>Estado de una operación financiera (por operation_id o referencia pública).</summary>
     [HttpGet("operations/{id}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(OperationDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public IActionResult GetOperationStatus(string id)
+    public async Task<IActionResult> GetOperationStatus(string id, CancellationToken ct)
     {
-        // TO-BE: consultar operación en Spanner (solo lectura)
-        return Ok(new { status = "TO-BE", operationId = id });
+        var op = await ledger.FindOperationAsync(id, ct);
+        return op is null ? this.ProblemJson(404, "Operation not found", code: "not_found") : Ok(op);
     }
 
-    /// <summary>
-    /// Obtiene el timeline de eventos de una operación.
-    /// </summary>
+    /// <summary>Línea de tiempo: creación en el ledger, asientos, publicación del evento y proyección.</summary>
     [HttpGet("operations/{id}/timeline")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public IActionResult GetOperationTimeline(string id)
+    public async Task<IActionResult> GetOperationTimeline(string id, CancellationToken ct)
     {
-        return Ok(new { status = "TO-BE", operationId = id, timeline = Array.Empty<object>() });
+        var op = await ledger.FindOperationAsync(id, ct);
+        if (op is null) return this.ProblemJson(404, "Operation not found", code: "not_found");
+        var events = await ledger.OutboxAsync(op.OperationId, ct);
+        var timeline = new List<TimelineStep>
+        {
+            new(op.CreatedAt.UtcDateTime.ToString("O"), "LEDGER_OPERATION_CREATED", $"{op.Type} {op.Status}", null),
+        };
+        foreach (var e in events)
+        {
+            timeline.Add(new(e.CreatedAt.UtcDateTime.ToString("O"), "OUTBOX_EVENT_RECORDED", e.EventType, e.EventId));
+            if (e.PublishedAt is { } p) timeline.Add(new(p.UtcDateTime.ToString("O"), "EVENT_PUBLISHED", e.EventType, e.EventId));
+            if (await docs.GetAsync("financial_movements", e.EventId, ct) is { } m)
+                timeline.Add(new(m.TryGetValue("occurredAt", out var occ) ? occ?.ToString() ?? "" : "", "PROJECTED_TO_FIRESTORE", e.EventType, e.EventId));
+        }
+        return Ok(new { operationId = op.OperationId, publicReference = op.PublicReference, timeline = timeline.OrderBy(t => t.At, StringComparer.Ordinal) });
     }
 
-    /// <summary>
-    /// Consulta el estado de proyección Firestore de una operación.
-    /// </summary>
+    /// <summary>Compara Spanner (outbox) con Firestore (proyección) para esta operación.</summary>
     [HttpGet("operations/{id}/projection-status")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult GetProjectionStatus(string id)
-    {
-        return Ok(new { status = "TO-BE", operationId = id, projectionStatus = "PENDING_IMPLEMENTATION" });
-    }
-
-    /// <summary>
-    /// Consulta información básica de un cliente (minimización de datos).
-    /// SOPORTE solo recibe la información necesaria para atender el caso.
-    /// </summary>
-    [HttpGet("clients/{id}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public IActionResult GetClientInfo(string id)
+    public async Task<IActionResult> GetProjectionStatus(string id, CancellationToken ct)
     {
-        // TO-BE: minimización de datos — solo nombre, teléfono enmascarado, estado de cuenta
-        return Ok(new { status = "TO-BE", clientId = id });
+        var op = await ledger.FindOperationAsync(id, ct);
+        if (op is null) return this.ProblemJson(404, "Operation not found", code: "not_found");
+        var events = await ledger.OutboxAsync(op.OperationId, ct);
+        var items = new List<ProjectionItem>();
+        foreach (var e in events)
+            items.Add(new(e.EventId, e.EventType, e.PublishedAt is not null, e.Attempts, e.LastError,
+                await docs.GetAsync("financial_movements", e.EventId, ct) is not null));
+        var overall = items.Count == 0 ? "NO_EVENTS" : items.All(i => i.Published && i.Projected) ? "SYNCED" : "PENDING";
+        return Ok(new { operationId = op.OperationId, status = overall, events = items });
     }
 
-    /// <summary>
-    /// Lista las operaciones de un cliente para investigación de soporte.
-    /// </summary>
+    /// <summary>Consulta un cliente por client_id, auth_subject o código de transferencia.</summary>
+    [HttpGet("clients/{id}")]
+    [ProducesResponseType(typeof(ClientDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetClient(string id, CancellationToken ct)
+    {
+        var c = await ledger.FindClientAsync(id, ct);
+        return c is null ? this.ProblemJson(404, "Client not found", code: "not_found") : Ok(c);
+    }
+
+    /// <summary>Últimas operaciones del cliente (más recientes primero).</summary>
     [HttpGet("clients/{id}/operations")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult GetClientOperations(string id)
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetClientOperations(string id, [FromQuery] int limit = 50, CancellationToken ct = default)
     {
-        return Ok(new { status = "TO-BE", clientId = id, operations = Array.Empty<object>() });
+        var c = await ledger.FindClientAsync(id, ct);
+        if (c is null) return this.ProblemJson(404, "Client not found", code: "not_found");
+        var ops = await ledger.ClientOperationsAsync(c.ClientId, Math.Clamp(limit, 1, 200), ct);
+        return Ok(new { clientId = c.ClientId, count = ops.Count, items = ops });
     }
 }

@@ -1,0 +1,18 @@
+meta {
+  name: Gateway Blocks /internal
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{gatewayUrl}}/internal/outbox/drain
+  body: none
+  auth: none
+}
+
+headers {
+}
+
+assert {
+  res.status: eq 404
+}

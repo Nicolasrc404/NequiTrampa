@@ -2,6 +2,7 @@ using Google.Cloud.PubSub.V1;
 using Nequi.Shared;
 using Nequi.Shared.Events;
 using Nequi.Shared.Health;
+using Nequi.Shared.OpenApi;
 using Nequi.Workers.Notifications;
 using Nequi.Workers.Outbox;
 using Nequi.Workers.Projection;
@@ -9,6 +10,9 @@ using Nequi.Workers.Reports;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.AddNequiCommon();
+builder.AddNequiSwagger("NequiTrampa Workers API",
+    "Outbox → Pub/Sub, proyecciones de movimientos y notificaciones en Firestore, y reportes. " +
+    "Los endpoints /internal/* los invoca Pub/Sub (push OIDC) o Cloud Scheduler.");
 
 var cfg = builder.Configuration;
 var gcp = string.Equals(cfg["Data:Backend"], "gcp", StringComparison.OrdinalIgnoreCase);
@@ -44,6 +48,7 @@ builder.Services.AddSingleton<InMemoryOutboxStore>();
 builder.Services.AddSingleton<IOutboxStore>(sp => SpannerOutbox.Create(sp) ?? sp.GetRequiredService<InMemoryOutboxStore>());
 
 var app = builder.Build();
+app.UseNequiSwagger(); // antes de UseNequiCommon: deny-by-default bloquearía la UI
 app.UseNequiCommon();
 
 app.MapProjection();

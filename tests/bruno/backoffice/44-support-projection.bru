@@ -1,0 +1,20 @@
+meta {
+  name: Support Projection Status
+  type: http
+  seq: 44
+}
+
+get {
+  url: {{backofficeUrl}}/v1/support/operations/{{finTransferRef}}/projection-status
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+assert {
+  res.status: eq 200
+  res.body.events.length: eq 2
+}

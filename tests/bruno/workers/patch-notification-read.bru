@@ -1,0 +1,19 @@
+meta {
+  name: Notification Mark Read
+  type: http
+  seq: 9
+}
+
+patch {
+  url: {{workersUrl}}/v1/notifications/{{notificationId}}/read
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 204
+}

@@ -21,6 +21,9 @@ public interface IDocumentStore
         string collection, string field, object value,
         string orderByField, int limit, CancellationToken ct);
 
+    /// <summary>Lists the newest documents of a collection ordered by <paramref name="orderByField"/> descending (single-field order: no composite index needed).</summary>
+    Task<IReadOnlyList<IDictionary<string, object?>>> ListAsync(string collection, string orderByField, int limit, CancellationToken ct);
+
     Task PingAsync(CancellationToken ct);
 }
 
@@ -55,6 +58,11 @@ public sealed class InMemoryDocumentStore : IDocumentStore
             .Take(limit)
             .Select(Copy)
             .ToList());
+
+    public Task<IReadOnlyList<IDictionary<string, object?>>> ListAsync(string collection, string orderByField, int limit, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<IDictionary<string, object?>>>(Col(collection).Values
+            .OrderByDescending(d => d.TryGetValue(orderByField, out var v) ? v?.ToString() : null)
+            .Take(limit).Select(Copy).ToList());
 
     public Task PingAsync(CancellationToken ct) => Task.CompletedTask;
 }
@@ -99,6 +107,14 @@ public sealed class FirestoreDocumentStore(FirestoreDb db) : IDocumentStore
             .OrderByDescending(orderByField)
             .Limit(limit)
             .GetSnapshotAsync(ct);
+        return snap.Documents
+            .Select(d => (IDictionary<string, object?>)d.ToDictionary().ToDictionary(kv => kv.Key, kv => (object?)kv.Value))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<IDictionary<string, object?>>> ListAsync(string collection, string orderByField, int limit, CancellationToken ct)
+    {
+        var snap = await db.Collection(collection).OrderByDescending(orderByField).Limit(limit).GetSnapshotAsync(ct);
         return snap.Documents
             .Select(d => (IDictionary<string, object?>)d.ToDictionary().ToDictionary(kv => kv.Key, kv => (object?)kv.Value))
             .ToList();

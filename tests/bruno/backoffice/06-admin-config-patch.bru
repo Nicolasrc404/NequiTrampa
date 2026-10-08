@@ -1,0 +1,24 @@
+meta {
+  name: Admin Config Patch
+  type: http
+  seq: 11
+}
+
+patch {
+  url: {{backofficeUrl}}/v1/admin/configuration
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: admin
+}
+
+body:json {
+  { "supportHours": "L-V 08:00-18:00 America/Bogota" }
+}
+
+assert {
+  res.status: eq 200
+  res.body.configuration.supportHours: isString
+}

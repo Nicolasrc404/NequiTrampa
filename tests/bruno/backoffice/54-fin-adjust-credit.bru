@@ -1,0 +1,34 @@
+meta {
+  name: Fin: Adjustment Credit
+  type: http
+  seq: 54
+}
+
+post {
+  url: {{backofficeUrl}}/v1/financial-adjustments
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: operator
+  Idempotency-Key: {{adjCreditKey}}
+}
+
+body:json {
+  { "clientId": "{{clientGuid}}", "direction": "CREDIT", "amount": 1000, "reason": "Ajuste de prueba automatizada" }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("adjCreditKey", uuid.v4());
+}
+
+script:post-response {
+  if (res.getStatus() === 201) bru.setVar("adjustmentRef", res.body.publicReference);
+}
+
+assert {
+  res.status: eq 201
+  res.body.type: eq ADMIN_ADJUSTMENT
+}

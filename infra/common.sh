@@ -35,6 +35,11 @@ export SA_WORKERS="outbox-dispatcher"
 export SA_REALTIME="realtime-service"
 export SA_PUSH="pubsub-push-invoker"
 export SA_WALLET="${SA_WALLET:-wallet-service}"
+export SA_FINANCE="${SA_FINANCE:-finance-service}"
+export SA_PROFILE="${SA_PROFILE:-profile-service}"
+export SA_BACKOFFICE="${SA_BACKOFFICE:-admin-service}"
+export SA_ASSISTANT="${SA_ASSISTANT:-assistant-service}"
+export SA_GATEWAY="${SA_GATEWAY:-gateway-service}"
 sa_email() { echo "$1@${PROJECT_ID}.iam.gserviceaccount.com"; }
 
 exists() { "$@" >/dev/null 2>&1; }              # exists gcloud x describe y

@@ -1,0 +1,21 @@
+meta {
+  name: Support Case Get
+  type: http
+  seq: 24
+}
+
+get {
+  url: {{backofficeUrl}}/v1/support/cases/{{caseId}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+assert {
+  res.status: eq 200
+  res.body.case.id: eq {{caseId}}
+  res.body.messages.length: eq 1
+}

@@ -1,0 +1,21 @@
+meta {
+  name: Projection Movements (staff, cliente seed)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{workersUrl}}/v1/projections/movements?clientId={{clientGuid}}&limit=5
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+assert {
+  res.status: eq 200
+  res.body.clientId: eq {{clientGuid}}
+  res.body.count: gt 0
+}

@@ -1,0 +1,20 @@
+meta {
+  name: Movements via Gateway
+  type: http
+  seq: 10
+}
+
+get {
+  url: {{gatewayUrl}}/v1/movements?limit=3
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 200
+  res.body.count: gt 0
+}

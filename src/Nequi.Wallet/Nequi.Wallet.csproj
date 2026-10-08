@@ -18,9 +18,5 @@
     <InternalsVisibleTo Include="Nequi.Tests" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Swashbuckle compatible con net10 -->
-    <PackageReference Include="Swashbuckle.AspNetCore" Version="9.0.1" />
-  </ItemGroup>
 
 </Project>

@@ -1,0 +1,18 @@
+meta {
+  name: Backoffice Health Ready
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{backofficeUrl}}/health/ready
+  body: none
+  auth: none
+}
+
+headers {
+}
+
+assert {
+  res.status: eq 200
+}

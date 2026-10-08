@@ -57,7 +57,7 @@ public static class ProjectionEndpoints
         app.MapGet("/v1/projections/movements", async (HttpContext ctx, string? clientId, int? limit, IDocumentStore docs) =>
         {
             var user = CurrentUser.From(ctx.User)!;
-            var owner = clientId ?? user.Uid;
+            var owner = clientId ?? ResourceAccess.OwnerKey(user);
             if (!ResourceAccess.CanRead(user, owner))
                 return Problems.Problem(ctx, 403, "Forbidden", "You can only read your own movements.", "forbidden");
             var rows = await docs.QueryEqualsAsync(Collections.Movements, "clientId", owner, Math.Clamp(limit ?? 50, 1, 200), ctx.RequestAborted);

@@ -21,6 +21,9 @@ public sealed record CurrentUser(string Uid, IReadOnlySet<string> Roles, string?
 /// <summary>Resource-based authorization: clients touch only their own resources; staff may read any.</summary>
 public static class ResourceAccess
 {
-    public static bool CanRead(CurrentUser user, string ownerUid) => user.Uid == ownerUid || user.IsStaff;
-    public static bool CanWrite(CurrentUser user, string ownerUid) => user.Uid == ownerUid;
+    public static bool CanRead(CurrentUser user, string ownerUid) => user.Uid == ownerUid || user.ClientId == ownerUid || user.IsStaff;
+    public static bool CanWrite(CurrentUser user, string ownerUid) => user.Uid == ownerUid || user.ClientId == ownerUid;
+
+    /// <summary>Identifier under which a client's data is stored in Firestore projections: the domain client_id when present, otherwise the auth subject.</summary>
+    public static string OwnerKey(CurrentUser user) => user.ClientId ?? user.Uid;
 }

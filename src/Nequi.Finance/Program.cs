@@ -1,23 +1,19 @@
 using Nequi.Finance.Movements;
 using Nequi.Shared;
+using Nequi.Shared.OpenApi;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddNequiCommon();
 
 builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen();
+builder.AddNequiSwagger("NequiTrampa Finance API",
+    "Consulta de movimientos financieros proyectados en Firestore (lectura; la autoridad del saldo es Spanner).");
 
 var app = builder.Build();
 
+app.UseNequiSwagger(); // antes de UseNequiCommon: deny-by-default bloquearía la UI
 app.UseNequiCommon();
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI();
-}
 
 app.UseHttpsRedirection();
 

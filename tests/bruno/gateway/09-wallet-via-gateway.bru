@@ -1,0 +1,20 @@
+meta {
+  name: Wallet via Gateway
+  type: http
+  seq: 9
+}
+
+get {
+  url: {{gatewayUrl}}/v1/wallet/balance
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 200
+  res.body.sourceAuthority: eq CLOUD_SPANNER
+}

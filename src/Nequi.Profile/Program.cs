@@ -1,19 +1,22 @@
-using Microsoft.OpenApi.Models;
 using Nequi.Shared;
+using Nequi.Shared.OpenApi;
 
 // =============================================================================
 // NequiTrampa — Nequi.Profile (core-api conceptual, dominio Profile)
 // Responsabilidades: Profile · Access
 // Nota: GET /v1/me/access ya está implementado en NequiHost.UseNequiCommon()
 //       vía AuthExtensions.MapAccessEndpoint()
-// Estado general: PARCIAL — estructura y contratos listos.
+// Estado general: IMPLEMENTADO.
 // Modelo de datos: tabla 'clients' existente en Cloud Spanner (database/spanner/01_schema.sql).
-// PERSISTENCIA PENDIENTE: integración funcional y repositorios Spanner para Profile aún en desarrollo.
+// Endpoints: GET/PATCH /v1/profile (Spanner clients + wallet_accounts).
 // =============================================================================
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.AddNequiCommon();
+
+if (builder.Configuration["Spanner:Database"] is not { Length: > 0 })
+    throw new InvalidOperationException("Spanner:Database is required for Nequi.Profile.");
 
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>
@@ -34,43 +37,13 @@ builder.Services.AddControllers()
         };
     });
 
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "NequiTrampa Profile API",
-        Version = "v1",
-        Description = "API de perfil de usuario y acceso (core-api). Incluye GET /v1/me/access."
-    });
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Name = "Authorization", In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http, Scheme = "bearer", BearerFormat = "JWT"
-    });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-                { Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" } },
-            Array.Empty<string>()
-        }
-    });
-});
+builder.AddNequiSwagger("NequiTrampa Profile API",
+    "API de perfil de usuario y acceso (core-api). Incluye GET /v1/me/access.");
 
 var app = builder.Build();
 
+app.UseNequiSwagger(); // antes de UseNequiCommon: deny-by-default bloquearía la UI
 app.UseNequiCommon(); // ya incluye /v1/me/access y /health/*
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "NequiTrampa Profile API v1");
-        c.RoutePrefix = string.Empty;
-    });
-}
 
 app.UseHttpsRedirection();
 app.MapControllers();

@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.OpenApi.Models;
 using Nequi.Shared;
+using Nequi.Shared.OpenApi;
 using Nequi.Wallet.Filters;
 using Nequi.Wallet.Interfaces;
 using Nequi.Wallet.Services;
@@ -93,58 +93,21 @@ else
     builder.Services.AddSingleton<IRechargeService, MockRechargeService>();
 }
 
-// 4. OpenAPI / Swagger con documentación de seguridad Bearer JWT
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "NequiTrampa Wallet API",
-        Version = "v1",
-        Description = "API de billetera digital, transferencias y recargas. " +
-                      "Data:Backend=gcp → SpannerWalletService + SpannerTransferService + SpannerRechargeService (autoritativo en Cloud Spanner). " +
-                      "Data:Backend=memory → MockWalletService + MockTransferService + MockRechargeService (dev/test). " +
-                      "Moneda: COP. Límite por transferencia: $2.000.000. Límite diario: $5.000.000."
-    });
-
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "Token JWT de Google Cloud Identity Platform. Formato: Bearer {token}",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT"
-    });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            Array.Empty<string>()
-        }
-    });
-});
+// 4. OpenAPI / Swagger (Nequi.Shared.OpenApi): Bearer JWT + headers demo cuando Auth:DemoHeaders=true
+builder.AddNequiSwagger("NequiTrampa Wallet API",
+    "API de billetera digital, transferencias y recargas. " +
+    "Data:Backend=gcp → SpannerWalletService + SpannerTransferService + SpannerRechargeService (autoritativo en Cloud Spanner). " +
+    "Data:Backend=memory → MockWalletService + MockTransferService + MockRechargeService (dev/test). " +
+    "Moneda: COP. Límite por transferencia: $2.000.000. Límite diario: $5.000.000.");
 
 var app = builder.Build();
 
-// 5. Pipeline HTTP estándar Nequi: correlación, exception handler, auth, health, /v1/me/access
+// 5. Swagger UI en /swagger (Development o Swagger:Enabled=true); antes de UseNequiCommon por el deny-by-default
+app.UseNequiSwagger();
+
+// 6. Pipeline HTTP estándar Nequi: correlación, exception handler, auth, health, /v1/me/access
 //    WalletExceptionFilter (registrado globalmente) intercepta WalletDomainException y UnauthorizedAccessException.
 app.UseNequiCommon();
-
-// 6. Swagger UI en desarrollo
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "NequiTrampa Wallet API v1");
-        c.RoutePrefix = string.Empty;
-    });
-}
 
 // HTTPS redirection solo en desarrollo local sin proxy/contenedor; en Cloud Run la terminación TLS ocurre en GFE
 if (app.Environment.IsDevelopment() && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PORT")))

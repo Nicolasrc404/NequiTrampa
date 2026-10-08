@@ -1,0 +1,20 @@
+meta {
+  name: Gateway Ignores X-Demo Headers (401)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{gatewayUrl}}/v1/wallet
+  body: none
+  auth: none
+}
+
+headers {
+  X-Demo-User: idp-sub-alejandro
+  X-Demo-Role: CLIENTE
+}
+
+assert {
+  res.status: eq 401
+}
