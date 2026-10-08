@@ -1,0 +1,19 @@
+meta {
+  name: Gateway Rejects Invalid JWT (401)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{gatewayUrl}}/v1/wallet
+  body: none
+  auth: none
+}
+
+headers {
+  Authorization: Bearer not.a.jwt
+}
+
+assert {
+  res.status: eq 401
+}

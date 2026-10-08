@@ -1,0 +1,18 @@
+meta {
+  name: Gateway Health
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{gatewayUrl}}/health/live
+  body: none
+  auth: none
+}
+
+headers {
+}
+
+assert {
+  res.status: eq 200
+}

@@ -72,5 +72,8 @@ public sealed class IdempotencyFilter : IEndpointFilter
 public static class IdempotencyExtensions
 {
     public static RouteHandlerBuilder RequireIdempotency(this RouteHandlerBuilder b) =>
-        b.AddEndpointFilter<IdempotencyFilter>();
+        b.AddEndpointFilter<IdempotencyFilter>().WithMetadata(new RequiresIdempotencyMetadata());
 }
+
+/// <summary>Marks endpoints guarded by <see cref="IdempotencyFilter"/> so OpenAPI can document the header.</summary>
+public sealed class RequiresIdempotencyMetadata;

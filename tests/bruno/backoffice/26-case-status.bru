@@ -1,0 +1,24 @@
+meta {
+  name: Support Case Close
+  type: http
+  seq: 26
+}
+
+patch {
+  url: {{backofficeUrl}}/v1/support/cases/{{caseId}}/status
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+body:json {
+  { "status": "CLOSED" }
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq CLOSED
+}

@@ -1,0 +1,34 @@
+meta {
+  name: Create Report
+  type: http
+  seq: 11
+}
+
+post {
+  url: {{workersUrl}}/v1/reports
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: client
+  Idempotency-Key: {{reportIdempotencyKey}}
+}
+
+body:json {
+  { "from": "2026-01-01", "to": "2026-12-31" }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("reportIdempotencyKey", uuid.v4());
+}
+
+script:post-response {
+  if (res.getStatus() === 202) bru.setVar("reportId", res.body.id);
+}
+
+assert {
+  res.status: eq 202
+  res.body.status: eq PENDING
+}

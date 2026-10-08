@@ -1,0 +1,19 @@
+meta {
+  name: Assistant Summary (staff 403)
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{assistantUrl}}/v1/assistant/summary
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+assert {
+  res.status: eq 403
+}

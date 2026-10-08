@@ -1,0 +1,2376 @@
+{
+  "info": {
+    "name": "NequiTrampa - Local",
+    "description": "Todos los endpoints de los 7 servicios levantados con scripts/run-local.ps1.\n\n1. Importa también NequiTrampa.local.postman_environment.json y selecciónalo.\n2. Auth local: headers X-Demo-User / X-Demo-Role (Auth__DemoHeaders=true).\n3. Rutas con {id}: define la variable `id` en el environment.\n4. WebSocket Realtime: ws://localhost:8086/ws (New > WebSocket en Postman).\nGenerado desde /swagger/v1/swagger.json de cada servicio.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Wallet (8080)",
+      "item": [
+        {
+          "name": "GET /health/live",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{wallet_base}}/health/live",
+              "host": [
+                "{{wallet_base}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /health/ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Estado de dependencias (spanner, firestore). 503 si alguna está caída.",
+            "url": {
+              "raw": "{{wallet_base}}/health/ready",
+              "host": [
+                "{{wallet_base}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /v1/me/access",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{wallet_base}}/v1/me/access",
+              "host": [
+                "{{wallet_base}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "access"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /v1/recharges",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Nueva por request. Repite un valor fijo para probar replay/409."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{wallet_base}}/v1/recharges",
+              "host": [
+                "{{wallet_base}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            },
+            "description": "⚠ Con backend gcp escribe en Spanner real (full-stack-2026). Crea y procesa una recarga simulada de saldo digital. Idempotencia protegida por Idempotency-Key (IdempotencyActionFilter). Rango permitido: $1.000 – $5.000.000 COP (validado en DTO). Implementación actual: MOCK — el saldo no se acumula transaccionalmente (TO-BE: Spanner).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 50000,\n  \"paymentMethod\": \"SIMULATED_PSE\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /v1/recharges",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{wallet_base}}/v1/recharges",
+              "host": [
+                "{{wallet_base}}"
+              ],
+              "path": [
+                "v1",
+                "recharges"
+              ]
+            },
+            "description": "⚠ Con backend gcp escribe en Spanner real (full-stack-2026). Obtiene el listado histórico de recargas simuladas del cliente autenticado. NOTA: `CurrentUser.Uid` se usa como clave de cliente de forma temporal (MOCK); en producción se resolverá UID → clientId financiero desde Spanner (TO-BE)."
+          }
+        },
+        {
+          "name": "POST /v1/transfers",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Nueva por request. Repite un valor fijo para probar replay/409."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{wallet_base}}/v1/transfers",
+              "host": [
+                "{{wallet_base}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ]
+            },
+            "description": "⚠ Con backend gcp mueve dinero en Spanner real (full-stack-2026). Crea y procesa una transferencia interna entre clientes registrados. Idempotencia protegida por Idempotency-Key (IdempotencyActionFilter). Validación de límites y saldo en MOCK. Límite por operación: $2.000.000 COP. Límite diario acumulado: $5.000.000 COP. Implementación actual: MOCK (MockTransferService). Persistencia autoritativa en Spanner = TO-BE.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"destinationTransferCode\": \"{{destCode}}\",\n  \"amount\": 25000,\n  \"description\": \"Pago almuerzo\",\n  \"currency\": \"COP\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /v1/transfers",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{wallet_base}}/v1/transfers?page=1&pageSize=20",
+              "host": [
+                "{{wallet_base}}"
+              ],
+              "path": [
+                "v1",
+                "transfers"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "⚠ Con backend gcp mueve dinero en Spanner real (full-stack-2026). Lista el historial de transferencias propias del cliente autenticado. NOTA: `CurrentUser.Uid` se usa como clave de cliente de forma temporal (MOCK); en producción se resolverá UID → clientId financiero desde Spanner (TO-BE)."
+          }
+        },
+        {
+          "name": "GET /v1/transfers/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{wallet_base}}/v1/transfers/{{id}}",
+              "host": [
+                "{{wallet_base}}"
+              ],
+              "path": [
+                "v1",
+                "transfers",
+                "{{id}}"
+              ]
+            },
+            "description": "Consulta el detalle de una transferencia específica propia."
+          }
+        },
+        {
+          "name": "GET /v1/transfers/{id}/receipt",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{wallet_base}}/v1/transfers/{{id}}/receipt",
+              "host": [
+                "{{wallet_base}}"
+              ],
+              "path": [
+                "v1",
+                "transfers",
+                "{{id}}",
+                "receipt"
+              ]
+            },
+            "description": "Genera y obtiene el comprobante de una transferencia propia. Aplica la misma autorización por recurso que M:Nequi.Wallet.Controllers.TransfersController.GetTransferById(System.String,System.Threading.CancellationToken): un cliente solo puede obtener el comprobante de sus propias transferencias (rol origen o destino)."
+          }
+        },
+        {
+          "name": "GET /v1/wallet",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{wallet_base}}/v1/wallet",
+              "host": [
+                "{{wallet_base}}"
+              ],
+              "path": [
+                "v1",
+                "wallet"
+              ]
+            },
+            "description": "Consulta la información general de la billetera del cliente autenticado (MOCK)."
+          }
+        },
+        {
+          "name": "GET /v1/wallet/balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{wallet_base}}/v1/wallet/balance",
+              "host": [
+                "{{wallet_base}}"
+              ],
+              "path": [
+                "v1",
+                "wallet",
+                "balance"
+              ]
+            },
+            "description": "Consulta el saldo digital simulado. NOTA: `CurrentUser.Uid` se usa como clave de cliente de forma temporal (MOCK); en producción se resolverá UID → clientId financiero desde Spanner (TO-BE)."
+          }
+        }
+      ],
+      "description": "NequiTrampa Wallet API — Swagger: http://localhost:8080/swagger"
+    },
+    {
+      "name": "Profile (8081)",
+      "item": [
+        {
+          "name": "GET /health/live",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{profile_base}}/health/live",
+              "host": [
+                "{{profile_base}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /health/ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Estado de dependencias (spanner, firestore). 503 si alguna está caída.",
+            "url": {
+              "raw": "{{profile_base}}/health/ready",
+              "host": [
+                "{{profile_base}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /v1/me/access",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{profile_base}}/v1/me/access",
+              "host": [
+                "{{profile_base}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "access"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "NequiTrampa Profile API — Swagger: http://localhost:8081/swagger"
+    },
+    {
+      "name": "Finance (8082)",
+      "item": [
+        {
+          "name": "GET /health/live",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{finance_base}}/health/live",
+              "host": [
+                "{{finance_base}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /health/ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Estado de dependencias (spanner, firestore). 503 si alguna está caída.",
+            "url": {
+              "raw": "{{finance_base}}/health/ready",
+              "host": [
+                "{{finance_base}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /v1/me/access",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{finance_base}}/v1/me/access",
+              "host": [
+                "{{finance_base}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "access"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /v1/movements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{finance_base}}/v1/movements?limit=20",
+              "host": [
+                "{{finance_base}}"
+              ],
+              "path": [
+                "v1",
+                "movements"
+              ],
+              "query": [
+                {
+                  "key": "clientId",
+                  "value": "{{clientUser}}",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "description": "NequiTrampa Finance API — Swagger: http://localhost:8082/swagger"
+    },
+    {
+      "name": "Backoffice (8083)",
+      "item": [
+        {
+          "name": "GET /health/live",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{backoffice_base}}/health/live",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /health/ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Estado de dependencias (spanner, firestore). 503 si alguna está caída.",
+            "url": {
+              "raw": "{{backoffice_base}}/health/ready",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /v1/admin/users",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{adminUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{adminRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/admin/users?page=1&pageSize=20",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "users"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Lista todos los usuarios de la plataforma con filtros."
+          }
+        },
+        {
+          "name": "GET /v1/admin/users/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{adminUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{adminRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/admin/users/{{id}}",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "users",
+                "{{id}}"
+              ]
+            },
+            "description": "Consulta el detalle de un usuario específico."
+          }
+        },
+        {
+          "name": "PATCH /v1/admin/users/{id}/status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{adminUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{adminRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/admin/users/{{id}}/status",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "users",
+                "{{id}}",
+                "status"
+              ]
+            },
+            "description": "Activa o bloquea un usuario. No elimina ni modifica saldo.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"BLOCKED\",\n  \"reason\": \"Prueba local\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /v1/admin/roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{adminUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{adminRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/admin/roles",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "roles"
+              ]
+            },
+            "description": "Lista los roles disponibles del sistema."
+          }
+        },
+        {
+          "name": "GET /v1/admin/users/{id}/roles",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{adminUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{adminRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/admin/users/{{id}}/roles",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "users",
+                "{{id}}",
+                "roles"
+              ]
+            },
+            "description": "Consulta los roles asignados a un usuario."
+          }
+        },
+        {
+          "name": "PUT /v1/admin/users/{id}/roles",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{adminUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{adminRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/admin/users/{{id}}/roles",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "users",
+                "{{id}}",
+                "roles"
+              ]
+            },
+            "description": "Asigna roles a un usuario. Solo roles del sistema (CLIENTE, SOPORTE, OPERADOR_FINANCIERO, ADMIN).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roles\": [\n    \"CLIENTE\"\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /v1/admin/configuration",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{adminUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{adminRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/admin/configuration",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "configuration"
+              ]
+            },
+            "description": "Consulta la configuración de plataforma permitida."
+          }
+        },
+        {
+          "name": "PATCH /v1/admin/configuration",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{adminUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{adminRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/admin/configuration",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "configuration"
+              ]
+            },
+            "description": "Actualiza configuración de plataforma autorizada. No incluye configuración financiera crítica.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"maxTransferAmount\": 2000000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /v1/admin/audit-events",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{adminUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{adminRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/admin/audit-events?page=1&pageSize=20",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "audit-events"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1",
+                  "disabled": false
+                },
+                {
+                  "key": "pageSize",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            },
+            "description": "Lista eventos de auditoría de la plataforma. PERSISTENCIA PENDIENTE: tabla audit_events en Spanner."
+          }
+        },
+        {
+          "name": "GET /v1/admin/audit-events/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{adminUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{adminRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/admin/audit-events/{{id}}",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "admin",
+                "audit-events",
+                "{{id}}"
+              ]
+            },
+            "description": "Consulta el detalle de un evento de auditoría específico."
+          }
+        },
+        {
+          "name": "GET /v1/financial-operations/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/financial-operations/{{id}}",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "financial-operations",
+                "{{id}}"
+              ]
+            },
+            "description": "Consulta el detalle de una operación financiera."
+          }
+        },
+        {
+          "name": "GET /v1/financial-operations/{id}/ledger",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/financial-operations/{{id}}/ledger",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "financial-operations",
+                "{{id}}",
+                "ledger"
+              ]
+            },
+            "description": "Consulta las entradas de ledger de una operación. PERSISTENCIA PENDIENTE: tabla ledger_entries en Spanner."
+          }
+        },
+        {
+          "name": "GET /v1/financial-operations/{id}/audit",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/financial-operations/{{id}}/audit",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "financial-operations",
+                "{{id}}",
+                "audit"
+              ]
+            },
+            "description": "Consulta la auditoría de una operación financiera."
+          }
+        },
+        {
+          "name": "POST /v1/financial-operations/{id}/reversals",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Nueva por request. Repite un valor fijo para probar replay/409."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/financial-operations/{{id}}/reversals",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "financial-operations",
+                "{{id}}",
+                "reversals"
+              ]
+            },
+            "description": "Crea un reverso formal de una operación completada. REGLA: no DELETE de transferencia — se crea una nueva operación REVERSAL. Requiere Idempotency-Key. PERSISTENCIA PENDIENTE: tabla reversals + ledger_entries en Spanner.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Reverso de prueba\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /v1/reversals/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/reversals/{{id}}",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "reversals",
+                "{{id}}"
+              ]
+            },
+            "description": "Consulta el detalle de un reverso."
+          }
+        },
+        {
+          "name": "POST /v1/financial-adjustments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Nueva por request. Repite un valor fijo para probar replay/409."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/financial-adjustments",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "financial-adjustments"
+              ]
+            },
+            "description": "Crea un ajuste compensatorio formal. REGLA: corrección mediante operación formal con motivo, actor y auditoría. PERSISTENCIA PENDIENTE: tabla financial_adjustments + ledger_entries en Spanner.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientUser}}\",\n  \"amount\": 1000,\n  \"currency\": \"COP\",\n  \"reason\": \"Ajuste compensatorio de prueba\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /v1/financial-adjustments/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/financial-adjustments/{{id}}",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "financial-adjustments",
+                "{{id}}"
+              ]
+            },
+            "description": "Consulta el detalle de un ajuste financiero."
+          }
+        },
+        {
+          "name": "GET /v1/me/access",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/me/access",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "access"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /v1/reconciliation/issues",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/reconciliation/issues",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "reconciliation",
+                "issues"
+              ]
+            },
+            "description": "Lista las inconsistencias de reconciliación detectadas."
+          }
+        },
+        {
+          "name": "GET /v1/reconciliation/issues/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/reconciliation/issues/{{id}}",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "reconciliation",
+                "issues",
+                "{{id}}"
+              ]
+            },
+            "description": "Obtiene el detalle de una inconsistencia de reconciliación."
+          }
+        },
+        {
+          "name": "POST /v1/reconciliation/issues/{id}/resolve",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Nueva por request. Repite un valor fijo para probar replay/409."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/reconciliation/issues/{{id}}/resolve",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "reconciliation",
+                "issues",
+                "{{id}}",
+                "resolve"
+              ]
+            },
+            "description": "Resuelve una inconsistencia de reconciliación mediante operación formal. Requiere Idempotency-Key.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution\": \"Resuelto en prueba local\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /v1/support/cases",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{supportUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{supportRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/support/cases",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "support",
+                "cases"
+              ]
+            },
+            "description": "Lista los casos de soporte asignados o disponibles."
+          }
+        },
+        {
+          "name": "GET /v1/support/cases/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{supportUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{supportRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/support/cases/{{id}}",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "support",
+                "cases",
+                "{{id}}"
+              ]
+            },
+            "description": "Obtiene el detalle de un caso específico."
+          }
+        },
+        {
+          "name": "PATCH /v1/support/cases/{id}/status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{supportUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{supportRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/support/cases/{{id}}/status",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "support",
+                "cases",
+                "{{id}}",
+                "status"
+              ]
+            },
+            "description": "Actualiza el estado de un caso de soporte.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"IN_PROGRESS\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST /v1/support/cases/{id}/messages",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{supportUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{supportRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/support/cases/{{id}}/messages",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "support",
+                "cases",
+                "{{id}}",
+                "messages"
+              ]
+            },
+            "description": "Agrega un mensaje a un caso de soporte.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": \"Mensaje de prueba\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST /v1/support/cases/{id}/assignments",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{supportUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{supportRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/support/cases/{{id}}/assignments",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "support",
+                "cases",
+                "{{id}}",
+                "assignments"
+              ]
+            },
+            "description": "Asigna el caso a un agente de soporte.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"agentId\": \"{{supportUser}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST /v1/support/cases/{id}/escalations",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{supportUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{supportRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/support/cases/{{id}}/escalations",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "support",
+                "cases",
+                "{{id}}",
+                "escalations"
+              ]
+            },
+            "description": "Escala el caso a un nivel superior.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Escalamiento de prueba\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /v1/support/operations/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{supportUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{supportRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/support/operations/{{id}}",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "support",
+                "operations",
+                "{{id}}"
+              ]
+            },
+            "description": "Consulta el estado de una operación financiera específica. SOPORTE: solo lectura. NO puede modificar ni revertir."
+          }
+        },
+        {
+          "name": "GET /v1/support/operations/{id}/timeline",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{supportUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{supportRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/support/operations/{{id}}/timeline",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "support",
+                "operations",
+                "{{id}}",
+                "timeline"
+              ]
+            },
+            "description": "Obtiene el timeline de eventos de una operación."
+          }
+        },
+        {
+          "name": "GET /v1/support/operations/{id}/projection-status",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{supportUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{supportRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/support/operations/{{id}}/projection-status",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "support",
+                "operations",
+                "{{id}}",
+                "projection-status"
+              ]
+            },
+            "description": "Consulta el estado de proyección Firestore de una operación."
+          }
+        },
+        {
+          "name": "GET /v1/support/clients/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{supportUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{supportRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/support/clients/{{id}}",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "support",
+                "clients",
+                "{{id}}"
+              ]
+            },
+            "description": "Consulta información básica de un cliente (minimización de datos). SOPORTE solo recibe la información necesaria para atender el caso."
+          }
+        },
+        {
+          "name": "GET /v1/support/clients/{id}/operations",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{supportUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{supportRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{backoffice_base}}/v1/support/clients/{{id}}/operations",
+              "host": [
+                "{{backoffice_base}}"
+              ],
+              "path": [
+                "v1",
+                "support",
+                "clients",
+                "{{id}}",
+                "operations"
+              ]
+            },
+            "description": "Lista las operaciones de un cliente para investigación de soporte."
+          }
+        }
+      ],
+      "description": "NequiTrampa Backoffice API — Swagger: http://localhost:8083/swagger"
+    },
+    {
+      "name": "Assistant (8084)",
+      "item": [
+        {
+          "name": "GET /health/live",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{assistant_base}}/health/live",
+              "host": [
+                "{{assistant_base}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /health/ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Estado de dependencias (spanner, firestore). 503 si alguna está caída.",
+            "url": {
+              "raw": "{{assistant_base}}/health/ready",
+              "host": [
+                "{{assistant_base}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /v1/me/access",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{assistant_base}}/v1/me/access",
+              "host": [
+                "{{assistant_base}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "access"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "NequiTrampa Assistant API — Swagger: http://localhost:8084/swagger"
+    },
+    {
+      "name": "Workers (8085)",
+      "item": [
+        {
+          "name": "GET /health/live",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{workers_base}}/health/live",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /health/ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Estado de dependencias (spanner, firestore). 503 si alguna está caída.",
+            "url": {
+              "raw": "{{workers_base}}/health/ready",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /v1/me/access",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/v1/me/access",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "access"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /internal/pubsub/projection",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/internal/pubsub/projection",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "internal",
+                "pubsub",
+                "projection"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": {\n    \"data\": \"{{pushData}}\",\n    \"messageId\": \"{{pushMessageId}}\"\n  },\n  \"subscription\": \"projects/local/subscriptions/local-push\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Arma el sobre de Pub/Sub push: {message:{data:base64(evento)}}",
+                  "const evt = {\"eventId\": \"__GUID__\", \"eventType\": \"TransferCompleted\", \"operationId\": \"__GUID2__\", \"clientId\": \"__CLIENT__\", \"occurredAt\": \"__NOW__\", \"amountCents\": 2500000, \"currency\": \"COP\", \"counterpartyClientId\": \"__CLIENT2__\", \"description\": \"Evento de prueba\", \"balanceAfterCents\": 10000000};",
+                  "evt.eventId = crypto.randomUUID ? crypto.randomUUID() : pm.variables.replaceIn('{{$guid}}');",
+                  "evt.operationId = pm.variables.replaceIn('{{$guid}}');",
+                  "evt.clientId = pm.environment.get('clientUser');",
+                  "evt.counterpartyClientId = pm.environment.get('clientUser2');",
+                  "evt.occurredAt = new Date().toISOString();",
+                  "pm.variables.set('pushData', btoa(JSON.stringify(evt)));",
+                  "pm.variables.set('pushMessageId', evt.eventId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/projections/movements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/v1/projections/movements?limit=20",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "v1",
+                "projections",
+                "movements"
+              ],
+              "query": [
+                {
+                  "key": "clientId",
+                  "value": "{{clientUser}}",
+                  "disabled": true
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "disabled": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /internal/pubsub/notifications",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/internal/pubsub/notifications",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "internal",
+                "pubsub",
+                "notifications"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": {\n    \"data\": \"{{pushData}}\",\n    \"messageId\": \"{{pushMessageId}}\"\n  },\n  \"subscription\": \"projects/local/subscriptions/local-push\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Arma el sobre de Pub/Sub push: {message:{data:base64(evento)}}",
+                  "const evt = {\"eventId\": \"__GUID__\", \"eventType\": \"TransferCompleted\", \"operationId\": \"__GUID2__\", \"clientId\": \"__CLIENT__\", \"occurredAt\": \"__NOW__\", \"amountCents\": 2500000, \"currency\": \"COP\", \"counterpartyClientId\": \"__CLIENT2__\", \"description\": \"Evento de prueba\", \"balanceAfterCents\": 10000000};",
+                  "evt.eventId = crypto.randomUUID ? crypto.randomUUID() : pm.variables.replaceIn('{{$guid}}');",
+                  "evt.operationId = pm.variables.replaceIn('{{$guid}}');",
+                  "evt.clientId = pm.environment.get('clientUser');",
+                  "evt.counterpartyClientId = pm.environment.get('clientUser2');",
+                  "evt.occurredAt = new Date().toISOString();",
+                  "pm.variables.set('pushData', btoa(JSON.stringify(evt)));",
+                  "pm.variables.set('pushMessageId', evt.eventId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/notifications",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/v1/notifications",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "v1",
+                "notifications"
+              ]
+            }
+          }
+        },
+        {
+          "name": "PATCH /v1/notifications/{id}/read",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/v1/notifications/{{id}}/read",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "v1",
+                "notifications",
+                "{{id}}",
+                "read"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /internal/outbox/drain",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/internal/outbox/drain",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "internal",
+                "outbox",
+                "drain"
+              ]
+            },
+            "description": "⚠ Con backend gcp publica el outbox real de Spanner en Pub/Sub; el Workers de Cloud Run ya lo drena y se duplicarían eventos."
+          }
+        },
+        {
+          "name": "GET /v1/outbox/stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/v1/outbox/stats",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "v1",
+                "outbox",
+                "stats"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /internal/dev/outbox",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/internal/dev/outbox",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "internal",
+                "dev",
+                "outbox"
+              ]
+            },
+            "description": "Solo existe con Auth__DemoHeaders=true; encola en el outbox en memoria.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"eventId\": \"{{$guid}}\",\n  \"eventType\": \"TransferCompleted\",\n  \"operationId\": \"{{$guid}}\",\n  \"clientId\": \"{{clientUser}}\",\n  \"occurredAt\": \"{{$isoTimestamp}}\",\n  \"amountCents\": 2500000,\n  \"currency\": \"COP\",\n  \"counterpartyClientId\": \"{{clientUser2}}\",\n  \"description\": \"Evento de prueba\",\n  \"balanceAfterCents\": 10000000\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "POST /v1/reports",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Idempotency-Key",
+                "value": "{{$guid}}",
+                "description": "Nueva por request. Repite un valor fijo para probar replay/409."
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/v1/reports",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "v1",
+                "reports"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"clientId\": \"{{clientUser}}\",\n  \"from\": \"2026-09-01\",\n  \"to\": \"2026-09-30\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "GET /v1/reports",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/v1/reports",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "v1",
+                "reports"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /v1/reports/{id}",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/v1/reports/{{id}}",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "v1",
+                "reports",
+                "{{id}}"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /v1/reports/{id}/download",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{workers_base}}/v1/reports/{{id}}/download",
+              "host": [
+                "{{workers_base}}"
+              ],
+              "path": [
+                "v1",
+                "reports",
+                "{{id}}",
+                "download"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "NequiTrampa Workers API — Swagger: http://localhost:8085/swagger"
+    },
+    {
+      "name": "Realtime (8086)",
+      "item": [
+        {
+          "name": "GET /health/live",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{realtime_base}}/health/live",
+              "host": [
+                "{{realtime_base}}"
+              ],
+              "path": [
+                "health",
+                "live"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /health/ready",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "description": "Estado de dependencias (spanner, firestore). 503 si alguna está caída.",
+            "url": {
+              "raw": "{{realtime_base}}/health/ready",
+              "host": [
+                "{{realtime_base}}"
+              ],
+              "path": [
+                "health",
+                "ready"
+              ]
+            }
+          }
+        },
+        {
+          "name": "GET /v1/me/access",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{realtime_base}}/v1/me/access",
+              "host": [
+                "{{realtime_base}}"
+              ],
+              "path": [
+                "v1",
+                "me",
+                "access"
+              ]
+            }
+          }
+        },
+        {
+          "name": "POST /internal/pubsub/realtime",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{clientUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{clientRole}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{realtime_base}}/internal/pubsub/realtime",
+              "host": [
+                "{{realtime_base}}"
+              ],
+              "path": [
+                "internal",
+                "pubsub",
+                "realtime"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"message\": {\n    \"data\": \"{{pushData}}\",\n    \"messageId\": \"{{pushMessageId}}\"\n  },\n  \"subscription\": \"projects/local/subscriptions/local-push\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          },
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// Arma el sobre de Pub/Sub push: {message:{data:base64(evento)}}",
+                  "const evt = {\"eventId\": \"__GUID__\", \"eventType\": \"TransferCompleted\", \"operationId\": \"__GUID2__\", \"clientId\": \"__CLIENT__\", \"occurredAt\": \"__NOW__\", \"amountCents\": 2500000, \"currency\": \"COP\", \"counterpartyClientId\": \"__CLIENT2__\", \"description\": \"Evento de prueba\", \"balanceAfterCents\": 10000000};",
+                  "evt.eventId = crypto.randomUUID ? crypto.randomUUID() : pm.variables.replaceIn('{{$guid}}');",
+                  "evt.operationId = pm.variables.replaceIn('{{$guid}}');",
+                  "evt.clientId = pm.environment.get('clientUser');",
+                  "evt.counterpartyClientId = pm.environment.get('clientUser2');",
+                  "evt.occurredAt = new Date().toISOString();",
+                  "pm.variables.set('pushData', btoa(JSON.stringify(evt)));",
+                  "pm.variables.set('pushMessageId', evt.eventId);"
+                ]
+              }
+            }
+          ]
+        },
+        {
+          "name": "GET /v1/realtime/stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "X-Demo-User",
+                "value": "{{operatorUser}}"
+              },
+              {
+                "key": "X-Demo-Role",
+                "value": "{{operatorRole}}"
+              }
+            ],
+            "url": {
+              "raw": "{{realtime_base}}/v1/realtime/stats",
+              "host": [
+                "{{realtime_base}}"
+              ],
+              "path": [
+                "v1",
+                "realtime",
+                "stats"
+              ]
+            }
+          }
+        }
+      ],
+      "description": "NequiTrampa Realtime API — Swagger: http://localhost:8086/swagger"
+    }
+  ]
+}

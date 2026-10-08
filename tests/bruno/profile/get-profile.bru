@@ -1,0 +1,25 @@
+meta {
+  name: Get Profile
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{profileUrl}}/v1/profile
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 200
+  res.body.authSubject: eq {{clientUser}}
+  res.body.status: eq ACTIVE
+  res.body.currency: eq COP
+  res.body.firstName: isString
+  res.body.transferCode: isString
+  res.body.clientId: eq {{clientGuid}}
+}

@@ -8,6 +8,7 @@
     <Project Path="src/Nequi.Assistant/Nequi.Assistant.csproj" />
     <Project Path="src/Nequi.Workers/Nequi.Workers.csproj" />
     <Project Path="src/Nequi.Realtime/Nequi.Realtime.csproj" />
+    <Project Path="src/Nequi.Gateway/Nequi.Gateway.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Nequi.Tests/Nequi.Tests.csproj" />

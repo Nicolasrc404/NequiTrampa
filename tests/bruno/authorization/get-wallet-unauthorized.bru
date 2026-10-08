@@ -12,7 +12,6 @@ get {
 
 
 headers {
-  X-Serverless-Authorization: Bearer {{serverlessToken}}
 }
 assert {
   res.status: eq 401

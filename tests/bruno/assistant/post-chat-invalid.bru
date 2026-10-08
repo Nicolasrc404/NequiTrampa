@@ -1,0 +1,23 @@
+meta {
+  name: Assistant Chat (mensaje vacío 422)
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{assistantUrl}}/v1/assistant/chat
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+body:json {
+  { "message": "" }
+}
+
+assert {
+  res.status: eq 422
+}

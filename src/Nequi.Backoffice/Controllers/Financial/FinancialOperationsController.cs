@@ -1,119 +1,131 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Nequi.Backoffice.Services;
+using Nequi.Shared.Http;
+using Nequi.Shared.Idempotency;
 using Nequi.Shared.Security;
 
 namespace Nequi.Backoffice.Controllers.Financial;
 
+public sealed record CreateReversalRequest([Required, StringLength(256, MinimumLength = 5)] string Reason);
+
+/// <param name="Direction">CREDIT (suma al cliente) o DEBIT (resta).</param>
+/// <param name="Amount">Monto entero en COP (no en centavos).</param>
+public sealed record CreateAdjustmentRequest([Required] string ClientId, [Required] string Direction,
+    [Range(1, 100_000_000)] long Amount, [Required, StringLength(256, MinimumLength = 5)] string Reason);
+
 /// <summary>
 /// Operaciones financieras formales para OPERADOR_FINANCIERO.
-/// Regla: correcciones mediante operaciones formales, NO edición directa.
-/// Estado: TO-BE — requiere DDL de reversals, financial_adjustments en Spanner.
-/// PERSISTENCIA PENDIENTE: tabla reversals, financial_adjustments, ledger_entries.
+/// Regla: correcciones mediante operaciones formales (REVERSAL / ADJUSTMENT en el ledger de Spanner), NUNCA edición directa.
+/// Cada corrección: operación inmutable + asientos de partida doble + saldo + evento en el outbox en UNA transacción, y entrada de auditoría.
 /// </summary>
 [ApiController]
 [Authorize(Policy = Policies.CanReverseOperation)]
 [Produces("application/json")]
-public sealed class FinancialOperationsController : ControllerBase
+public sealed class FinancialOperationsController(LedgerReader ledger, LedgerAdjuster adjuster, AuditLog audit) : ControllerBase
 {
-    /// <summary>
-    /// Consulta el detalle de una operación financiera.
-    /// </summary>
+    private CurrentUser Me => CurrentUser.From(User)!;
+
+    private IActionResult Map(BackofficeException e) => this.ProblemJson(e.Status, e.Title, e.Detail, e.Code);
+
+    /// <summary>Detalle de una operación financiera (operation_id o referencia pública).</summary>
     [HttpGet("v1/financial-operations/{id}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(OperationDto), StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public IActionResult GetFinancialOperation(string id)
+    public async Task<IActionResult> GetFinancialOperation(string id, CancellationToken ct)
     {
-        return Ok(new { status = "TO-BE", operationId = id });
+        var op = await ledger.FindOperationAsync(id, ct);
+        return op is null ? this.ProblemJson(404, "Operation not found", code: "not_found") : Ok(op);
     }
 
-    /// <summary>
-    /// Consulta las entradas de ledger de una operación.
-    /// PERSISTENCIA PENDIENTE: tabla ledger_entries en Spanner.
-    /// </summary>
+    /// <summary>Asientos de partida doble de la operación.</summary>
     [HttpGet("v1/financial-operations/{id}/ledger")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult GetOperationLedger(string id)
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetOperationLedger(string id, CancellationToken ct)
     {
-        return Ok(new { status = "TO-BE", operationId = id, ledgerEntries = Array.Empty<object>() });
+        var op = await ledger.FindOperationAsync(id, ct);
+        if (op is null) return this.ProblemJson(404, "Operation not found", code: "not_found");
+        var entries = await ledger.EntriesAsync(op.OperationId, ct);
+        return Ok(new { operationId = op.OperationId, publicReference = op.PublicReference, balanced = entries.Sum(e => e.DeltaCents) == 0, ledgerEntries = entries });
     }
 
-    /// <summary>
-    /// Consulta la auditoría de una operación financiera.
-    /// </summary>
+    /// <summary>Entradas de auditoría asociadas a la operación (reversos/ajustes que la afectan).</summary>
     [HttpGet("v1/financial-operations/{id}/audit")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult GetOperationAudit(string id)
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetOperationAudit(string id, CancellationToken ct)
     {
-        return Ok(new { status = "TO-BE", operationId = id, auditEntries = Array.Empty<object>() });
+        var op = await ledger.FindOperationAsync(id, ct);
+        if (op is null) return this.ProblemJson(404, "Operation not found", code: "not_found");
+        var entries = (await audit.ForOperationAsync(op.OperationId, ct)).OrderBy(e => e["occurredAt"]?.ToString(), StringComparer.Ordinal).ToList();
+        return Ok(new { operationId = op.OperationId, auditEntries = entries });
     }
 
     /// <summary>
-    /// Crea un reverso formal de una operación completada.
-    /// REGLA: no DELETE de transferencia — se crea una nueva operación REVERSAL.
-    /// Requiere Idempotency-Key.
-    /// PERSISTENCIA PENDIENTE: tabla reversals + ledger_entries en Spanner.
+    /// Crea un reverso formal de una operación COMPLETED (INTERNAL_TRANSFER o SIMULATED_RECHARGE). No se borra nada: se crea una operación REVERSAL
+    /// con asientos inversos. Falla con 409 si ya fue revertida o si la billetera no puede absorber el reverso. Requiere Idempotency-Key.
     /// </summary>
     [HttpPost("v1/financial-operations/{id}/reversals")]
-    [ProducesResponseType(StatusCodes.Status201Created)]
+    [TypeFilter(typeof(IdempotencyActionFilter))]
+    [ProducesResponseType(typeof(OperationDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
-    public IActionResult CreateReversal(
-        string id,
-        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
-        [FromBody] object request)
+    public async Task<IActionResult> CreateReversal(string id, [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+        [FromBody] CreateReversalRequest request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(idempotencyKey))
-            return BadRequest(new ProblemDetails
-            {
-                Status = 400,
-                Title = "Idempotency-Key requerido para operaciones de reverso",
-                Type = "https://errors.nequitrampa.internal/missing-idempotency-key"
-            });
-
-        // TO-BE: crear operación REVERSAL en Spanner con referencia a operación original
-        return StatusCode(StatusCodes.Status201Created, new { status = "TO-BE", originalOperationId = id });
+        try
+        {
+            var op = await adjuster.ReverseAsync(id, request.Reason, Me, idempotencyKey!, ct);
+            await audit.WriteAsync(Me, "FINANCIAL_REVERSAL_CREATED", "ledger_operation", op.OperationId,
+                new { original = op.OriginalOperationId, request.Reason, reference = op.PublicReference }, operationId: op.OriginalOperationId, ct: ct);
+            return Created($"/v1/reversals/{op.PublicReference}", op);
+        }
+        catch (BackofficeException e) { return Map(e); }
     }
 
-    /// <summary>
-    /// Consulta el detalle de un reverso.
-    /// </summary>
+    /// <summary>Detalle de un reverso (referencia pública REV-... u operation_id).</summary>
     [HttpGet("v1/reversals/{id}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult GetReversal(string id)
+    [ProducesResponseType(typeof(OperationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetReversal(string id, CancellationToken ct)
     {
-        return Ok(new { status = "TO-BE", reversalId = id });
+        var op = await ledger.FindOperationAsync(id, ct, "REVERSAL");
+        return op is null ? this.ProblemJson(404, "Reversal not found", code: "not_found") : Ok(op);
     }
 
     /// <summary>
-    /// Crea un ajuste compensatorio formal.
-    /// REGLA: corrección mediante operación formal con motivo, actor y auditoría.
-    /// PERSISTENCIA PENDIENTE: tabla financial_adjustments + ledger_entries en Spanner.
+    /// Ajuste compensatorio formal (operación ADMIN_ADJUSTMENT, CREDIT/DEBIT en COP) contra SYSTEM_FUNDING, con motivo, actor y auditoría. Requiere Idempotency-Key.
     /// </summary>
     [HttpPost("v1/financial-adjustments")]
-    [ProducesResponseType(StatusCodes.Status201Created)]
+    [TypeFilter(typeof(IdempotencyActionFilter))]
+    [ProducesResponseType(typeof(OperationDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public IActionResult CreateAdjustment(
-        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
-        [FromBody] object request)
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
+    public async Task<IActionResult> CreateAdjustment([FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+        [FromBody] CreateAdjustmentRequest request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(idempotencyKey))
-            return BadRequest(new ProblemDetails
-            {
-                Status = 400,
-                Title = "Idempotency-Key requerido para ajustes financieros",
-                Type = "https://errors.nequitrampa.internal/missing-idempotency-key"
-            });
-
-        return StatusCode(StatusCodes.Status201Created, new { status = "TO-BE" });
+        var dir = request.Direction.ToUpperInvariant();
+        if (dir is not ("CREDIT" or "DEBIT"))
+            return this.ProblemJson(422, "Invalid direction", "Use CREDIT or DEBIT.", "VALIDATION_ERROR");
+        try
+        {
+            var op = await adjuster.AdjustAsync(request.ClientId, dir == "CREDIT", request.Amount, request.Reason, Me, idempotencyKey!, ct);
+            await audit.WriteAsync(Me, "FINANCIAL_ADJUSTMENT_CREATED", "ledger_operation", op.OperationId,
+                new { request.ClientId, dir, request.Amount, request.Reason, reference = op.PublicReference }, operationId: op.OperationId, ct: ct);
+            return Created($"/v1/financial-adjustments/{op.PublicReference}", op);
+        }
+        catch (BackofficeException e) { return Map(e); }
     }
 
-    /// <summary>
-    /// Consulta el detalle de un ajuste financiero.
-    /// </summary>
+    /// <summary>Detalle de un ajuste (referencia pública ADJ-... u operation_id).</summary>
     [HttpGet("v1/financial-adjustments/{id}")]
-    [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult GetAdjustment(string id)
+    [ProducesResponseType(typeof(OperationDto), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> GetAdjustment(string id, CancellationToken ct)
     {
-        return Ok(new { status = "TO-BE", adjustmentId = id });
+        var op = await ledger.FindOperationAsync(id, ct, "ADMIN_ADJUSTMENT");
+        return op is null ? this.ProblemJson(404, "Adjustment not found", code: "not_found") : Ok(op);
     }
 }

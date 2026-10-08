@@ -7,14 +7,14 @@ gcloud config set project "$PROJECT_ID" >/dev/null
 echo "== APIs =="
 gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com \
   pubsub.googleapis.com firestore.googleapis.com secretmanager.googleapis.com spanner.googleapis.com \
-  logging.googleapis.com monitoring.googleapis.com cloudscheduler.googleapis.com identitytoolkit.googleapis.com
+  logging.googleapis.com monitoring.googleapis.com cloudscheduler.googleapis.com identitytoolkit.googleapis.com aiplatform.googleapis.com
 
 echo "== Artifact Registry =="
 exists gcloud artifacts repositories describe "$AR_REPO" --location "$REGION" ||
   gcloud artifacts repositories create "$AR_REPO" --repository-format docker --location "$REGION" --description "Nequi images"
 
 echo "== Service accounts (least privilege) =="
-for sa in "$SA_WORKERS" "$SA_REALTIME" "$SA_PUSH" "$SA_WALLET"; do
+for sa in "$SA_WORKERS" "$SA_REALTIME" "$SA_PUSH" "$SA_WALLET" "$SA_FINANCE" "$SA_PROFILE" "$SA_BACKOFFICE" "$SA_ASSISTANT" "$SA_GATEWAY"; do
   exists gcloud iam service-accounts describe "$(sa_email $sa)" ||
     gcloud iam service-accounts create "$sa" --display-name "$sa"
 done
@@ -34,6 +34,23 @@ bind "$SA_WALLET" roles/spanner.databaseUser
 bind "$SA_WALLET" roles/secretmanager.secretAccessor
 bind "$SA_WALLET" roles/logging.logWriter
 bind "$SA_WALLET" roles/monitoring.metricWriter
+# finance: lectura de proyecciones en Firestore (rol en FIRESTORE_PROJECT_ID, abajo)
+# profile / backoffice / assistant: hoy solo logs; sus roles de datos se agregan cuando exista la persistencia
+for sa in "$SA_FINANCE" "$SA_PROFILE" "$SA_BACKOFFICE" "$SA_ASSISTANT" "$SA_GATEWAY"; do
+  bind "$sa" roles/logging.logWriter
+  bind "$sa" roles/monitoring.metricWriter
+done
+# profile: perfil en Spanner (clients, wallet_accounts)
+bind "$SA_PROFILE" roles/spanner.databaseUser
+bind "$SA_PROFILE" roles/secretmanager.secretAccessor
+# backoffice: ledger (reversos/ajustes) en Spanner, casos/auditoria en Firestore, roles via custom claims de Identity Platform
+bind "$SA_BACKOFFICE" roles/spanner.databaseUser
+bind "$SA_BACKOFFICE" roles/secretmanager.secretAccessor
+bind "$SA_BACKOFFICE" roles/firebaseauth.admin
+# assistant: SOLO lectura (saldo en Spanner, movimientos en Firestore) + Vertex AI
+bind "$SA_ASSISTANT" roles/spanner.databaseReader
+bind "$SA_ASSISTANT" roles/secretmanager.secretAccessor
+bind "$SA_ASSISTANT" roles/aiplatform.user
 
 echo "== Pub/Sub =="
 for t in "$TOPIC" "$DLQ_TOPIC"; do exists gcloud pubsub topics describe "$t" || gcloud pubsub topics create "$t"; done
@@ -69,6 +86,9 @@ exists gcloud firestore databases describe --database='(default)' --project "$FI
 # outbox-dispatcher writes projections/notifications (user); wallet-service only pings _health/ping on readiness (viewer).
 bind_project "$FIRESTORE_PROJECT_ID" "$SA_WORKERS" roles/datastore.user
 bind_project "$FIRESTORE_PROJECT_ID" "$SA_WALLET" roles/datastore.viewer
+bind_project "$FIRESTORE_PROJECT_ID" "$SA_FINANCE" roles/datastore.viewer
+bind_project "$FIRESTORE_PROJECT_ID" "$SA_BACKOFFICE" roles/datastore.user
+bind_project "$FIRESTORE_PROJECT_ID" "$SA_ASSISTANT" roles/datastore.viewer
 echo "== Secret Manager =="
 # Value lives only in Secret Manager (never in the repo).
 exists gcloud secrets describe nequi-spanner-database ||

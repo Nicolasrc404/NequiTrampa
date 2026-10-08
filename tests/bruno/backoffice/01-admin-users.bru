@@ -1,0 +1,21 @@
+meta {
+  name: Admin Users
+  type: http
+  seq: 6
+}
+
+get {
+  url: {{backofficeUrl}}/v1/admin/users?pageSize=10
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: admin
+}
+
+assert {
+  res.status: eq 200
+  res.body.total: gt 0
+  res.body.users: isDefined
+}

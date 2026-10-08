@@ -1,0 +1,20 @@
+meta {
+  name: Reconciliation Issues
+  type: http
+  seq: 59
+}
+
+get {
+  url: {{backofficeUrl}}/v1/reconciliation/issues
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: operator
+}
+
+assert {
+  res.status: eq 200
+  res.body.count: isNumber
+}

@@ -1,0 +1,44 @@
+script:pre-request {
+  // Autenticacion por "persona" (cabecera X-Persona en cada request; nunca se envia al servidor).
+  //  authMode=jwt  (gcp)   -> inicia sesion en Identity Platform y envia Authorization: Bearer <idToken>.
+  //  authMode=demo (local) -> cabeceras X-Demo-* (requiere Auth__DemoHeaders=true en el servicio local).
+  const persona = req.getHeader("X-Persona");
+  req.deleteHeader("X-Persona");
+  if (!persona) return;
+
+  const mode = bru.getEnvVar("authMode") || "jwt";
+
+  if (mode === "demo") {
+    const table = {
+      client:   [bru.getEnvVar("clientUser"),   "CLIENTE", bru.getEnvVar("clientGuid")],
+      outsider: [bru.getEnvVar("clientUser2"),  "CLIENTE", null],
+      support:  [bru.getEnvVar("supportUser"),  bru.getEnvVar("supportRole") || "SOPORTE", null],
+      operator: [bru.getEnvVar("operatorUser") || "operator-1", "OPERADOR_FINANCIERO", null],
+      admin:    [bru.getEnvVar("adminUser"),    bru.getEnvVar("adminRole") || "ADMIN", null],
+    };
+    const [user, role, clientId] = table[persona];
+    req.setHeader("X-Demo-User", user);
+    req.setHeader("X-Demo-Role", role);
+    if (clientId) req.setHeader("X-Demo-Client-Id", clientId);
+    return;
+  }
+
+  const key = "jwt_" + persona;
+  const expKey = "jwtExp_" + persona;
+  let token = bru.getVar(key);
+  const exp = Number(bru.getVar(expKey) || 0);
+  if (!token || Date.now() > exp) {
+    const axios = require("axios");
+    const email = bru.getEnvVar("email_" + persona);
+    const password = bru.getEnvVar("testPassword");
+    const apiKey = bru.getEnvVar("firebaseApiKey");
+    if (!email || !password || !apiKey) throw new Error("Define email_" + persona + ", testPassword y firebaseApiKey (ver tests/bruno/README.md)");
+    const r = await axios.post(
+      "https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=" + apiKey,
+      { email, password, returnSecureToken: true });
+    token = r.data.idToken;
+    bru.setVar(key, token);
+    bru.setVar(expKey, String(Date.now() + (Number(r.data.expiresIn) - 120) * 1000));
+  }
+  req.setHeader("Authorization", "Bearer " + token);
+}

@@ -1,5 +1,5 @@
-using Microsoft.OpenApi.Models;
 using Nequi.Shared;
+using Nequi.Shared.OpenApi;
 
 // =============================================================================
 // NequiTrampa — Nequi.Backoffice (backoffice-api conceptual)
@@ -17,6 +17,16 @@ var builder = WebApplication.CreateBuilder(args);
 
 // 1. Configuración común de plataforma Nequi
 builder.AddNequiCommon();
+
+// Backoffice necesita el ledger autoritativo (Spanner) y Firestore (casos, auditoria, configuracion).
+if (builder.Configuration["Spanner:Database"] is not { Length: > 0 } spannerDb)
+    throw new InvalidOperationException("Spanner:Database is required for Nequi.Backoffice.");
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<Nequi.Backoffice.Services.LedgerReader>();
+builder.Services.AddSingleton<Nequi.Backoffice.Services.LedgerAdjuster>();
+builder.Services.AddSingleton<Nequi.Backoffice.Services.ReconciliationService>();
+builder.Services.AddSingleton<Nequi.Backoffice.Services.AuditLog>();
+builder.Services.AddSingleton<Nequi.Backoffice.Services.IdentityAdmin>();
 
 // 2. Controladores MVC
 builder.Services.AddControllers()
@@ -38,52 +48,14 @@ builder.Services.AddControllers()
         };
     });
 
-// 3. OpenAPI / Swagger
-builder.Services.AddEndpointsApiExplorer();
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo
-    {
-        Title = "NequiTrampa Backoffice API",
-        Version = "v1",
-        Description = "API de backoffice para roles SOPORTE, OPERADOR_FINANCIERO y ADMIN. " +
-                      "Enforcea separación de responsabilidades por rol."
-    });
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "Token JWT de Google Cloud Identity Platform. Formato: Bearer {token}",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.Http,
-        Scheme = "bearer",
-        BearerFormat = "JWT"
-    });
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
-            },
-            Array.Empty<string>()
-        }
-    });
-});
+builder.AddNequiSwagger("NequiTrampa Backoffice API",
+    "API de backoffice para roles SOPORTE, OPERADOR_FINANCIERO y ADMIN. Enforcea separación de responsabilidades por rol.");
 
 var app = builder.Build();
 
+app.UseNequiSwagger(); // antes de UseNequiCommon: deny-by-default bloquearía la UI
 // 4. Pipeline HTTP estándar Nequi
 app.UseNequiCommon();
-
-if (app.Environment.IsDevelopment())
-{
-    app.UseSwagger();
-    app.UseSwaggerUI(c =>
-    {
-        c.SwaggerEndpoint("/swagger/v1/swagger.json", "NequiTrampa Backoffice API v1");
-        c.RoutePrefix = string.Empty;
-    });
-}
 
 app.UseHttpsRedirection();
 app.MapControllers();

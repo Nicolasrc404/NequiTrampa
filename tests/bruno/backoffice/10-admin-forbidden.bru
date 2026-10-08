@@ -1,0 +1,19 @@
+meta {
+  name: Admin Users (soporte 403)
+  type: http
+  seq: 15
+}
+
+get {
+  url: {{backofficeUrl}}/v1/admin/users
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+assert {
+  res.status: eq 403
+}

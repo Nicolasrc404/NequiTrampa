@@ -1,61 +1,90 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Nequi.Backoffice.Services;
+using Nequi.Shared.Data;
+using Nequi.Shared.Http;
+using Nequi.Shared.Idempotency;
 using Nequi.Shared.Security;
 
 namespace Nequi.Backoffice.Controllers.Financial;
 
+/// <param name="Resolution">REQUEUE_EVENT (reencola un evento del outbox), ACKNOWLEDGED (revisado, sin acción), FALSE_POSITIVE (no era una inconsistencia) o ADJUSTED (se corrigió con un ajuste: indicar adjustmentId).</param>
+public sealed record ResolveIssueRequest([Required] string Resolution, [Required, StringLength(500, MinimumLength = 3)] string Note, string? AdjustmentId);
+
 /// <summary>
-/// Reconciliación de operaciones financieras para OPERADOR_FINANCIERO.
-/// Estado: TO-BE — requiere modelo de inconsistencias en Spanner o Firestore.
-/// PERSISTENCIA PENDIENTE: tabla reconciliation_issues en Spanner.
+/// Reconciliación para OPERADOR_FINANCIERO. Las inconsistencias se detectan bajo demanda comparando Spanner (saldos, ledger, outbox)
+/// con Firestore (proyecciones). Resolver deja un registro trazable y, si aplica, ejecuta la acción formal (reencolar evento).
 /// </summary>
 [ApiController]
 [Route("v1/reconciliation")]
 [Authorize(Policy = Policies.CanReverseOperation)]
 [Produces("application/json")]
-public sealed class ReconciliationController : ControllerBase
+public sealed class ReconciliationController(ReconciliationService recon, LedgerAdjuster adjuster, IDocumentStore docs, AuditLog audit) : ControllerBase
 {
-    /// <summary>
-    /// Lista las inconsistencias de reconciliación detectadas.
-    /// </summary>
+    private static readonly string[] Resolutions = ["REQUEUE_EVENT", "ACKNOWLEDGED", "FALSE_POSITIVE", "ADJUSTED"];
+
+    /// <summary>Lista inconsistencias. Por defecto solo las abiertas; use ?status=all para incluir resueltas.</summary>
     [HttpGet("issues")]
     [ProducesResponseType(StatusCodes.Status200OK)]
-    public IActionResult GetIssues()
+    public async Task<IActionResult> GetIssues([FromQuery] string? status, CancellationToken ct)
     {
-        return Ok(new { status = "TO-BE", issues = Array.Empty<object>() });
+        var all = await recon.DetectAsync(ct);
+        var items = status == "all" ? all : all.Where(i => i.Status == (status?.ToUpperInvariant() ?? "OPEN")).ToList();
+        return Ok(new { count = items.Count, items });
     }
 
-    /// <summary>
-    /// Obtiene el detalle de una inconsistencia de reconciliación.
-    /// </summary>
+    /// <summary>Detalle de una inconsistencia.</summary>
     [HttpGet("issues/{id}")]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
-    public IActionResult GetIssue(string id)
+    public async Task<IActionResult> GetIssue(string id, CancellationToken ct)
     {
-        return Ok(new { status = "TO-BE", issueId = id });
+        var issue = await recon.FindAsync(id, ct);
+        return issue is null ? this.ProblemJson(404, "Issue not found", code: "not_found") : Ok(issue);
     }
 
-    /// <summary>
-    /// Resuelve una inconsistencia de reconciliación mediante operación formal.
-    /// Requiere Idempotency-Key.
-    /// </summary>
+    /// <summary>Resuelve una inconsistencia mediante una acción formal con nota. Requiere Idempotency-Key.</summary>
     [HttpPost("issues/{id}/resolve")]
+    [TypeFilter(typeof(IdempotencyActionFilter))]
     [ProducesResponseType(StatusCodes.Status200OK)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public IActionResult ResolveIssue(
-        string id,
-        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
-        [FromBody] object request)
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<IActionResult> ResolveIssue(string id, [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+        [FromBody] ResolveIssueRequest request, CancellationToken ct)
     {
-        if (string.IsNullOrWhiteSpace(idempotencyKey))
-            return BadRequest(new ProblemDetails
-            {
-                Status = 400,
-                Title = "Idempotency-Key requerido para resolución de inconsistencias",
-                Type = "https://errors.nequitrampa.internal/missing-idempotency-key"
-            });
+        var resolution = request.Resolution.ToUpperInvariant();
+        if (!Resolutions.Contains(resolution))
+            return this.ProblemJson(422, "Invalid resolution", $"Use one of: {string.Join(", ", Resolutions)}.", "VALIDATION_ERROR");
+        var issue = await recon.FindAsync(id, ct);
+        if (issue is null) return this.ProblemJson(404, "Issue not found", code: "not_found");
+        if (issue.Status == "RESOLVED") return this.ProblemJson(409, "Issue already resolved", code: "already_resolved");
+        if (resolution == "ADJUSTED" && string.IsNullOrWhiteSpace(request.AdjustmentId))
+            return this.ProblemJson(422, "adjustmentId required", "Resolution ADJUSTED must reference the adjustment that fixed it.", "VALIDATION_ERROR");
 
-        return Ok(new { status = "TO-BE", issueId = id });
+        if (resolution == "REQUEUE_EVENT")
+        {
+            if (issue.Kind != "OUTBOX_STUCK" || issue.Data["eventId"] is not string eventId)
+                return this.ProblemJson(422, "Cannot requeue", "REQUEUE_EVENT only applies to OUTBOX_STUCK issues.", "VALIDATION_ERROR");
+            if (!await adjuster.RequeueOutboxAsync(eventId, ct))
+                return this.ProblemJson(409, "Event already published", code: "already_published");
+        }
+
+        var me = CurrentUser.From(User)!;
+        if (issue.Kind == ReconciliationService.BalanceKind)
+        {
+            if (resolution == "REQUEUE_EVENT")
+                return this.ProblemJson(422, "Cannot requeue", "REQUEUE_EVENT only applies to OUTBOX_STUCK issues.", "VALIDATION_ERROR");
+            var note = request.AdjustmentId is null ? request.Note : $"{request.Note} (adjustment {request.AdjustmentId})";
+            await recon.ResolveBalanceIssueAsync(id, resolution == "FALSE_POSITIVE" ? "FALSE_POSITIVE" : "RESOLVED", note, me.Uid, ct);
+        }
+        var record = new Dictionary<string, object?>
+        {
+            ["id"] = id, ["kind"] = issue.Kind, ["reference"] = issue.Reference, ["resolution"] = resolution, ["note"] = request.Note,
+            ["adjustmentId"] = request.AdjustmentId, ["resolvedBy"] = me.Uid, ["resolvedAt"] = DateTimeOffset.UtcNow.UtcDateTime.ToString("O"),
+        };
+        await docs.UpsertAsync(ReconciliationService.ResolutionsCollection, id, record, ct);
+        await audit.WriteAsync(me, "RECONCILIATION_ISSUE_RESOLVED", "reconciliation_issue", id, new { resolution, request.Note, request.AdjustmentId }, ct: ct);
+        return Ok(new { issueId = id, status = "RESOLVED", resolution = record });
     }
 }

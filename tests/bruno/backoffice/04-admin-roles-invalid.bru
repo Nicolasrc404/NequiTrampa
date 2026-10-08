@@ -1,0 +1,23 @@
+meta {
+  name: Admin Set Roles Invalid
+  type: http
+  seq: 9
+}
+
+put {
+  url: {{backofficeUrl}}/v1/admin/users/{{clientUser}}/roles
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: admin
+}
+
+body:json {
+  { "roles": ["SUPERMAN"] }
+}
+
+assert {
+  res.status: eq 422
+}

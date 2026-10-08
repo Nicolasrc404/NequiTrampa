@@ -1,0 +1,23 @@
+meta {
+  name: Fin: Balance Before Reversal
+  type: http
+  seq: 41
+}
+
+get {
+  url: {{baseUrl}}/v1/wallet/balance
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+script:post-response {
+  bru.setVar("balanceBeforeReversal", res.body.availableBalanceCents);
+}
+
+assert {
+  res.status: eq 200
+}

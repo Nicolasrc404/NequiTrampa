@@ -1,0 +1,19 @@
+meta {
+  name: Admin Roles
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{backofficeUrl}}/v1/admin/roles
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: admin
+}
+
+assert {
+  res.status: eq 200
+}

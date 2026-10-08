@@ -1,0 +1,23 @@
+meta {
+  name: Fin: Balance Restored
+  type: http
+  seq: 52
+}
+
+get {
+  url: {{baseUrl}}/v1/wallet/balance
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+script:post-response {
+  test("saldo restaurado tras el reverso (+12.000 COP)", function () { expect(res.body.availableBalanceCents).to.equal(Number(bru.getVar("balanceBeforeReversal")) + 1200000); });
+}
+
+assert {
+  res.status: eq 200
+}

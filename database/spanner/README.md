@@ -3,6 +3,10 @@
 Documentación del esquema físico de **Google Cloud Spanner**, fuente de verdad
 financiera y ledger autoritativo de **NequiTrampa**.
 
+> **Esquema vigente**: [`00_live_schema.sql`](00_live_schema.sql) es el DDL exportado de la base real. `01_schema.sql` es el borrador inicial y está
+> desactualizado (la base real añade `administrators`, `reconciliation_issues`, datos de perfil en `clients`, los tipos `REVERSAL`/`ADMIN_ADJUSTMENT`
+> y estados `SUSPENDED`/`FROZEN`/`CLOSED`). Ante diferencias, manda `00_live_schema.sql`.
+
 | Atributo | Valor |
 |---|---|
 | Proyecto | `full-stack-2026` |

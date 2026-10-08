@@ -1,0 +1,20 @@
+meta {
+  name: Admin User Detail
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{backofficeUrl}}/v1/admin/users/{{clientUser}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: admin
+}
+
+assert {
+  res.status: eq 200
+  res.body.user.authSubject: eq {{clientUser}}
+}

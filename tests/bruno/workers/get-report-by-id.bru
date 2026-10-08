@@ -1,0 +1,25 @@
+meta {
+  name: Get Report
+  type: http
+  seq: 15
+}
+
+get {
+  url: {{workersUrl}}/v1/reports/{{reportId}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+script:pre-request {
+  await bru.sleep(2500); // el ReportWorker genera el CSV de forma asíncrona
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{reportId}}
+  res.body.status: eq COMPLETED
+}

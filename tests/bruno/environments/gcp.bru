@@ -1,10 +1,32 @@
 vars {
-  baseUrl: https://nequi-wallet-7v3gdoy4ra-tl.a.run.app
-  bearerToken:
-  serverlessToken:
+  gatewayUrl: https://nequi-gateway-7v3gdoy4ra-tl.a.run.app
+  baseUrl: https://nequi-gateway-7v3gdoy4ra-tl.a.run.app
+  workersUrl: https://nequi-gateway-7v3gdoy4ra-tl.a.run.app
+  financeUrl: https://nequi-gateway-7v3gdoy4ra-tl.a.run.app
+  profileUrl: https://nequi-gateway-7v3gdoy4ra-tl.a.run.app
+  assistantUrl: https://nequi-gateway-7v3gdoy4ra-tl.a.run.app
+  backofficeUrl: https://nequi-gateway-7v3gdoy4ra-tl.a.run.app
+  realtimeUrl: https://nequi-gateway-7v3gdoy4ra-tl.a.run.app
+  authMode: jwt
+  email_client: alejandro@demo.co
+  email_outsider: outsider@demo.co
+  email_support: soporte@demo.co
+  email_operator: operador@demo.co
+  email_admin: admin@demo.co
   clientUser: idp-sub-alejandro
   clientRole: CLIENTE
   clientUser2: idp-sub-outsider
+  operatorUser: idp-sub-operator
+  clientGuid: 11111111-1111-4111-8111-111111111111
+  supportUser: idp-sub-support
+  supportRole: SOPORTE
+  adminUser: idp-sub-admin
+  adminRole: ADMIN
   destCode: TRF-LAU-0002
   expectedSourceAuthority: CLOUD_SPANNER
 }
+
+vars:secret [
+  testPassword,
+  firebaseApiKey
+]

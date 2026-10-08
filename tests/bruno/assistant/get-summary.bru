@@ -1,0 +1,21 @@
+meta {
+  name: Assistant Summary
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{assistantUrl}}/v1/assistant/summary
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 200
+  res.body.balanceCents: gt 0
+  res.body.recent: isDefined
+}

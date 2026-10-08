@@ -1,0 +1,19 @@
+meta {
+  name: Admin Roles cliente 403
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{backofficeUrl}}/v1/admin/roles
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 403
+}

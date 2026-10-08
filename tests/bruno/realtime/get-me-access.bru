@@ -1,0 +1,19 @@
+meta {
+  name: Realtime Me Access
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{realtimeUrl}}/v1/me/access
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 200
+}

@@ -71,7 +71,7 @@ public static class NotificationEndpoints
         app.MapGet("/v1/notifications", async (HttpContext ctx, IDocumentStore docs) =>
         {
             var user = CurrentUser.From(ctx.User)!;
-            var rows = await docs.QueryEqualsAsync(Collections.Notifications, "clientId", user.Uid, 100, ctx.RequestAborted);
+            var rows = await docs.QueryEqualsAsync(Collections.Notifications, "clientId", ResourceAccess.OwnerKey(user), 100, ctx.RequestAborted);
             var items = rows.OrderByDescending(r => r["createdAt"]?.ToString()).ToList();
             return Results.Ok(new { count = items.Count, unread = items.Count(r => r["read"] is false), items });
         });
@@ -81,7 +81,7 @@ public static class NotificationEndpoints
             var user = CurrentUser.From(ctx.User)!;
             var doc = await docs.GetAsync(Collections.Notifications, id, ctx.RequestAborted);
             // 404 for both "missing" and "not yours": do not reveal other users' resources.
-            if (doc is null || doc["clientId"]?.ToString() != user.Uid)
+            if (doc is null || doc["clientId"]?.ToString() != ResourceAccess.OwnerKey(user))
                 return Problems.Problem(ctx, 404, "Notification not found", code: "not_found");
             doc["read"] = true;
             await docs.UpsertAsync(Collections.Notifications, id, doc, ctx.RequestAborted);

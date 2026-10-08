@@ -1,0 +1,25 @@
+meta {
+  name: Gateway CORS Preflight
+  type: http
+  seq: 7
+}
+
+options {
+  url: {{gatewayUrl}}/v1/wallet
+  body: none
+  auth: none
+}
+
+headers {
+  Origin: http://localhost:3000
+  Access-Control-Request-Method: GET
+  Access-Control-Request-Headers: authorization,idempotency-key
+}
+
+script:post-response {
+  test("allow-origin refleja el origen permitido", function () { expect(res.getHeader("access-control-allow-origin")).to.equal("http://localhost:3000"); });
+}
+
+assert {
+  res.status: eq 204
+}
