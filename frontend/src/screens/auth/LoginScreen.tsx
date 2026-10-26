@@ -1,14 +1,35 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import colors from '../../theme/colors';
-import { signIn } from '../../api/auth';
-import { useAction } from '../../hooks/useAsync';
-import { BoButton, BoInput, BoScreen, Card, InlineError } from '../../components/backoffice/ui';
+import { sessionManager } from '../../services/session/platform';
+import { asAuthError } from '../../services/session';
+import { BoButton, BoInput, BoScreen, Card, InlineMessage } from '../../components/backoffice/ui';
 
-export function LoginScreen({ notice }: { notice?: string }) {
+interface Props {
+  notice?: string;
+  /** Se llama tras un inicio de sesión exitoso (para mostrar el correo en el inicio). */
+  onSignedIn?: (email: string) => void;
+}
+
+export function LoginScreen({ notice, onSignedIn }: Props) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const action = useAction(signIn);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const submit = async () => {
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await sessionManager.signIn(email.trim(), password);
+      onSignedIn?.(email.trim());
+    } catch (e) {
+      setError(asAuthError(e).message);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   return (
     <BoScreen title="Backoffice" subtitle="NequiTrampa · acceso de personal">
@@ -19,8 +40,8 @@ export function LoginScreen({ notice }: { notice?: string }) {
         <View style={{ height: 8 }} />
         <BoInput label="Contraseña" value={password} onChangeText={setPassword} secureTextEntry textContentType="password" />
       </Card>
-      <InlineError error={action.error} />
-      <BoButton label="Iniciar sesión" busy={action.busy} disabled={!email.trim() || !password} onPress={() => action.run(email.trim(), password)} />
+      <InlineMessage message={error} />
+      <BoButton label="Iniciar sesión" busy={busy} disabled={!email.trim() || !password} onPress={submit} />
     </BoScreen>
   );
 }

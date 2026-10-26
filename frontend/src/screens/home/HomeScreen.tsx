@@ -2,7 +2,7 @@ import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
-import { sessionEmail, signOut } from '../../api/auth';
+import { sessionManager } from '../../services/session/platform';
 import { useNav } from '../../navigation/nav';
 import { BoButton, BoScreen, Card, EmptyState } from '../../components/backoffice/ui';
 import { BoRoute } from '../../types/backoffice';
@@ -31,7 +31,7 @@ const ADMIN: Entry[] = [
 ];
 
 /** Módulos visibles según los roles del token (el backend vuelve a validar cada llamada). */
-export function modulesFor(roles: string[]): Array<{ section: string; entries: Entry[] }> {
+export function modulesFor(roles: readonly string[]): Array<{ section: string; entries: Entry[] }> {
   const staff = roles.some((r) => ['SOPORTE', 'OPERADOR_FINANCIERO', 'ADMIN'].includes(r));
   const out: Array<{ section: string; entries: Entry[] }> = [];
   if (staff) out.push({ section: 'Soporte', entries: SUPPORT });
@@ -45,7 +45,7 @@ export function HomeScreen() {
   const groups = modulesFor(nav.roles);
 
   return (
-    <BoScreen title="Inicio" subtitle={sessionEmail()} badge={nav.roles.find((r) => r !== 'CLIENTE') ?? undefined}>
+    <BoScreen title="Inicio" subtitle={nav.who} badge={nav.roles.find((r) => r !== 'CLIENTE') ?? undefined}>
       {groups.length === 0 ? (
         <EmptyState title="Sin módulos disponibles" message="Tu cuenta no tiene un rol de personal. Pide acceso a un administrador." />
       ) : (
@@ -69,7 +69,7 @@ export function HomeScreen() {
           </View>
         ))
       )}
-      <BoButton label="Cerrar sesión" variant="secondary" onPress={signOut} />
+      <BoButton label="Cerrar sesión" variant="secondary" onPress={() => void sessionManager.signOut()} />
     </BoScreen>
   );
 }

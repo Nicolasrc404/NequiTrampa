@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import colors from '../../theme/colors';
-import { supportApi } from '../../api/backoffice';
-import { useAsync } from '../../hooks/useAsync';
+import { requireBackoffice } from '../../services/api';
+import { useApiResource } from '../../hooks/useApiResource';
 import { useNav } from '../../navigation/nav';
 import { Remote } from '../../components/backoffice/Remote';
 import { Badge, BoScreen, Card, EmptyState, ReadOnlyNote, Segmented, SectionTitle } from '../../components/backoffice/ui';
@@ -21,11 +21,11 @@ const TYPE_FILTERS = [
 export function CustomerOperationsScreen({ id }: { id: string }) {
   const nav = useNav();
   const [type, setType] = useState('');
-  const { state, reload } = useAsync(() => supportApi.clientOperations(id), [id]);
+  const state = useApiResource((signal) => requireBackoffice().support.listClientOperations(id, { signal }), [id]);
   return (
     <BoScreen title="Operaciones del cliente" subtitle="Customer Lookup" badge="SOPORTE" onBack={nav.back}>
       <Segmented options={TYPE_FILTERS} value={type} onChange={setType} />
-      <Remote state={state} resource="Operaciones" onRetry={reload} onBack={nav.back}>
+      <Remote state={state} resource="Operaciones" onBack={nav.back}>
         {({ items }) => {
           // El backend no filtra por tipo: se filtra en cliente sobre lo ya cargado.
           const rows = type ? items.filter((o) => o.type === type) : items;
