@@ -283,3 +283,16 @@ Ejecución en Bruno contra Cloud Spanner confirmando respuesta `403 Forbidden` (
 
 **Prevención futura:**
 En pruebas de autorización basada en recursos (Resource Authorization), asegurar que los actores de prueba negativos sean identidades completamente externas a las entidades involucradas en el recurso.
+
+---
+
+## 2026-10-26 - Sesión frontend, SecureStore y toolchain TypeScript 6
+
+| Fecha | Capa | Problema | Causa | Solución |
+|---|---|---|---|---|
+| 2026-10-26 | Frontend / dependencias | `npx expo install expo-secure-store` terminó con `EALLOWSCRIPTS` | npm 11 rechaza `--allow-scripts` en instalaciones de proyecto y la configuración global solo permitía `opencode-ai` | Se instaló `npm install expo-secure-store@~58.0.2 --ignore-scripts`; el paquete no requiere scripts de instalación |
+| 2026-10-26 | Frontend / pruebas | El runner fallaba con `TS5107` y `TS5098` | `tsconfig.test.json` usaba `moduleResolution=node10` (obsoleto en TS 6) y `customConditions` sin `node16/nodenext` | Se compila con `module` y `moduleResolution` en `nodenext` |
+| 2026-10-26 | Frontend / sesión web | `expo-secure-store` no persiste tokens en web | La implementación web del módulo es vacía (`ExpoSecureStore.web.js` exporta `{}`) | El gate usa memoria en web (`MemorySessionStorage`); nunca `localStorage` para tokens |
+
+**Prevención futura:**
+Mantener el núcleo de sesión sin imports de Expo/React Native (probable en Node) y aislar el cableado de plataforma en `src/services/session/platform.ts`, excluido del `tsconfig` de pruebas.

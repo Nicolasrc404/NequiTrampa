@@ -78,11 +78,18 @@ public static class AuthExtensions
     }
 
     public static IEndpointConventionBuilder MapAccessEndpoint(this IEndpointRouteBuilder app) =>
-        app.MapGet("/v1/me/access", (ClaimsPrincipal p) =>
+        app.MapGet("/v1/me/access", async (ClaimsPrincipal p, ClientIdentityResolver identities, CancellationToken ct) =>
         {
             var u = CurrentUser.From(p);
-            return u is null ? Microsoft.AspNetCore.Http.Results.Unauthorized()
-                : Microsoft.AspNetCore.Http.Results.Ok(new { uid = u.Uid, roles = u.Roles.OrderBy(r => r), isStaff = u.IsStaff });
+            if (u is null) return Microsoft.AspNetCore.Http.Results.Unauthorized();
+            var clientId = await identities.ResolveAsync(u, ct);
+            return Microsoft.AspNetCore.Http.Results.Ok(new
+            {
+                uid = u.Uid,
+                roles = u.Roles.OrderBy(r => r),
+                isStaff = u.IsStaff,
+                clientId,
+            });
         });
 }
 
