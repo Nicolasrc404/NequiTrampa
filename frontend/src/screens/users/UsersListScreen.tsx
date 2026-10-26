@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import colors from '../../theme/colors';
-import { adminApi } from '../../api/backoffice';
-import { useAsync } from '../../hooks/useAsync';
+import { requireBackoffice } from '../../services/api';
+import { useApiResource } from '../../hooks/useApiResource';
 import { useNav } from '../../navigation/nav';
 import { Remote } from '../../components/backoffice/Remote';
 import { Badge, BoInput, BoScreen, Card, EmptyState, Segmented, SectionTitle } from '../../components/backoffice/ui';
@@ -19,7 +19,7 @@ export function UsersListScreen() {
   const nav = useNav();
   const [status, setStatus] = useState('');
   const [lookup, setLookup] = useState('');
-  const { state, reload } = useAsync(() => adminApi.users(1, 50, status || undefined), [status]);
+  const state = useApiResource((signal) => requireBackoffice().admin.listUsers({ pageSize: 50, status: status || undefined, signal }), [status]);
 
   return (
     <BoScreen title="Usuarios" subtitle="Administración" badge="ADMIN" onBack={nav.back}>
@@ -32,7 +32,7 @@ export function UsersListScreen() {
         onSubmitEditing={() => lookup.trim() && nav.push({ name: 'userDetail', id: lookup.trim() })}
       />
       <Segmented options={STATUS_FILTERS} value={status} onChange={setStatus} />
-      <Remote state={state} resource="Usuarios" onRetry={reload} onBack={nav.back}>
+      <Remote state={state} resource="Usuarios" onBack={nav.back}>
         {({ users, total }) =>
           users.length === 0 ? (
             <EmptyState title="Sin usuarios" message="No hay usuarios que coincidan con el filtro." />

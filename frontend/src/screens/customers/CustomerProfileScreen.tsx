@@ -1,8 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import colors from '../../theme/colors';
-import { supportApi } from '../../api/backoffice';
-import { useAsync } from '../../hooks/useAsync';
+import { requireBackoffice } from '../../services/api';
+import { useApiResource } from '../../hooks/useApiResource';
 import { useNav } from '../../navigation/nav';
 import { Remote } from '../../components/backoffice/Remote';
 import { Badge, BoButton, BoScreen, Card, KeyValue, ReadOnlyNote } from '../../components/backoffice/ui';
@@ -12,10 +12,10 @@ const NOTE = 'Solo consulta · no modifica datos ni saldos';
 
 export function CustomerProfileScreen({ id }: { id: string }) {
   const nav = useNav();
-  const { state, reload } = useAsync(() => supportApi.client(id), [id]);
+  const state = useApiResource((signal) => requireBackoffice().support.getClient(id, { signal }), [id]);
   return (
     <BoScreen title="Perfil del cliente" subtitle="Customer Lookup" badge="SOPORTE" onBack={nav.back}>
-      <Remote state={state} resource="Cliente" onRetry={reload} onBack={nav.back}>
+      <Remote state={state} resource="Cliente" onBack={nav.back}>
         {(c) => (
           <>
             <Card>

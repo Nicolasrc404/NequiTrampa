@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import colors from '../../theme/colors';
-import { casesApi } from '../../api/backoffice';
-import { useAction, useAsync } from '../../hooks/useAsync';
+import { requireBackoffice } from '../../services/api';
+import { useApiResource } from '../../hooks/useApiResource';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useNav } from '../../navigation/nav';
 import { Remote } from '../../components/backoffice/Remote';
 import { BoButton, BoInput, BoScreen, Card, EmptyState, InlineError, KeyValue, ReadOnlyNote, SectionTitle } from '../../components/backoffice/ui';
@@ -11,13 +12,13 @@ import { NOTE, CaseBadges } from './CaseParts';
 
 export function CaseDetailScreen({ id }: { id: string }) {
   const nav = useNav();
-  const { state, reload } = useAsync(() => casesApi.get(id), [id]);
+  const state = useApiResource((signal) => requireBackoffice().cases.get(id, { signal }), [id]);
   const [body, setBody] = useState('');
-  const reply = useAction(casesApi.reply);
+  const reply = useAsyncAction((id: string, body: string) => requireBackoffice().cases.reply(id, body));
 
   return (
     <BoScreen title="Detalle del caso" subtitle="Gestión de soporte" badge="SOPORTE" onBack={nav.back}>
-      <Remote state={state} resource="Caso" onRetry={reload} onBack={nav.back}>
+      <Remote state={state} resource="Caso" onBack={nav.back}>
         {({ case: c, messages }) => {
           const closed = c.status === 'CLOSED';
           return (
@@ -78,12 +79,12 @@ export function CaseDetailScreen({ id }: { id: string }) {
                   <InlineError error={reply.error} />
                   <BoButton
                     label="Enviar respuesta"
-                    busy={reply.busy}
+                    busy={reply.isSubmitting}
                     disabled={!body.trim()}
                     onPress={async () => {
-                      if (await reply.run(id, body.trim())) {
+                      if (await reply.execute(id, body.trim())) {
                         setBody('');
-                        reload();
+                        state.reload();
                       }
                     }}
                   />

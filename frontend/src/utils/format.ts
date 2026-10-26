@@ -1,27 +1,29 @@
-/** Centavos → "$850.000" (COP, sin decimales salvo que existan centavos). */
+// ============================================================
+// Formato y etiquetas del backoffice
+// ============================================================
+// Dinero y fechas delegan en `money.ts` y `datetime.ts` (única fuente de
+// formato de la app). Aquí solo viven las etiquetas en español de los valores
+// del backend y el tono visual de cada estado.
+
+import { formatCopCents } from './money';
+import { formatBogotaDateTime, parseApiDate } from './datetime';
+
+/** Centavos → "$850.000" (COP). `—` si no hay valor. */
 export function formatCents(cents: number | null | undefined): string {
   if (cents === null || cents === undefined) return '—';
   const sign = cents < 0 ? '-' : '';
-  const abs = Math.abs(cents);
-  const pesos = Math.floor(abs / 100);
-  const rest = abs % 100;
-  const grouped = String(pesos).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
-  return `${sign}$${grouped}${rest ? `,${String(rest).padStart(2, '0')}` : ''}`;
+  return `${sign}$${formatCopCents(Math.abs(cents), { withSymbol: false })}`;
 }
 
-const MONTHS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
-
-/** ISO UTC → "9 oct 2026 · 10:24 a. m." en hora de Colombia (UTC-5, sin DST). */
+/** ISO UTC → "9 oct 2026 · 10:24 a. m." (Colombia); con segundos, "10:24:05 a. m.". */
 export function formatDateTime(iso: string | null | undefined, withSeconds = false): string {
-  if (!iso) return '—';
-  const t = Date.parse(iso);
-  if (Number.isNaN(t)) return iso;
-  const d = new Date(t - 5 * 3600 * 1000);
-  const h24 = d.getUTCHours();
-  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
-  const mm = String(d.getUTCMinutes()).padStart(2, '0');
-  const ss = withSeconds ? `:${String(d.getUTCSeconds()).padStart(2, '0')}` : '';
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()} · ${h12}:${mm}${ss} ${h24 < 12 ? 'a. m.' : 'p. m.'}`;
+  if (!withSeconds) return formatBogotaDateTime(iso);
+  const parsed = parseApiDate(iso);
+  if (!parsed) return iso ?? '—';
+  const base = formatBogotaDateTime(iso);
+  const seconds = String(parsed.date.getUTCSeconds()).padStart(2, '0');
+  // "9 oct 2026 · 10:24 a. m." → "9 oct 2026 · 10:24:05 a. m."
+  return base.replace(/(\d{1,2}:\d{2}) /, `$1:${seconds} `);
 }
 
 export const CASE_STATUS_LABEL: Record<string, string> = {

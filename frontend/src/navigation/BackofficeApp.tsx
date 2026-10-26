@@ -1,9 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchRoles, hasSession, subscribeSession } from '../api/auth';
-import { ApiError } from '../api/http';
+import React, { useEffect, useMemo, useState } from 'react';
+import { appConfig } from '../config/appConfig';
+import { sessionManager } from '../services/session/platform';
+import type { SessionSnapshot } from '../services/session';
+import { ApiError } from '../services/http';
 import { BoRoute } from '../types/backoffice';
 import { NavContext } from './nav';
-import { BoScreen, ErrorState, SkeletonList } from '../components/backoffice/ui';
+import { BoScreen, ErrorState, SkeletonList, StateCard } from '../components/backoffice/ui';
 import { LoginScreen } from '../screens/auth/LoginScreen';
 import { HomeScreen } from '../screens/home/HomeScreen';
 import { UsersListScreen } from '../screens/users/UsersListScreen';
@@ -50,7 +52,7 @@ function renderRoute(r: BoRoute): React.ReactNode {
 }
 
 /** Ruta → rol requerido, para no mostrar pantallas que el backend rechazaría con 403. */
-function allowed(r: BoRoute, roles: string[]): boolean {
+function allowed(r: BoRoute, roles: readonly string[]): boolean {
   const staff = roles.some((x) => ['SOPORTE', 'OPERADOR_FINANCIERO', 'ADMIN'].includes(x));
   switch (r.name) {
     case 'home': return true;
@@ -68,65 +70,78 @@ function allowed(r: BoRoute, roles: string[]): boolean {
 }
 
 export default function BackofficeApp() {
-  const [signedIn, setSignedIn] = useState(hasSession());
-  const [wasSignedIn, setWasSignedIn] = useState(false);
+  const [snapshot, setSnapshot] = useState<SessionSnapshot>(() => sessionManager.getSnapshot());
   const [stack, setStack] = useState<BoRoute[]>([HOME]);
-  const [roles, setRoles] = useState<string[] | null>(null);
-  const [rolesError, setRolesError] = useState<ApiError | null>(null);
-  const [attempt, setAttempt] = useState(0);
-
-  useEffect(
-    () =>
-      subscribeSession(() => {
-        const on = hasSession();
-        setSignedIn(on);
-        if (on) setWasSignedIn(true);
-        else {
-          setRoles(null);
-          setStack([HOME]);
-        }
-      }),
-    [],
-  );
+  const [email, setEmail] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!signedIn) return;
-    let alive = true;
-    setRolesError(null);
-    fetchRoles().then(
-      (r) => alive && setRoles(r),
-      (e) => alive && setRolesError(e instanceof ApiError ? e : new ApiError(500, 'Error inesperado.')),
-    );
-    return () => {
-      alive = false;
-    };
-  }, [signedIn, attempt]);
+    const unsubscribe = sessionManager.subscribe(setSnapshot);
+    void sessionManager.restore();
+    return unsubscribe;
+  }, []);
 
+  // Al cerrar o perder la sesión se vuelve al inicio y se olvida el correo.
+  useEffect(() => {
+    if (snapshot.status === 'anonymous') {
+      setStack([HOME]);
+      setEmail(null);
+    }
+  }, [snapshot.status]);
+
+  const roles = snapshot.user?.roles ?? [];
   const nav = useMemo(
     () => ({
       push: (r: BoRoute) => setStack((s) => [...s, r]),
       replace: (r: BoRoute) => setStack((s) => [...s.slice(0, -1), r]),
       back: () => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)),
       home: () => setStack([HOME]),
-      roles: roles ?? [],
+      roles,
+      who: email ?? snapshot.user?.uid ?? '',
     }),
-    [roles],
+    // `roles` cambia de identidad en cada render: se compara por contenido.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [roles.join(','), email, snapshot.user?.uid],
   );
-  const retry = useCallback(() => setAttempt((n) => n + 1), []);
 
-  if (!signedIn) return <LoginScreen notice={wasSignedIn ? 'Sesión vencida. Inicia sesión de nuevo.' : undefined} />;
-  if (rolesError)
+  if (!appConfig.apiConfigured || !appConfig.identityApiKey) {
     return (
       <BoScreen title="Backoffice">
-        <ErrorState error={rolesError} resource="Sesión" onRetry={retry} />
+        <StateCard
+          icon="settings-outline"
+          title="La app no está configurada"
+          message="Falta EXPO_PUBLIC_API_URL o EXPO_PUBLIC_IDENTITY_API_KEY. Revisa frontend/.env.example."
+        />
       </BoScreen>
     );
-  if (!roles)
-    return (
-      <BoScreen title="Backoffice">
-        <SkeletonList rows={3} />
-      </BoScreen>
-    );
+  }
+
+  switch (snapshot.status) {
+    case 'initializing':
+      return (
+        <BoScreen title="Backoffice">
+          <SkeletonList rows={3} />
+        </BoScreen>
+      );
+    case 'unavailable':
+      return (
+        <BoScreen title="Backoffice">
+          <ErrorState
+            error={ApiError.fromTransport('network')}
+            resource="Sesión"
+            onRetry={() => void sessionManager.restore()}
+          />
+        </BoScreen>
+      );
+    case 'anonymous':
+      return (
+        <LoginScreen
+          notice={snapshot.errorCode === 'invalid_session' ? 'Sesión vencida. Inicia sesión de nuevo.' : undefined}
+          onSignedIn={setEmail}
+        />
+      );
+    default:
+      break;
+  }
 
   const current = stack[stack.length - 1];
   return (
@@ -135,7 +150,7 @@ export default function BackofficeApp() {
         renderRoute(current)
       ) : (
         <BoScreen title="Sin permisos" onBack={nav.back}>
-          <ErrorState error={new ApiError(403, 'Forbidden')} resource="Módulo" onBack={nav.back} />
+          <ErrorState error={new ApiError({ kind: 'forbidden', status: 403 })} resource="Módulo" onBack={nav.back} />
         </BoScreen>
       )}
     </NavContext.Provider>

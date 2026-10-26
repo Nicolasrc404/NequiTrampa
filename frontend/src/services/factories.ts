@@ -38,6 +38,10 @@ import {
   createAnalyticsService,
   type AnalyticsService,
 } from './analyticsService';
+import {
+  createBackofficeService,
+  type BackofficeService,
+} from './backofficeService';
 
 export interface ApiServices {
   readonly wallet: WalletService;
@@ -52,6 +56,8 @@ export interface ApiServices {
   readonly budgets: BudgetsService;
   readonly goals: GoalsService;
   readonly analytics: AnalyticsService;
+  /** Solo para personal (SOPORTE / OPERADOR_FINANCIERO / ADMIN). */
+  readonly backoffice: BackofficeService;
 }
 
 export function createApiServices(http: HttpClient): ApiServices {
@@ -68,5 +74,6 @@ export function createApiServices(http: HttpClient): ApiServices {
     budgets: createBudgetsService(http),
     goals: createGoalsService(http),
     analytics: createAnalyticsService(http),
+    backoffice: createBackofficeService(http),
   };
 }
