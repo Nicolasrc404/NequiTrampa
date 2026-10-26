@@ -3,6 +3,7 @@ import { StatusBar } from 'expo-status-bar';
 import { Alert, SafeAreaView, StyleSheet, View } from 'react-native';
 import colors from './src/theme/colors';
 import { appConfig } from './src/config/appConfig';
+import BackofficeApp from './src/navigation/BackofficeApp';
 import SimulationBanner from './src/components/common/SimulationBanner';
 import LoadingState from './src/components/common/states/LoadingState';
 import SessionGate, {
@@ -229,7 +230,7 @@ type SessionGateState = 'loading' | 'ready' | SessionGateReason;
  * módulo. No existe todavía pantalla de login (BLOQUEADA por diseño), así que
  * el gate solo informa y permite reintentar la validación.
  */
-export default function App() {
+function MainApp() {
   const [currentState, setCurrentState] = useState<AppState>(
     demoEnabled ? 'Access_01' : 'Movements_01',
   );
@@ -1662,6 +1663,9 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  // Solo backoffice: en web de escritorio se muestra con ancho de celular; en nativo no tiene efecto.
+  webBackdrop: { flex: 1, backgroundColor: '#E2E8F0' },
+  phoneFrame: { width: '100%', maxWidth: 430, alignSelf: 'center' },
   root: {
     flex: 1,
     backgroundColor: colors.background,
@@ -1670,3 +1674,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+// EXPO_PUBLIC_APP_MODE=backoffice arranca el backoffice de personal; por defecto, la app de clientes.
+export default function App() {
+  if (process.env.EXPO_PUBLIC_APP_MODE === 'backoffice') {
+    return (
+      <View style={styles.webBackdrop}>
+        <SafeAreaView style={[styles.root, styles.phoneFrame]}>
+          <StatusBar style="dark" />
+          <BackofficeApp />
+        </SafeAreaView>
+      </View>
+    );
+  }
+  return <MainApp />;
+}

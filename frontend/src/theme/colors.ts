@@ -38,6 +38,25 @@ export const colors = {
   status503BadgeBg: '#FDF1CD',
   status503BadgeText: '#A16A19',
 
+  // Backoffice (Stitch: NequiTrampa Users Admin UI)
+  boBackground: '#F4F4FA',
+  boInk: '#0F172A',
+  boPink: '#C2185B',
+  boPinkPressed: '#A3154C',
+  boPinkSoft: '#FCE7F3',
+  boMuted: '#64748B',
+  boFaint: '#94A3B8',
+  boBorder: '#E2E8F0',
+  boDangerBg: '#FFE4E6',
+  boDangerText: '#E11D48',
+  boWarnBg: '#FEF3C7',
+  boWarnText: '#D97706',
+  boInfoBg: '#EDE9FE',
+  boInfoText: '#7C3AED',
+  boOkBg: '#D6F4E8',
+  boOkText: '#086C4B',
+  boErrorCircle: '#FCE6E6',
+
   skeletonItem: '#E5E7EB',
   skeletonItemLight: '#F3F4F6',
 
