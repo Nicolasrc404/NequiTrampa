@@ -80,6 +80,8 @@ export interface AuditEntry {
   occurredAt?: string;
 }
 
+export type OperationArea = 'support' | 'finance';
+
 export type OperationTab = 'detail' | 'timeline' | 'ledger' | 'audit';
 
 export type BoRoute =
@@ -97,7 +99,7 @@ export type BoRoute =
   | { name: 'customer' }
   | { name: 'customerProfile'; id: string }
   | { name: 'customerOperations'; id: string }
-  | { name: 'operationSearch'; area: 'support' | 'finance' }
-  | { name: 'operation'; id: string; tab: OperationTab; area: 'support' | 'finance' }
+  | { name: 'operationSearch'; area: OperationArea }
+  | { name: 'operation'; id: string; tab: OperationTab; area: OperationArea }
   | { name: 'reversalCreate'; operationId?: string }
   | { name: 'reversalDetail'; id: string };
