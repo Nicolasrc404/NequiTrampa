@@ -13,6 +13,12 @@ import { sessionManager } from './src/services/session/platform';
 import { apiClient } from './src/services/api';
 import { createApiServices } from './src/services/factories';
 import {
+  useAnalytics,
+  useBeneficiaries,
+  useBudgets,
+  useCashRegister,
+  useCategories,
+  useGoals,
   useMovements,
   useRecharges,
   useTransferReceipt,
@@ -264,6 +270,13 @@ function MainApp() {
     realReady && currentState === 'Transfers_22',
     currentState === 'Transfers_22' ? selectedTransfer.id : null,
   );
+
+  const beneficiaries = useBeneficiaries(services, realReady);
+  const categories = useCategories(services, realReady);
+  const cashRegister = useCashRegister(services, realReady);
+  const budgets = useBudgets(services, realReady);
+  const goals = useGoals(services, realReady);
+  const analytics = useAnalytics(services, realReady);
 
   const reloadBalance = balance.reload;
   const reloadMovements = movements.reload;
@@ -783,6 +796,7 @@ function MainApp() {
             onAddBeneficiary={() => setCurrentState('Beneficiaries_04')}
             onSendTobeneficiary={() => setCurrentState('Movements_01')}
             onLongPressBeneficiary={() => setCurrentState('Beneficiaries_14')}
+            beneficiaries={demoEnabled ? undefined : beneficiaries.data ?? []}
           />
         )}
         {currentState === 'Beneficiaries_02' && (
