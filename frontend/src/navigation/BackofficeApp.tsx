@@ -4,25 +4,25 @@ import { ApiError } from '../api/http';
 import { BoRoute } from '../types/backoffice';
 import { NavContext } from './nav';
 import { BoScreen, ErrorState, SkeletonList } from '../components/backoffice/ui';
-import { LoginScreen } from '../screens/backoffice/LoginScreen';
-import { HomeScreen } from '../screens/backoffice/HomeScreen';
-import {
-  RolesScreen,
-  UserDetailScreen,
-  UserRolesScreen,
-  UserStatusScreen,
-  UsersListScreen,
-} from '../screens/backoffice/UsersScreens';
-import {
-  CaseAssignScreen,
-  CaseDetailScreen,
-  CaseEscalateScreen,
-  CaseStatusScreen,
-  CasesListScreen,
-} from '../screens/backoffice/CasesScreens';
-import { CustomerOperationsScreen, CustomerProfileScreen, CustomerSearchScreen } from '../screens/backoffice/CustomerScreens';
-import { OperationScreen, OperationSearchScreen } from '../screens/backoffice/OperationScreens';
-import { ReversalCreateScreen, ReversalDetailScreen } from '../screens/backoffice/ReversalScreens';
+import { LoginScreen } from '../screens/backoffice/auth/LoginScreen';
+import { HomeScreen } from '../screens/backoffice/home/HomeScreen';
+import { UsersListScreen } from '../screens/backoffice/users/UsersListScreen';
+import { UserDetailScreen } from '../screens/backoffice/users/UserDetailScreen';
+import { UserStatusScreen } from '../screens/backoffice/users/UserStatusScreen';
+import { UserRolesScreen } from '../screens/backoffice/users/UserRolesScreen';
+import { RolesScreen } from '../screens/backoffice/users/RolesScreen';
+import { CasesListScreen } from '../screens/backoffice/cases/CasesListScreen';
+import { CaseDetailScreen } from '../screens/backoffice/cases/CaseDetailScreen';
+import { CaseStatusScreen } from '../screens/backoffice/cases/CaseStatusScreen';
+import { CaseAssignScreen } from '../screens/backoffice/cases/CaseAssignScreen';
+import { CaseEscalateScreen } from '../screens/backoffice/cases/CaseEscalateScreen';
+import { CustomerSearchScreen } from '../screens/backoffice/customers/CustomerSearchScreen';
+import { CustomerProfileScreen } from '../screens/backoffice/customers/CustomerProfileScreen';
+import { CustomerOperationsScreen } from '../screens/backoffice/customers/CustomerOperationsScreen';
+import { OperationSearchScreen } from '../screens/backoffice/operations/OperationSearchScreen';
+import { OperationScreen } from '../screens/backoffice/operations/OperationScreen';
+import { ReversalCreateScreen } from '../screens/backoffice/reversals/ReversalCreateScreen';
+import { ReversalDetailScreen } from '../screens/backoffice/reversals/ReversalDetailScreen';
 
 const HOME: BoRoute = { name: 'home' };
 

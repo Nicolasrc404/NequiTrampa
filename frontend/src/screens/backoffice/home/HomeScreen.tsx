@@ -1,11 +1,11 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import colors from '../../theme/colors';
-import { sessionEmail, signOut } from '../../api/auth';
-import { useNav } from '../../navigation/nav';
-import { BoButton, BoScreen, Card, EmptyState } from '../../components/backoffice/ui';
-import { BoRoute } from '../../types/backoffice';
+import colors from '../../../theme/colors';
+import { sessionEmail, signOut } from '../../../api/auth';
+import { useNav } from '../../../navigation/nav';
+import { BoButton, BoScreen, Card, EmptyState } from '../../../components/backoffice/ui';
+import { BoRoute } from '../../../types/backoffice';
 
 interface Entry {
   icon: keyof typeof Ionicons.glyphMap;

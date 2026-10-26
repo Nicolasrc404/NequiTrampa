@@ -1,9 +1,9 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
-import colors from '../../theme/colors';
-import { signIn } from '../../api/auth';
-import { useAction } from '../../hooks/useAsync';
-import { BoButton, BoInput, BoScreen, Card, InlineError } from '../../components/backoffice/ui';
+import colors from '../../../theme/colors';
+import { signIn } from '../../../api/auth';
+import { useAction } from '../../../hooks/useAsync';
+import { BoButton, BoInput, BoScreen, Card, InlineError } from '../../../components/backoffice/ui';
 
 export function LoginScreen({ notice }: { notice?: string }) {
   const [email, setEmail] = useState('');
