@@ -184,7 +184,8 @@ import Analytics09Screen from './src/screens/analytics/Analytics09Screen';
 import Analytics10Screen from './src/screens/analytics/Analytics10Screen';
 
 // ── Stitch Modulo 1 (35 pantallas, modo DEMO aislado) ─────
-import Module1Screen, { Module1ScreenKey } from './src/screens/module1/Module1Screen';
+import Module1ScreenRenderer from './src/components/common/Module1ScreenRenderer';
+import { Module1ScreenKey } from './src/types/module1';
 
 // ── Dev preview bar (multi-module) ─────────────────────────
 import DevStateBarMulti from './src/components/common/DevStateBarMulti';
@@ -1647,7 +1648,7 @@ export default function App() {
         currentState.startsWith('Profile_') ||
         currentState.startsWith('Configuration_') ||
         currentState.startsWith('Projection_Status_') ? (
-          <Module1Screen
+          <Module1ScreenRenderer
             screenKey={currentState as Module1ScreenKey}
             onNavigate={(key) => setCurrentState(key)}
             onHome={() => setCurrentState('Movements_01')}
