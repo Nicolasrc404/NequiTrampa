@@ -2,6 +2,8 @@ This is an Expo/React Native mobile application. Prioritize mobile-first pattern
 
 ## Expo has changed — do not trust your training data
 
+This app uses Expo SDK 58 (`~58.0.19`), React Native 0.88, React 19.3 and TypeScript 6.
+
 Expo ships breaking changes every SDK release. APIs you remember are likely renamed, moved, or removed. Before writing any code that touches an Expo, EAS, or React Native API:
 
 1. Read the major version of the `expo` package in `package.json`.
@@ -10,24 +12,41 @@ Expo ships breaking changes every SDK release. APIs you remember are likely rena
 
 ## Commands
 
-Use `bunx` instead of `npx` if the project uses bun (`bun.lock` present).
+This project uses npm (`package-lock.json`); there is no `bun.lock`.
 
 ```bash
 npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
 npx expo start              # start the dev server
-npx expo lint               # lint
 npx tsc --noEmit            # typecheck
 npx expo-doctor             # diagnose dependency and config issues
 npx expo install --fix      # fix incompatible package versions
 ```
 
-Run lint and typecheck before declaring any task done.
+There is no lint script or ESLint configuration in this app. Do not add lint tooling without explicit approval. Run typecheck before declaring any task done.
 
-## Navigation & Routing
+## Navigation
 
-- Use **Expo Router** for all navigation. Routes live in `src/app/` — every file there is a screen, `_layout.tsx` files define navigators. Keep non-route code (components, hooks, utils) outside `src/app/`.
-- Import `Link`, `router`, and `useLocalSearchParams` from `expo-router`.
-- Docs: https://docs.expo.dev/router/introduction.md
+- The app entry is `index.ts`, which calls `registerRootComponent(App)`.
+- `App.tsx` owns navigation: it stores the active `MovementsState` and the selected movement, then renders one of `Movements01Screen`–`Movements08Screen`.
+- `DevStateBar` is the current development switcher for previewing states.
+- Screens live in `src/screens/movements/`.
+- Expo Router and React Navigation are NOT installed. Do not add them or migrate navigation without explicit approval.
+
+## Project structure
+
+- `App.tsx` — root component and current state-based navigation.
+- `src/screens/movements/` — the eight implemented screens.
+- `src/components/common/` — shared UI components.
+- `src/components/movements/` — movement-specific UI components.
+- `src/data/demoMovements.ts` — clearly identified DEMO data.
+- `src/theme/colors.ts` — current source of design tokens.
+- `src/types/movements.ts` — shared types.
+
+## Styling
+
+- Use React Native primitives (`View`, `Text`, `Pressable`, `TextInput`, `ScrollView`, `FlatList`) and `StyleSheet`.
+- Import colors from `src/theme/colors.ts`; keep it as the single token source. Do not create a parallel `src/theme.ts`.
+- Do not copy Stitch HTML directly as JSX.
 
 ## Building with EAS
 

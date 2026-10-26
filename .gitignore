@@ -5,3 +5,8 @@ obj/
 .env
 *.local.json
 .local-run/
+.agents/mcp_config.json
+.env.local
+frontend/.env
+frontend/.env.local
+/frontend/NequiTrampa_UX_Mapping_Completo.pdf
