@@ -1,7 +1,8 @@
-import React, { useRef, useState } from 'react';
-import { financeApi } from '../../api/backoffice';
-import { newIdempotencyKey } from '../../api/http';
-import { useAction } from '../../hooks/useAsync';
+import React, { useState } from 'react';
+import { requireBackoffice } from '../../services/api';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
+import { idempotencyKeys } from '../../utils/idempotency';
+
 import { useNav } from '../../navigation/nav';
 import { BoButton, BoInput, BoScreen, InlineError, ReadOnlyNote, SuccessBanner } from '../../components/backoffice/ui';
 import { OperationDto } from '../../types/backoffice';
@@ -11,15 +12,15 @@ export function ReversalCreateScreen({ operationId }: { operationId?: string }) 
   const nav = useNav();
   const [opId, setOpId] = useState(operationId ?? '');
   const [reason, setReason] = useState('');
-  // Misma llave al reintentar el mismo envío; nueva llave si cambia el contenido.
-  const key = useRef(newIdempotencyKey());
-  const action = useAction((o: string, r: string, k: string) => financeApi.reverse(o, r, k));
+  // La clave identifica la intención (operación + motivo): un reintento del mismo
+  // envío la reutiliza y cambiar el contenido genera otra distinta.
+  const action = useAsyncAction((operation: string, why: string) =>
+    requireBackoffice().finance.createReversal(operation, why, {
+      idempotencyKey: idempotencyKeys.acquire(`backoffice:reversal:${operation}:${why}`),
+    }),
+  );
   const [created, setCreated] = useState<OperationDto | null>(null);
 
-  const edit = <T,>(set: (v: T) => void) => (v: T) => {
-    key.current = newIdempotencyKey();
-    set(v);
-  };
   const valid = opId.trim().length > 0 && reason.trim().length >= 5;
 
   return (
@@ -32,11 +33,11 @@ export function ReversalCreateScreen({ operationId }: { operationId?: string }) 
         </>
       ) : (
         <>
-          <BoInput label="Operación original" value={opId} onChangeText={edit(setOpId)} placeholder="Referencia pública o ID" />
+          <BoInput label="Operación original" value={opId} onChangeText={setOpId} placeholder="Referencia pública o ID" />
           <BoInput
             label="Motivo (5–256 caracteres)"
             value={reason}
-            onChangeText={edit(setReason)}
+            onChangeText={setReason}
             multiline
             maxLength={256}
             autoCapitalize="sentences"
@@ -45,10 +46,10 @@ export function ReversalCreateScreen({ operationId }: { operationId?: string }) 
           <BoButton
             label="Solicitar reverso"
             variant="danger"
-            busy={action.busy}
+            busy={action.isSubmitting}
             disabled={!valid}
             onPress={async () => {
-              const r = await action.run(opId.trim(), reason.trim(), key.current);
+              const r = await action.execute(opId.trim(), reason.trim());
               if (r) setCreated(r);
             }}
           />

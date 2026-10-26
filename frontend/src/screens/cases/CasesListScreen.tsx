@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import colors from '../../theme/colors';
-import { casesApi } from '../../api/backoffice';
-import { useAsync } from '../../hooks/useAsync';
+import { requireBackoffice } from '../../services/api';
+import { useApiResource } from '../../hooks/useApiResource';
 import { useNav } from '../../navigation/nav';
 import { Remote } from '../../components/backoffice/Remote';
 import { Badge, BoScreen, Card, EmptyState, ReadOnlyNote, SectionTitle, Segmented } from '../../components/backoffice/ui';
@@ -17,13 +17,13 @@ const STATUS_FILTERS = [
 export function CasesListScreen() {
   const nav = useNav();
   const [status, setStatus] = useState('');
-  const { state, reload } = useAsync(() => casesApi.list(status || undefined), [status]);
+  const state = useApiResource((signal) => requireBackoffice().cases.list({ status: status || undefined, signal }), [status]);
 
   return (
     <BoScreen title="Casos de soporte" subtitle="Gestión de soporte" badge="SOPORTE" onBack={nav.back}>
       <Segmented options={STATUS_FILTERS} value={status} onChange={setStatus} />
-      <Remote state={state} resource="Casos" onRetry={reload} onBack={nav.back}>
-        {({ items }) =>
+      <Remote state={state} resource="Casos" onBack={nav.back}>
+        {(items) =>
           items.length === 0 ? (
             <EmptyState title="Sin casos" message="No hay casos con este estado por ahora." />
           ) : (

@@ -1,8 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import colors from '../../theme/colors';
-import { adminApi } from '../../api/backoffice';
-import { useAsync } from '../../hooks/useAsync';
+import { requireBackoffice } from '../../services/api';
+import { useApiResource } from '../../hooks/useApiResource';
 import { useNav } from '../../navigation/nav';
 import { Remote } from '../../components/backoffice/Remote';
 import { Badge, BoButton, BoScreen, Card, KeyValue, ReadOnlyNote } from '../../components/backoffice/ui';
@@ -10,11 +10,11 @@ import { USER_STATUS_LABEL, formatCents, formatDateTime, toneForStatus } from '.
 
 export function UserDetailScreen({ id }: { id: string }) {
   const nav = useNav();
-  const { state, reload } = useAsync(() => adminApi.user(id), [id]);
+  const state = useApiResource((signal) => requireBackoffice().admin.getUser(id, { signal }), [id]);
 
   return (
     <BoScreen title="Detalle de usuario" onBack={nav.back}>
-      <Remote state={state} resource="Usuario" onRetry={reload} onBack={nav.back}>
+      <Remote state={state} resource="Usuario" onBack={nav.back}>
         {({ user, roles }) => (
           <>
             <Card>

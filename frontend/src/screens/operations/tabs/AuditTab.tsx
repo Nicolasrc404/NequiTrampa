@@ -1,6 +1,6 @@
 import React from 'react';
-import { financeApi } from '../../../api/backoffice';
-import { useAsync } from '../../../hooks/useAsync';
+import { requireBackoffice } from '../../../services/api';
+import { useApiResource } from '../../../hooks/useApiResource';
 import { useNav } from '../../../navigation/nav';
 import { Remote } from '../../../components/backoffice/Remote';
 import { Card, EmptyState, SectionTitle, Timeline } from '../../../components/backoffice/ui';
@@ -8,10 +8,10 @@ import { formatDateTime } from '../../../utils/format';
 
 export function AuditTab({ id }: { id: string }) {
   const nav = useNav();
-  const { state, reload } = useAsync(() => financeApi.audit(id), [id]);
+  const state = useApiResource((signal) => requireBackoffice().finance.getAudit(id, { signal }), [id]);
   return (
-    <Remote state={state} resource="Auditoría" onRetry={reload} onBack={nav.back}>
-      {({ auditEntries }) =>
+    <Remote state={state} resource="Auditoría" onBack={nav.back}>
+      {({ entries: auditEntries }) =>
         auditEntries.length === 0 ? (
           <EmptyState title="Sin registros" message="No hay acciones de auditoría asociadas a esta operación." />
         ) : (

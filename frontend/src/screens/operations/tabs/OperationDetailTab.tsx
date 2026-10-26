@@ -1,8 +1,8 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import colors from '../../../theme/colors';
-import { financeApi, supportApi } from '../../../api/backoffice';
-import { useAsync } from '../../../hooks/useAsync';
+import { requireBackoffice } from '../../../services/api';
+import { useApiResource } from '../../../hooks/useApiResource';
 import { useNav } from '../../../navigation/nav';
 import { Remote } from '../../../components/backoffice/Remote';
 import { Badge, BoButton, Card, KeyValue, SectionTitle } from '../../../components/backoffice/ui';
@@ -11,9 +11,15 @@ import { OperationArea } from '../../../types/backoffice';
 
 export function OperationDetail({ id, area }: { id: string; area: OperationArea }) {
   const nav = useNav();
-  const { state, reload } = useAsync(() => (area === 'support' ? supportApi.operation(id) : financeApi.operation(id)), [id, area]);
+  const state = useApiResource(
+    (signal) =>
+      area === 'support'
+        ? requireBackoffice().support.getOperation(id, { signal })
+        : requireBackoffice().finance.getOperation(id, { signal }),
+    [id, area],
+  );
   return (
-    <Remote state={state} resource="Operación" onRetry={reload} onBack={nav.back}>
+    <Remote state={state} resource="Operación" onBack={nav.back}>
       {(o) => (
         <>
           <Card>
