@@ -21,6 +21,7 @@ import { CashState } from '../../types/cash';
 import { BudgetsState } from '../../types/budgets';
 import { GoalsState } from '../../types/goals';
 import { AnalyticsState } from '../../types/analytics';
+import { Module1ScreenKey } from '../../types/module1';
 
 type AppState =
   | MovementsState
@@ -31,7 +32,8 @@ type AppState =
   | CashState
   | BudgetsState
   | GoalsState
-  | AnalyticsState;
+  | AnalyticsState
+  | Module1ScreenKey;
 type ActiveModule =
   | 'movements'
   | 'beneficiaries'
@@ -41,7 +43,12 @@ type ActiveModule =
   | 'cash'
   | 'budgets'
   | 'goals'
-  | 'analytics';
+  | 'analytics'
+  | 'access'
+  | 'wallet'
+  | 'profile'
+  | 'configuration'
+  | 'projection-status';
 
 const getModuleFromState = (state: AppState): ActiveModule => {
   if (state.startsWith('Beneficiaries')) {
@@ -68,6 +75,11 @@ const getModuleFromState = (state: AppState): ActiveModule => {
   if (state.startsWith('Analytics')) {
     return 'analytics';
   }
+  if (state.startsWith('Access')) return 'access';
+  if (state.startsWith('Wallet')) return 'wallet';
+  if (state.startsWith('Profile')) return 'profile';
+  if (state.startsWith('Configuration')) return 'configuration';
+  if (state.startsWith('Projection_Status')) return 'projection-status';
   return 'movements';
 };
 
@@ -213,6 +225,16 @@ const ANALYTICS_STATES: { key: AnalyticsState; label: string }[] = [
   { key: 'Analytics_10', label: 'A10 500 Tend' },
 ];
 
+const ACCESS_STATES: { key: Module1ScreenKey; label: string }[] = [
+  { key: 'Access_01', label: 'Acceso 01' },
+  { key: 'Access_02', label: 'Acceso 02' },
+  { key: 'Access_03', label: 'Acceso 03' },
+];
+const WALLET_STATES = Array.from({ length: 9 }, (_, index) => ({ key: `Wallet_${String(index + 1).padStart(2, '0')}` as Module1ScreenKey, label: `Wallet ${String(index + 1).padStart(2, '0')}` }));
+const PROFILE_STATES = Array.from({ length: 9 }, (_, index) => ({ key: `Profile_${String(index + 1).padStart(2, '0')}` as Module1ScreenKey, label: `Profile ${String(index + 1).padStart(2, '0')}` }));
+const CONFIGURATION_STATES = Array.from({ length: 9 }, (_, index) => ({ key: `Configuration_${String(index + 1).padStart(2, '0')}` as Module1ScreenKey, label: `Configuration ${String(index + 1).padStart(2, '0')}` }));
+const PROJECTION_STATUS_STATES = Array.from({ length: 5 }, (_, index) => ({ key: `Projection_Status_${String(index + 1).padStart(2, '0')}` as Module1ScreenKey, label: `Projection Status ${String(index + 1).padStart(2, '0')}` }));
+
 export const DevStateBarMulti: React.FC<DevStateBarMultiProps> = ({
   currentState,
   onSelectState,
@@ -242,6 +264,16 @@ export const DevStateBarMulti: React.FC<DevStateBarMultiProps> = ({
                   ? GOALS_STATES
                   : activeModule === 'analytics'
                     ? ANALYTICS_STATES
+                    : activeModule === 'access'
+                      ? ACCESS_STATES
+                      : activeModule === 'wallet'
+                        ? WALLET_STATES
+                        : activeModule === 'profile'
+                          ? PROFILE_STATES
+                          : activeModule === 'configuration'
+                            ? CONFIGURATION_STATES
+                            : activeModule === 'projection-status'
+                              ? PROJECTION_STATUS_STATES
                     : TRANSFERS_STATES;
 
   const handleModuleSwitch = (mod: ActiveModule) => {
@@ -263,6 +295,16 @@ export const DevStateBarMulti: React.FC<DevStateBarMultiProps> = ({
       onSelectState('Goals_01');
     } else if (mod === 'analytics') {
       onSelectState('Analytics_01');
+    } else if (mod === 'access') {
+      onSelectState('Access_01');
+    } else if (mod === 'wallet') {
+      onSelectState('Wallet_01');
+    } else if (mod === 'profile') {
+      onSelectState('Profile_01');
+    } else if (mod === 'configuration') {
+      onSelectState('Configuration_01');
+    } else if (mod === 'projection-status') {
+      onSelectState('Projection_Status_01');
     } else {
       onSelectState('Transfers_01');
     }
@@ -301,6 +343,21 @@ export const DevStateBarMulti: React.FC<DevStateBarMultiProps> = ({
           >
             Movimientos
           </Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.moduleTab, activeModule === 'access' && styles.moduleTabActive]} activeOpacity={0.7} onPress={() => handleModuleSwitch('access')}>
+          <Text style={[styles.moduleTabText, activeModule === 'access' && styles.moduleTabTextActive]}>Access</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.moduleTab, activeModule === 'wallet' && styles.moduleTabActive]} activeOpacity={0.7} onPress={() => handleModuleSwitch('wallet')}>
+          <Text style={[styles.moduleTabText, activeModule === 'wallet' && styles.moduleTabTextActive]}>Wallet</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.moduleTab, activeModule === 'profile' && styles.moduleTabActive]} activeOpacity={0.7} onPress={() => handleModuleSwitch('profile')}>
+          <Text style={[styles.moduleTabText, activeModule === 'profile' && styles.moduleTabTextActive]}>Profile</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.moduleTab, activeModule === 'configuration' && styles.moduleTabActive]} activeOpacity={0.7} onPress={() => handleModuleSwitch('configuration')}>
+          <Text style={[styles.moduleTabText, activeModule === 'configuration' && styles.moduleTabTextActive]}>Configuration</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.moduleTab, activeModule === 'projection-status' && styles.moduleTabActive]} activeOpacity={0.7} onPress={() => handleModuleSwitch('projection-status')}>
+          <Text style={[styles.moduleTabText, activeModule === 'projection-status' && styles.moduleTabTextActive]}>Projection Status</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[

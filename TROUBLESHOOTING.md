@@ -2,6 +2,14 @@
 
 Este documento registra incidencias técnicas relevantes, inconsistencias arquitectónicas y su resolución en el proyecto **NequiTrampa**.
 
+## 2026-10-26 — Descargas HTML de Stitch requieren autenticación
+
+**Capa:** Diseño / Stitch MCP  
+**Problema:** `stitch_get` devolvió metadatos, capturas y referencias de descarga para las pantallas de `projects/1004678761300449208`, pero la descarga HTML/CSS respondió `401 Authentication required`.  
+**Causa:** Las URLs `stitch.googleapis.com/...:download` requieren credenciales que no están disponibles en el entorno de ejecución.  
+**Solución:** Se verificaron los 35 identificadores objetivo mediante Stitch MCP y se implementó el lote en React Native con los nombres oficiales y los tokens existentes de `frontend/DESIGN.md`; no se utilizaron diseños de otros proyectos ni capturas como UI.  
+
+
 ---
 
 ## 2026-09-21 12:55 - Reclasificación de Notifications y Subordinación de Access

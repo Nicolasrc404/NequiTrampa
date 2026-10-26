@@ -1,0 +1,1 @@
+import React from 'react'; import Module1ScreenRenderer from '../../components/common/Module1ScreenRenderer'; import { Module1ScreenProps } from '../../types/module1'; export default function Configuration06Screen(props: Module1ScreenProps) { return <Module1ScreenRenderer screenKey="Configuration_06" {...props} />; }

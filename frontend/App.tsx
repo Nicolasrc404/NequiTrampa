@@ -190,6 +190,10 @@ import Analytics08Screen from './src/screens/analytics/Analytics08Screen';
 import Analytics09Screen from './src/screens/analytics/Analytics09Screen';
 import Analytics10Screen from './src/screens/analytics/Analytics10Screen';
 
+// ── Stitch Modulo 1 (35 pantallas, modo DEMO aislado) ─────
+import Module1ScreenRenderer from './src/components/common/Module1ScreenRenderer';
+import { Module1ScreenKey } from './src/types/module1';
+
 // ── Dev preview bar (multi-module) ─────────────────────────
 import DevStateBarMulti from './src/components/common/DevStateBarMulti';
 
@@ -203,7 +207,8 @@ type AppState =
   | CashState
   | BudgetsState
   | GoalsState
-  | AnalyticsState;
+  | AnalyticsState
+  | Module1ScreenKey;
 
 // ── Aislamiento del modo DEMO ──────────────────────────────
 // `appConfig.demoModeEnabled` solo puede ser true en builds de desarrollo.
@@ -232,7 +237,9 @@ type SessionGateState = 'loading' | 'ready' | SessionGateReason;
  * el gate solo informa y permite reintentar la validación.
  */
 function MainApp() {
-  const [currentState, setCurrentState] = useState<AppState>('Movements_01');
+  const [currentState, setCurrentState] = useState<AppState>(
+    demoEnabled ? 'Access_01' : 'Movements_01',
+  );
   const [selectedMovement, setSelectedMovement] = useState<MovementItem>(
     DEMO_MOVEMENTS[1],
   );
@@ -1649,6 +1656,19 @@ function MainApp() {
             }}
           />
         )}
+
+        {/* ── STITCH MODULO 1 ─────────────────────────────── */}
+        {currentState.startsWith('Access_') ||
+        currentState.startsWith('Wallet_') ||
+        currentState.startsWith('Profile_') ||
+        currentState.startsWith('Configuration_') ||
+        currentState.startsWith('Projection_Status_') ? (
+          <Module1ScreenRenderer
+            screenKey={currentState as Module1ScreenKey}
+            onNavigate={(key) => setCurrentState(key)}
+            onHome={() => setCurrentState('Movements_01')}
+          />
+        ) : null}
           </View>
         </>
       )}
