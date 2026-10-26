@@ -14,8 +14,9 @@ import Movements05Screen from './src/screens/movements/Movements05Screen';
 import Movements06Screen from './src/screens/movements/Movements06Screen';
 import Movements07Screen from './src/screens/movements/Movements07Screen';
 import Movements08Screen from './src/screens/movements/Movements08Screen';
+import BackofficeApp from './src/navigation/BackofficeApp';
 
-export default function App() {
+function MovementsApp() {
   const [currentState, setCurrentState] = useState<MovementsState>('Movements_01');
   const [selectedMovement, setSelectedMovement] = useState<MovementItem>(DEMO_MOVEMENTS[1]); // Default REC-000071 matching Stitch
 
@@ -93,6 +94,9 @@ export default function App() {
 }
 
 const styles = StyleSheet.create({
+  // En web (escritorio) la app se muestra con ancho de celular; en nativo no tiene efecto.
+  webBackdrop: { flex: 1, backgroundColor: '#E2E8F0' },
+  phoneFrame: { width: '100%', maxWidth: 430, alignSelf: 'center' },
   root: {
     flex: 1,
     backgroundColor: colors.background,
@@ -101,3 +105,18 @@ const styles = StyleSheet.create({
     flex: 1,
   },
 });
+
+// EXPO_PUBLIC_APP_MODE=backoffice arranca el backoffice (personal); por defecto, el módulo Movimientos.
+export default function App() {
+  if (process.env.EXPO_PUBLIC_APP_MODE === 'backoffice') {
+    return (
+      <View style={styles.webBackdrop}>
+        <SafeAreaView style={[styles.root, styles.phoneFrame]}>
+          <StatusBar style="dark" />
+          <BackofficeApp />
+        </SafeAreaView>
+      </View>
+    );
+  }
+  return <MovementsApp />;
+}
