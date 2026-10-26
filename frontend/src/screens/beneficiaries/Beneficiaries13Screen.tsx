@@ -9,11 +9,14 @@ import colors from '../../theme/colors';
 interface Beneficiaries13ScreenProps {
   onRetry?: () => void;
   onBack?: () => void;
+  /** Identificador de la solicitud fallida (traceId del servidor). */
+  errorReference?: string;
 }
 
 export const Beneficiaries13Screen: React.FC<Beneficiaries13ScreenProps> = ({
   onRetry,
   onBack,
+  errorReference = 'ERR-BEN-500-DEMO',
 }) => {
   return (
     <View style={styles.root}>
@@ -50,7 +53,7 @@ export const Beneficiaries13Screen: React.FC<Beneficiaries13ScreenProps> = ({
         {/* Error ref card */}
         <View style={styles.refCard}>
           <Text style={styles.refLabel}>Referencia del error</Text>
-          <Text style={styles.refValue}>ERR-BEN-500-DEMO</Text>
+          <Text style={styles.refValue}>{errorReference}</Text>
         </View>
       </View>
 

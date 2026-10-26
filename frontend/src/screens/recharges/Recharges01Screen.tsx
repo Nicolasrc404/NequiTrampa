@@ -23,6 +23,8 @@ export interface Recharges01ScreenProps {
   readonly onAmountChange?: (amountCents: number) => void;
   readonly onBack?: () => void;
   readonly onContinue?: () => void;
+  /** Bloquea el envío mientras el backend confirma la recarga. */
+  readonly submitting?: boolean;
 }
 
 export const Recharges01Screen: React.FC<Recharges01ScreenProps> = ({
@@ -30,6 +32,7 @@ export const Recharges01Screen: React.FC<Recharges01ScreenProps> = ({
   onAmountChange,
   onBack,
   onContinue,
+  submitting = false,
 }) => {
   return (
     <View style={styles.root}>
@@ -60,13 +63,17 @@ export const Recharges01Screen: React.FC<Recharges01ScreenProps> = ({
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={styles.primaryButton}
+          style={[styles.primaryButton, submitting ? styles.primaryButtonBusy : null]}
           activeOpacity={0.85}
           onPress={onContinue}
+          disabled={submitting}
           accessibilityRole="button"
           accessibilityLabel="Continuar con la recarga"
+          accessibilityState={{ disabled: submitting, busy: submitting }}
         >
-          <Text style={styles.primaryButtonText}>Continuar</Text>
+          <Text style={styles.primaryButtonText}>
+            {submitting ? 'Procesando…' : 'Continuar'}
+          </Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -145,6 +152,9 @@ const styles = StyleSheet.create({
     color: colors.rechargesWhite,
     fontSize: 17,
     fontWeight: '600',
+  },
+  primaryButtonBusy: {
+    opacity: 0.6,
   },
 });
 

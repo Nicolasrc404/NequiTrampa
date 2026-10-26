@@ -31,6 +31,8 @@ export interface CategoryExpenseItem {
   amountFormatted: string;
   percentage: number;
   color: string;
+  /** `true` para el bucket agregado "Sin categoría" del backend. */
+  isUncategorized?: boolean;
 }
 
 export interface AnalyticsSummaryData {
@@ -48,6 +50,8 @@ export interface AnalyticsSummaryData {
   topExpenseAmount: number;
   topExpenseFormatted: string; // "$800.000 · 40%"
   weeklyMovements: WeeklyBarData[];
+  /** Advertencia cuando el desglose por categoría es parcial. */
+  dataNote?: string;
 }
 
 export interface AnalyticsCategoryData {
@@ -56,6 +60,10 @@ export interface AnalyticsCategoryData {
   totalExpenseFormatted: string; // "$2.000.000"
   currency: string; // "COP"
   categories: CategoryExpenseItem[];
+  /** Monto agrupado por el backend en "Sin categoría". */
+  uncategorizedFormatted?: string;
+  /** Advertencia cuando el desglose por categoría es parcial. */
+  dataNote?: string;
 }
 
 export interface AnalyticsTrendData {
@@ -70,4 +78,6 @@ export interface AnalyticsTrendData {
   incomeComparisonCurrentFormatted: string; // "$3.250.000"
   previousMonthLabel: string; // "Agosto · ingresos"
   previousMonthIncomeFormatted: string; // "$2.900.000"
+  /** Advertencia cuando no hay movimientos confirmados en el periodo. */
+  dataNote?: string;
 }

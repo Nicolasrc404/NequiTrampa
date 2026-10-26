@@ -15,6 +15,7 @@ import TransfersHeader from '../../components/transfers/TransfersHeader';
 import RechargeHistoryRow from '../../components/recharges/RechargeHistoryRow';
 import BottomNav from '../../components/common/BottomNav';
 import { DEMO_RECHARGE_HISTORY } from '../../data/demoRecharges';
+import type { RechargeItem } from '../../types/recharges';
 
 export interface Recharges08ScreenProps {
   readonly onBack?: () => void;
@@ -22,13 +23,17 @@ export interface Recharges08ScreenProps {
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** Recargas confirmadas por la API. `undefined` usa DEMO. */
+  readonly recharges?: readonly RechargeItem[];
 }
 
 export const Recharges08Screen: React.FC<Recharges08ScreenProps> = ({
   onBack,
   onNewRecharge,
   onTabPress,
+  recharges,
 }) => {
+  const items = recharges ?? DEMO_RECHARGE_HISTORY;
   return (
     <View style={styles.root}>
       <ScrollView
@@ -45,19 +50,20 @@ export const Recharges08Screen: React.FC<Recharges08ScreenProps> = ({
         </View>
 
         <View style={styles.card}>
-          {DEMO_RECHARGE_HISTORY.map((item, index) => (
+          {items.map((item, index) => (
             <View
               key={item.id}
               style={[
                 styles.rowContainer,
-                index < DEMO_RECHARGE_HISTORY.length - 1
-                  ? styles.rowDivider
-                  : null,
+                index < items.length - 1 ? styles.rowDivider : null,
               ]}
             >
               <RechargeHistoryRow item={item} />
             </View>
           ))}
+          {items.length === 0 ? (
+            <Text style={styles.emptyText}>Aún no has recargado.</Text>
+          ) : null}
         </View>
       </ScrollView>
 
@@ -110,6 +116,12 @@ const styles = StyleSheet.create({
   rowDivider: {
     borderBottomWidth: 1,
     borderBottomColor: colors.rechargesCardBorder,
+  },
+  emptyText: {
+    paddingVertical: 28,
+    textAlign: 'center',
+    fontSize: 13,
+    color: colors.transfersSubtext,
   },
   actionBlock: {
     paddingHorizontal: 20,

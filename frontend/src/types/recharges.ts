@@ -31,8 +31,8 @@ export interface RechargeItem {
   readonly amountCents: number;
   readonly occurredAtLabel: string;
   readonly statusLabel: string;
-  /** Saldo después en centavos de COP. */
-  readonly balanceAfterCents: number;
+  /** Saldo después en centavos de COP; `null` si no está disponible. */
+  readonly balanceAfterCents: number | null;
 }
 
 export interface RechargeDraft {
@@ -43,5 +43,6 @@ export interface RechargeDraft {
 export interface RechargeResult {
   readonly reference: string;
   readonly occurredAtLabel: string;
-  readonly balanceAfterCents: number;
+  /** Saldo autoritativo después de la recarga; `null` si no pudo confirmarse. */
+  readonly balanceAfterCents: number | null;
 }

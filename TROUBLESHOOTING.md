@@ -296,3 +296,16 @@ En pruebas de autorización basada en recursos (Resource Authorization), asegura
 
 **Prevención futura:**
 Mantener el núcleo de sesión sin imports de Expo/React Native (probable en Node) y aislar el cableado de plataforma en `src/services/session/platform.ts`, excluido del `tsconfig` de pruebas.
+
+---
+
+## 2026-10-26 - Fase 4: accesibilidad de DTOs y contrato real de categorías
+
+| Fecha | Capa | Problema | Causa | Solución |
+|---|---|---|---|---|
+| 2026-10-26 | Backend / compilación | `CS0051`: `BudgetComputation.For` era público y recibía `BudgetDocument`, que es `internal` | El record de cálculo quedó `public` aunque solo lo consume `BudgetService` dentro del mismo ensamblado | Se declaró `BudgetComputation` como `internal`; la API expone únicamente `BudgetDto`/`BudgetDetailDto` |
+| 2026-10-26 | Backend / pruebas | La prueba de aislamiento de categorías esperaba `404` en `GET /v1/categories/{id}` y recibió `405 MethodNotAllowed` | El contrato implementado no incluye detalle de categoría: solo `GET/POST /v1/categories` y `PATCH/DELETE /v1/categories/{id}` | La prueba verifica el aislamiento con `PATCH`/`DELETE` y con la ausencia del recurso en el listado del otro cliente |
+
+**Prevención futura:**
+Las pruebas de contrato deben derivarse de las rutas realmente registradas; si una ruta no existe para un recurso, el aislamiento se comprueba por las operaciones que sí están expuestas.
+

@@ -55,7 +55,14 @@ public static class NequiHost
             services.AddSingleton(new SpannerDb(spannerDb));
             services.AddSingleton<IClientDirectory, SpannerClientDirectory>();
             services.AddSingleton<IIdempotencyStore, SpannerIdempotencyStore>();
+            services.AddSingleton<IClientTransferDirectory, SpannerClientTransferDirectory>();
             health.AddDelegateCheck("spanner", ct => new SpannerOutboxStore(new SpannerDb(spannerDb)).PingAsync(ct));
+        }
+        else
+        {
+            // Dev/test only: destinations must be registered explicitly by tests or local tooling.
+            services.AddSingleton<InMemoryClientTransferDirectory>();
+            services.AddSingleton<IClientTransferDirectory>(sp => sp.GetRequiredService<InMemoryClientTransferDirectory>());
         }
         services.AddSingleton<ClientIdentityResolver>();
         services.TryAddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();

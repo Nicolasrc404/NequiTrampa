@@ -22,6 +22,8 @@ interface Beneficiaries01ScreenProps {
   onAddBeneficiary?: () => void;
   onSendTobeneficiary?: (item: BeneficiaryItem) => void;
   onLongPressBeneficiary?: (item: BeneficiaryItem) => void;
+  /** Datos reales del backend. Si se omite, se usa el DEMO de previsualización. */
+  beneficiaries?: readonly BeneficiaryItem[];
 }
 
 export const Beneficiaries01Screen: React.FC<Beneficiaries01ScreenProps> = ({
@@ -29,10 +31,11 @@ export const Beneficiaries01Screen: React.FC<Beneficiaries01ScreenProps> = ({
   onAddBeneficiary,
   onSendTobeneficiary,
   onLongPressBeneficiary,
+  beneficiaries = DEMO_BENEFICIARIES,
 }) => {
   const [searchText, setSearchText] = useState('');
 
-  const filtered = DEMO_BENEFICIARIES.filter(
+  const filtered = beneficiaries.filter(
     (b) =>
       b.name.toLowerCase().includes(searchText.toLowerCase()) ||
       b.code.toLowerCase().includes(searchText.toLowerCase()),

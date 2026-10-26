@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Alert, SafeAreaView, StyleSheet, View } from 'react-native';
 import colors from './src/theme/colors';
@@ -9,6 +9,19 @@ import SessionGate, {
   type SessionGateReason,
 } from './src/components/common/SessionGate';
 import { sessionManager } from './src/services/session/platform';
+import { apiClient } from './src/services/api';
+import { createApiServices } from './src/services/factories';
+import {
+  useMovements,
+  useRecharges,
+  useTransferReceipt,
+  useTransfers,
+  useWalletBalance,
+} from './src/hooks/useApiData';
+import { FinancialOperation } from './src/services/financialOperation';
+import { classifyOperationFailure } from './src/services/operationFailure';
+import { mapTransfer } from './src/services/mappers/transferMapper';
+import { mapRechargeResult } from './src/services/mappers/rechargeMapper';
 
 // ── Movements imports ──────────────────────────────────────
 import { MovementsState, MovementItem } from './src/types/movements';
@@ -92,7 +105,7 @@ import Transfers21Screen from './src/screens/transfers/Transfers21Screen';
 import Transfers22Screen from './src/screens/transfers/Transfers22Screen';
 
 // ── Recharges imports ──────────────────────────────────────
-import { RechargesState, RechargeDraft } from './src/types/recharges';
+import { RechargesState, RechargeDraft, RechargeResult } from './src/types/recharges';
 import { DEMO_RECHARGE_DRAFT } from './src/data/demoRecharges';
 
 import Recharges01Screen from './src/screens/recharges/Recharges01Screen';
@@ -233,6 +246,61 @@ export default function App() {
     return appConfig.apiConfigured ? 'loading' : 'configuration';
   });
 
+  // ── Servicios reales (deshabilitados por completo en DEMO) ─
+  const services = useMemo(
+    () => (apiClient ? createApiServices(apiClient) : null),
+    [],
+  );
+  const realReady = !demoEnabled && sessionGate === 'ready' && services !== null;
+
+  const balance = useWalletBalance(services, realReady);
+  const ownClientId = balance.data?.clientId ?? null;
+  const movements = useMovements(services, realReady);
+  const transfers = useTransfers(services, realReady, ownClientId);
+  const recharges = useRecharges(services, realReady);
+  const receipt = useTransferReceipt(
+    services,
+    realReady && currentState === 'Transfers_22',
+    currentState === 'Transfers_22' ? selectedTransfer.id : null,
+  );
+
+  const reloadBalance = balance.reload;
+  const reloadMovements = movements.reload;
+  const reloadTransfers = transfers.reload;
+  const reloadRecharges = recharges.reload;
+
+  // Valores primitivos para que los efectos no dependan de objetos recreados.
+  const movementsStatus = movements.status;
+  const movementsCount = movements.items.length;
+  const movementsErrorKind = movements.error?.kind ?? null;
+  const transfersStatus = transfers.status;
+  const transfersCount = transfers.data?.length ?? 0;
+  const transfersErrorKind = transfers.error?.kind ?? null;
+  const balanceStatus = balance.status;
+  const rechargesStatus = recharges.status;
+  const rechargesCount = recharges.data?.length ?? 0;
+  const rechargesErrorKind = recharges.error?.kind ?? null;
+  const receiptFailure = receipt.error
+    ? classifyOperationFailure(receipt.error)
+    : null;
+
+  // Una intención = una clave. El guardia impide doble envío.
+  const transferOperation = useMemo(
+    () => new FinancialOperation({ scope: 'transfers.create' }),
+    [],
+  );
+  const rechargeOperation = useMemo(
+    () => new FinancialOperation({ scope: 'recharges.create' }),
+    [],
+  );
+  const transferAttempt = useRef<string | null>(null);
+
+  const [transferUncertain, setTransferUncertain] = useState(false);
+  const [rechargeSubmitting, setRechargeSubmitting] = useState(false);
+  const [rechargeResult, setRechargeResult] = useState<RechargeResult | null>(
+    null,
+  );
+
   useEffect(() => {
     if (!sessionGateRequired || !appConfig.apiConfigured) return;
 
@@ -318,6 +386,297 @@ export default function App() {
     setCurrentState('Movements_05');
   };
 
+  // ── Movimientos: skeleton / vacío / error según la API ─────
+  useEffect(() => {
+    if (demoEnabled || !realReady) return;
+    if (currentState !== 'Movements_01' && currentState !== 'Movements_03') {
+      return;
+    }
+    if (movementsStatus === 'loading' || movementsStatus === 'idle') {
+      if (currentState !== 'Movements_03') setCurrentState('Movements_03');
+      return;
+    }
+    if (movementsStatus === 'error') {
+      setCurrentState(
+        movementsErrorKind === 'unauthorized' ? 'Movements_07' : 'Movements_08',
+      );
+      return;
+    }
+    if (movementsStatus === 'success') {
+      setCurrentState(
+        movementsCount === 0 ? 'Movements_02' : 'Movements_01',
+      );
+    }
+  }, [
+    currentState,
+    demoEnabled,
+    movementsCount,
+    movementsErrorKind,
+    movementsStatus,
+    realReady,
+  ]);
+
+  // ── Transferencias: skeleton / vacío / error del historial ─
+  useEffect(() => {
+    if (demoEnabled || !realReady) return;
+    if (currentState !== 'Transfers_15' && currentState !== 'Transfers_17') {
+      return;
+    }
+    if (!ownClientId && balanceStatus === 'error') {
+      setCurrentState('Transfers_18');
+      return;
+    }
+    if (transfersStatus === 'loading' || transfersStatus === 'idle') {
+      if (currentState !== 'Transfers_17') setCurrentState('Transfers_17');
+      return;
+    }
+    if (transfersStatus === 'error') {
+      setCurrentState(
+        transfersErrorKind === 'unauthorized' ? 'Transfers_06' : 'Transfers_18',
+      );
+      return;
+    }
+    if (transfersStatus === 'success') {
+      setCurrentState(transfersCount === 0 ? 'Transfers_16' : 'Transfers_15');
+    }
+  }, [
+    balanceStatus,
+    currentState,
+    demoEnabled,
+    ownClientId,
+    realReady,
+    transfersCount,
+    transfersErrorKind,
+    transfersStatus,
+  ]);
+
+  // ── Recargas: vacío / error del historial ──────────────────
+  useEffect(() => {
+    if (demoEnabled || !realReady) return;
+    if (currentState !== 'Recharges_08') return;
+    if (rechargesStatus === 'error') {
+      setCurrentState(
+        rechargesErrorKind === 'unauthorized' ? 'Recharges_04' : 'Recharges_07',
+      );
+      return;
+    }
+    if (rechargesStatus === 'success' && rechargesCount === 0) {
+      setCurrentState('Recharges_09');
+    }
+  }, [
+    currentState,
+    demoEnabled,
+    realReady,
+    rechargesCount,
+    rechargesErrorKind,
+    rechargesStatus,
+  ]);
+
+  // ── Envío real de transferencia (una sola vez por intención) ─
+  useEffect(() => {
+    if (demoEnabled || !realReady || !services) return;
+    if (currentState !== 'Transfers_03') return;
+    if (transferAttempt.current !== null) return;
+
+    const fingerprint = `${transferDraft.recipient.code}|${transferDraft.amountCents}|${transferDraft.message}`;
+    transferAttempt.current = fingerprint;
+    const actor = sessionManager.getSnapshot().user?.uid ?? null;
+    const isSameActor = () => {
+      const snapshot = sessionManager.getSnapshot();
+      return (
+        snapshot.status === 'authenticated' &&
+        (snapshot.user?.uid ?? null) === actor
+      );
+    };
+
+    void (async () => {
+      const outcome = await transferOperation.run(
+        fingerprint,
+        (idempotencyKey) =>
+          services.transfers.create(
+            {
+              destinationTransferCode: transferDraft.recipient.code,
+              amountCents: transferDraft.amountCents,
+              description: transferDraft.message,
+            },
+            { idempotencyKey },
+          ),
+      );
+      transferAttempt.current = null;
+
+      // Respuesta tardía tras logout/login distinto: se descarta.
+      if (!isSameActor()) return;
+
+      if (outcome.status === 'confirmed' && outcome.value) {
+        const dto = outcome.value;
+        try {
+          setSelectedTransfer(
+            mapTransfer(dto, { ownClientId: dto.originClientId }),
+          );
+        } catch {
+          setCurrentState('Transfers_13');
+          return;
+        }
+        setTransferUncertain(false);
+        reloadBalance();
+        reloadMovements();
+        reloadTransfers();
+        setCurrentState('Transfers_04');
+        return;
+      }
+
+      if (outcome.status === 'blocked') {
+        transferAttempt.current = fingerprint;
+        return;
+      }
+      if (outcome.status === 'cancelled') {
+        setCurrentState('Transfers_01');
+        return;
+      }
+
+      const failure = classifyOperationFailure(outcome.error);
+      switch (failure) {
+        case 'session':
+          setCurrentState('Transfers_06');
+          break;
+        case 'not_found':
+          setCurrentState('Transfers_07');
+          break;
+        case 'conflict':
+          setCurrentState('Transfers_08');
+          break;
+        case 'insufficient_funds':
+          setCurrentState('Transfers_09');
+          reloadBalance();
+          break;
+        case 'limit_exceeded':
+          setCurrentState('Transfers_11');
+          break;
+        case 'rate_limited':
+          setCurrentState('Transfers_12');
+          break;
+        case 'validation':
+          setCurrentState('Transfers_05');
+          break;
+        case 'unavailable':
+          setCurrentState('Transfers_14');
+          break;
+        case 'uncertain':
+          // Resultado desconocido: refrescar para verificar antes de reintentar.
+          setTransferUncertain(true);
+          reloadBalance();
+          reloadMovements();
+          reloadTransfers();
+          setCurrentState('Transfers_13');
+          break;
+        default:
+          setTransferUncertain(false);
+          setCurrentState('Transfers_13');
+      }
+    })();
+  }, [
+    currentState,
+    demoEnabled,
+    realReady,
+    reloadBalance,
+    reloadMovements,
+    reloadTransfers,
+    services,
+    transferDraft,
+    transferOperation,
+  ]);
+
+  // ── Recarga real (idempotente, sin doble envío) ────────────
+  const handleRecharge = async () => {
+    if (demoEnabled) {
+      setRechargeResult(null);
+      openSimulatedSuccess('Recharges_02', 'Recharges_07');
+      return;
+    }
+    if (!services || !realReady) {
+      if (sessionGate !== 'ready') return;
+      Alert.alert(
+        'Servicio no disponible',
+        'No hay conexión con el servidor. No se realizó ninguna recarga.',
+      );
+      return;
+    }
+    if (rechargeSubmitting) return;
+
+    setRechargeSubmitting(true);
+    const actor = sessionManager.getSnapshot().user?.uid ?? null;
+    const isSameActor = () => {
+      const snapshot = sessionManager.getSnapshot();
+      return (
+        snapshot.status === 'authenticated' &&
+        (snapshot.user?.uid ?? null) === actor
+      );
+    };
+
+    try {
+      const fingerprint = `recharge|${rechargeDraft.amountCents}`;
+      const outcome = await rechargeOperation.run(
+        fingerprint,
+        (idempotencyKey) =>
+          services.recharges.create(
+            { amountCents: rechargeDraft.amountCents },
+            { idempotencyKey },
+          ),
+      );
+
+      if (!isSameActor()) return;
+
+      if (outcome.status === 'confirmed' && outcome.value) {
+        const dto = outcome.value;
+        let confirmedBalance: number | null = null;
+        try {
+          const wallet = await services.wallet.getBalance();
+          confirmedBalance = wallet.availableBalanceCents;
+        } catch {
+          // Sin saldo confirmado no se inventa uno: la tarjeta lo omite.
+          confirmedBalance = null;
+        }
+        if (!isSameActor()) return;
+        setRechargeResult(mapRechargeResult(dto, confirmedBalance));
+        reloadBalance();
+        reloadMovements();
+        reloadRecharges();
+        setCurrentState('Recharges_02');
+        return;
+      }
+
+      if (outcome.status === 'blocked' || outcome.status === 'cancelled') {
+        return;
+      }
+
+      const failure = classifyOperationFailure(outcome.error);
+      switch (failure) {
+        case 'session':
+          setCurrentState('Recharges_04');
+          break;
+        case 'validation':
+          setCurrentState('Recharges_03');
+          break;
+        case 'limit_exceeded':
+          setCurrentState('Recharges_05');
+          break;
+        case 'rate_limited':
+          setCurrentState('Recharges_06');
+          break;
+        case 'uncertain':
+          reloadBalance();
+          reloadMovements();
+          reloadRecharges();
+          setCurrentState('Recharges_07');
+          break;
+        default:
+          setCurrentState('Recharges_07');
+      }
+    } finally {
+      setRechargeSubmitting(false);
+    }
+  };
+
   const handleCategoryDraft = (
     name: string,
     _color: string,
@@ -375,12 +734,14 @@ export default function App() {
           <Movements01Screen
             onOpenFilter={() => setCurrentState('Movements_04')}
             onSelectMovement={handleSelectMovement}
+            movements={demoEnabled ? undefined : movements.items}
+            sectionTitle={demoEnabled ? 'Hoy' : 'Movimientos recientes'}
           />
         )}
         {currentState === 'Movements_02' && (
           <Movements02Screen
             onOpenFilter={() => setCurrentState('Movements_04')}
-            onRechargePress={() => setCurrentState('Movements_01')}
+            onRechargePress={() => setCurrentState('Recharges_01')}
           />
         )}
         {currentState === 'Movements_03' && (
@@ -607,6 +968,8 @@ export default function App() {
             reference={selectedTransfer.reference}
             onViewReceipt={() => setCurrentState('Transfers_22')}
             onGoHome={() => setCurrentState('Movements_01')}
+            balanceAfterCents={demoEnabled ? undefined : null}
+            demoMode={demoEnabled}
           />
         )}
         {currentState === 'Transfers_05' && (
@@ -659,12 +1022,15 @@ export default function App() {
           <Transfers13Screen
             onViewMovements={() => setCurrentState('Transfers_15')}
             onRetry={() => setCurrentState('Transfers_01')}
+            uncertain={transferUncertain}
+            demoMode={demoEnabled}
           />
         )}
         {currentState === 'Transfers_14' && (
           <Transfers14Screen
             onRetry={() => setCurrentState('Transfers_01')}
             onGoHome={() => setCurrentState('Movements_01')}
+            demoMode={demoEnabled}
           />
         )}
         {currentState === 'Transfers_15' && (
@@ -674,6 +1040,8 @@ export default function App() {
               setSelectedTransfer(transfer);
               setCurrentState('Transfers_19');
             }}
+            transfers={demoEnabled ? undefined : transfers.data ?? []}
+            demoMode={demoEnabled}
           />
         )}
         {currentState === 'Transfers_16' && (
@@ -698,6 +1066,7 @@ export default function App() {
             transfer={selectedTransfer}
             onBack={() => setCurrentState('Transfers_15')}
             onViewReceipt={() => setCurrentState('Transfers_22')}
+            demoMode={demoEnabled}
           />
         )}
         {currentState === 'Transfers_20' && (
@@ -712,12 +1081,54 @@ export default function App() {
             onViewTransfers={() => setCurrentState('Transfers_15')}
           />
         )}
-        {currentState === 'Transfers_22' && (
-          <Transfers22Screen
-            transfer={selectedTransfer}
-            onBack={() => setCurrentState('Transfers_19')}
-          />
-        )}
+        {currentState === 'Transfers_22' &&
+          (demoEnabled ? (
+            <Transfers22Screen
+              transfer={selectedTransfer}
+              onBack={() => setCurrentState('Transfers_19')}
+              demoMode
+            />
+          ) : receipt.status === 'success' && receipt.data ? (
+            <Transfers22Screen
+              receipt={receipt.data}
+              onBack={() => setCurrentState('Transfers_19')}
+              demoMode={false}
+            />
+          ) : receipt.status === 'error' ? (
+            receiptFailure === 'not_found' ? (
+              <Transfers20Screen
+                onBack={() => setCurrentState('Transfers_15')}
+                onViewTransfers={() => setCurrentState('Transfers_15')}
+              />
+            ) : receiptFailure === 'forbidden' ? (
+              <Transfers21Screen
+                onBack={() => setCurrentState('Transfers_15')}
+                onViewTransfers={() => setCurrentState('Transfers_15')}
+              />
+            ) : receiptFailure === 'session' ? (
+              <Transfers06Screen
+                onLogin={() => setCurrentState('Movements_01')}
+              />
+            ) : receiptFailure === 'unavailable' ? (
+              <Transfers14Screen
+                onRetry={() => receipt.reload()}
+                onGoHome={() => setCurrentState('Movements_01')}
+                demoMode={false}
+              />
+            ) : (
+              <Transfers13Screen
+                onViewMovements={() => setCurrentState('Transfers_15')}
+                onRetry={() => receipt.reload()}
+                uncertain={receiptFailure === 'uncertain'}
+                demoMode={false}
+              />
+            )
+          ) : (
+            <LoadingState
+              message="Cargando comprobante…"
+              hint="Confirmando el comprobante con el servidor."
+            />
+          ))}
 
         {/* ── RECHARGES MODULE ── */}
         {currentState === 'Recharges_01' && (
@@ -726,15 +1137,20 @@ export default function App() {
             onAmountChange={(amountCents) =>
               setRechargeDraft({ amountCents })
             }
+            submitting={rechargeSubmitting}
             onBack={() => setCurrentState('Recharges_08')}
-            onContinue={() => openSimulatedSuccess('Recharges_02', 'Recharges_07')}
+            onContinue={() => {
+              void handleRecharge();
+            }}
           />
         )}
         {currentState === 'Recharges_02' && (
           <Recharges02Screen
             amountCents={rechargeDraft.amountCents}
+            result={rechargeResult ?? undefined}
             onGoHome={() => setCurrentState('Movements_01')}
             onViewHistory={() => setCurrentState('Recharges_08')}
+            demoMode={demoEnabled}
           />
         )}
         {currentState === 'Recharges_03' && (
@@ -767,19 +1183,27 @@ export default function App() {
           <Recharges07Screen
             onRetry={() => setCurrentState('Recharges_01')}
             onGoHome={() => setCurrentState('Movements_01')}
+            demoMode={demoEnabled}
           />
         )}
-        {currentState === 'Recharges_08' && (
-          <Recharges08Screen
-            onBack={() => setCurrentState('Movements_01')}
-            onNewRecharge={() => setCurrentState('Recharges_01')}
-            onTabPress={(tab) => {
-              if (tab === 'inicio' || tab === 'movimientos') {
-                setCurrentState('Movements_01');
-              }
-            }}
-          />
-        )}
+        {currentState === 'Recharges_08' &&
+          (!demoEnabled && rechargesStatus === 'loading' ? (
+            <LoadingState
+              message="Cargando recargas…"
+              hint="Consultando tus recargas confirmadas."
+            />
+          ) : (
+            <Recharges08Screen
+              onBack={() => setCurrentState('Movements_01')}
+              onNewRecharge={() => setCurrentState('Recharges_01')}
+              onTabPress={(tab) => {
+                if (tab === 'inicio' || tab === 'movimientos') {
+                  setCurrentState('Movements_01');
+                }
+              }}
+              recharges={demoEnabled ? undefined : recharges.data ?? []}
+            />
+          ))}
         {currentState === 'Recharges_09' && (
           <Recharges09Screen
             onBack={() => setCurrentState('Movements_01')}

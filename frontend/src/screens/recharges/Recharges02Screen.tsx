@@ -17,6 +17,8 @@ export interface Recharges02ScreenProps {
   readonly result?: RechargeResult;
   readonly onGoHome?: () => void;
   readonly onViewHistory?: () => void;
+  /** `false` cuando la recarga fue confirmada por el backend. */
+  readonly demoMode?: boolean;
 }
 
 export const Recharges02Screen: React.FC<Recharges02ScreenProps> = ({
@@ -24,6 +26,7 @@ export const Recharges02Screen: React.FC<Recharges02ScreenProps> = ({
   result = DEMO_RECHARGE_RESULT,
   onGoHome,
   onViewHistory,
+  demoMode = true,
 }) => {
   return (
     <TransferStatusScreen
@@ -41,7 +44,11 @@ export const Recharges02Screen: React.FC<Recharges02ScreenProps> = ({
       onPrimary={onGoHome}
       secondaryLabel="Ver mis recargas"
       onSecondary={onViewHistory}
-      demoHint="Previsualización DEMO · no se procesó una recarga"
+      demoHint={
+        demoMode
+          ? 'Previsualización DEMO · no se procesó una recarga'
+          : undefined
+      }
     >
       <RechargeSuccessCard result={result} />
     </TransferStatusScreen>

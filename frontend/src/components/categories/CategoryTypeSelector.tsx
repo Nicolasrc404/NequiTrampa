@@ -7,6 +7,8 @@ export interface CategoryTypeSelectorProps {
   readonly selected: CategoryType;
   readonly onChange?: (type: CategoryType) => void;
   readonly compact?: boolean;
+  /** El backend no permite cambiar el tipo de una categoría existente. */
+  readonly disabled?: boolean;
 }
 
 const OPTIONS: { key: CategoryType; label: string }[] = [
@@ -18,6 +20,7 @@ export const CategoryTypeSelector: React.FC<CategoryTypeSelectorProps> = ({
   selected,
   onChange,
   compact = false,
+  disabled = false,
 }) => {
   return (
     <View style={styles.container}>
@@ -31,10 +34,11 @@ export const CategoryTypeSelector: React.FC<CategoryTypeSelectorProps> = ({
               compact ? styles.pillCompact : styles.pillLarge,
               isActive ? styles.pillActive : styles.pillInactive,
             ]}
-            activeOpacity={0.8}
-            onPress={() => onChange?.(option.key)}
+            activeOpacity={disabled ? 1 : 0.8}
+            onPress={disabled ? undefined : () => onChange?.(option.key)}
+            disabled={disabled}
             accessibilityRole="button"
-            accessibilityState={{ selected: isActive }}
+            accessibilityState={{ selected: isActive, disabled }}
             accessibilityLabel={`Tipo ${option.label}`}
           >
             <Text

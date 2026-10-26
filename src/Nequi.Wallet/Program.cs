@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Nequi.Shared;
 using Nequi.Shared.OpenApi;
+using Nequi.Wallet.Beneficiaries;
 using Nequi.Wallet.Filters;
 using Nequi.Wallet.Interfaces;
 using Nequi.Wallet.Services;
@@ -72,6 +73,7 @@ builder.Services.AddControllers(options =>
     });
 
 // 3. Inyección de Dependencias — Servicios de Dominio Wallet
+builder.Services.AddSingleton<BeneficiaryService>();
 var isGcp = string.Equals(builder.Configuration["Data:Backend"], "gcp", StringComparison.OrdinalIgnoreCase);
 if (isGcp)
 {

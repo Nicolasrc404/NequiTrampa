@@ -20,12 +20,18 @@ export interface Categories08ScreenProps {
   readonly categoryName?: string;
   readonly onConfirmDelete?: () => void;
   readonly onCancel?: () => void;
+  /** Bloquea la acción mientras el servidor confirma (DELETE 204). */
+  readonly submitting?: boolean;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Categories08Screen: React.FC<Categories08ScreenProps> = ({
   categoryName = 'Mercado',
   onConfirmDelete,
   onCancel,
+  submitting = false,
+  demo = true,
 }) => {
   return (
     <View style={styles.root}>
@@ -68,25 +74,33 @@ export const Categories08Screen: React.FC<Categories08ScreenProps> = ({
 
         <Text style={styles.sheetTitle}>¿Eliminar categoría?</Text>
         <Text style={styles.sheetDescription}>
-          Los movimientos asociados a{' '}
-          <Text style={styles.sheetHighlight}>{categoryName}</Text> quedarán sin
-          categoría. Esta acción no se puede deshacer.
+          La categoría <Text style={styles.sheetHighlight}>{categoryName}</Text>{' '}
+          se desactiva y deja de estar disponible para nuevos movimientos. Tu
+          historial se conserva.
         </Text>
 
         <View style={styles.sheetActions}>
           <TouchableOpacity
-            style={styles.deleteButton}
-            activeOpacity={0.85}
-            onPress={onConfirmDelete}
+            style={[
+              styles.deleteButton,
+              submitting ? styles.deleteButtonDisabled : null,
+            ]}
+            activeOpacity={submitting ? 1 : 0.85}
+            onPress={submitting ? undefined : onConfirmDelete}
+            disabled={submitting}
             accessibilityRole="button"
+            accessibilityState={{ disabled: submitting }}
             accessibilityLabel="Eliminar categoría"
           >
-            <Text style={styles.deleteButtonText}>Eliminar</Text>
+            <Text style={styles.deleteButtonText}>
+              {submitting ? 'Eliminando…' : 'Eliminar'}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.cancelButton}
             activeOpacity={0.75}
-            onPress={onCancel}
+            onPress={submitting ? undefined : onCancel}
+            disabled={submitting}
             accessibilityRole="button"
             accessibilityLabel="Cancelar eliminación"
           >
@@ -94,9 +108,11 @@ export const Categories08Screen: React.FC<Categories08ScreenProps> = ({
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.demoHint}>
-          Vista DEMO · la categoría no se elimina del backend
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Vista DEMO · la categoría no se elimina del backend
+          </Text>
+        ) : null}
       </View>
     </View>
   );
@@ -223,6 +239,9 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     shadowOffset: { width: 0, height: 4 },
     elevation: 3,
+  },
+  deleteButtonDisabled: {
+    opacity: 0.6,
   },
   deleteButtonText: {
     color: colors.white,

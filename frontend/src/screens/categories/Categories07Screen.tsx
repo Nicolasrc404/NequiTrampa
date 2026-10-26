@@ -22,16 +22,29 @@ export interface Categories07ScreenProps {
   readonly onBack?: () => void;
   readonly onSubmit?: (name: string, color: string, type: CategoryType) => void;
   readonly onCancel?: () => void;
+  /** Nombre que el servidor rechazó. */
+  readonly initialName?: string;
+  readonly initialType?: CategoryType;
+  /** Mensaje de validación del servidor. */
+  readonly errorMessage?: string;
+  readonly submitting?: boolean;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Categories07Screen: React.FC<Categories07ScreenProps> = ({
   onBack,
   onSubmit,
   onCancel,
+  initialName = 'M',
+  initialType = 'gasto',
+  errorMessage,
+  submitting = false,
+  demo = true,
 }) => {
-  const [name, setName] = useState('M');
+  const [name, setName] = useState(initialName);
   const [color, setColor] = useState('');
-  const [type, setType] = useState<CategoryType>('gasto');
+  const [type, setType] = useState<CategoryType>(initialType);
 
   return (
     <KeyboardAvoidingView
@@ -51,7 +64,7 @@ export const Categories07Screen: React.FC<Categories07ScreenProps> = ({
 
         <View style={styles.banner}>
           <Text style={styles.bannerText}>
-            Revisa los campos marcados (422).
+            {errorMessage ?? 'Revisa los campos marcados (422).'}
           </Text>
         </View>
 
@@ -64,7 +77,11 @@ export const Categories07Screen: React.FC<Categories07ScreenProps> = ({
             label="Nombre"
             value={name}
             onChangeText={setName}
-            error="El nombre debe tener entre 2 y 30 caracteres."
+            error={
+              name.trim().length < 2
+                ? 'El nombre debe tener entre 2 y 30 caracteres.'
+                : undefined
+            }
             inputProps={{ maxLength: 30, autoCapitalize: 'sentences' }}
           />
           <CategoryField
@@ -72,22 +89,26 @@ export const Categories07Screen: React.FC<Categories07ScreenProps> = ({
             value={color}
             placeholder="Elige un color"
             onChangeText={setColor}
-            error="Selecciona un color de la lista."
+            helper="Referencia visual. El servidor no almacena el color."
+            error={demo && color.trim().length === 0 ? 'Selecciona un color de la lista.' : undefined}
             inputProps={{ autoCapitalize: 'none' }}
           />
         </View>
 
-        <Text style={styles.demoHint}>
-          Respuesta DEMO 422 · validación simulada
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Respuesta DEMO 422 · validación simulada
+          </Text>
+        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
         <CategoryActions
-          primaryLabel="Crear categoría"
+          primaryLabel={submitting ? 'Guardando…' : 'Crear categoría'}
           onPrimary={() => onSubmit?.(name.trim(), color.trim(), type)}
           secondaryLabel="Cancelar"
           onSecondary={onCancel}
+          primaryDisabled={submitting || name.trim().length < 2}
         />
       </View>
     </KeyboardAvoidingView>

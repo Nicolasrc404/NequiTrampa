@@ -32,6 +32,7 @@ export interface CashTransaction {
 }
 
 export interface CashFormDraft {
+  readonly categoryId?: string;
   readonly category: string;
   readonly dateLabel: string;
   readonly note: string;

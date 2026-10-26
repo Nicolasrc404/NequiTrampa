@@ -1,0 +1,13 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "cash_movements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientId", "order": "ASCENDING" },
+        { "fieldPath": "occurredOn", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

@@ -19,37 +19,77 @@ import {
   formatCopFromCents,
 } from '../../data/demoTransfers';
 import { TransferItem } from '../../types/transfers';
+import type { TransferReceiptDto } from '../../services/transfersService';
+import { mapTransferStatus } from '../../services/mappers/transferMapper';
+import { formatBogotaDateTime } from '../../utils/datetime';
 
 export interface Transfers22ScreenProps {
   readonly transfer?: TransferItem;
+  /** Comprobante autoritativo de `GET /v1/transfers/{id}/receipt`. */
+  readonly receipt?: TransferReceiptDto | null;
   readonly onBack?: () => void;
+  /** `false` cuando los datos provienen de la API real. */
+  readonly demoMode?: boolean;
 }
-
-const showDemoNotice = (action: string) => {
-  Alert.alert(
-    `${action} · DEMO`,
-    'Esta acción se habilitará cuando el comprobante se conecte al backend. No se generó ni compartió ningún archivo real.',
-    [{ text: 'Entendido' }],
-  );
-};
 
 export const Transfers22Screen: React.FC<Transfers22ScreenProps> = ({
   transfer = DEMO_TRANSFER_DETAIL,
+  receipt = null,
   onBack,
+  demoMode = true,
 }) => {
-  const rows = [
-    {
-      label: 'Para',
-      value: `${transfer.counterpartyName} · ${transfer.counterpartyCode}`,
-    },
-    { label: 'Mensaje', value: transfer.message || '—' },
-    { label: 'Referencia', value: transfer.reference },
-    { label: 'Estado', value: transfer.statusLabel },
-    {
-      label: 'Saldo después',
-      value: formatCopFromCents(transfer.balanceAfterCents),
-    },
-  ];
+  const showUnavailable = (action: string) => {
+    if (demoMode) {
+      Alert.alert(
+        `${action} · DEMO`,
+        'Esta acción se habilitará cuando el comprobante se conecte al backend. No se generó ni compartió ningún archivo real.',
+        [{ text: 'Entendido' }],
+      );
+      return;
+    }
+    Alert.alert(
+      `${action} no disponible`,
+      'La descarga y el envío del comprobante aún no están habilitados en esta versión.',
+      [{ text: 'Entendido' }],
+    );
+  };
+
+  const rows = receipt
+    ? [
+        { label: 'Comprobante', value: receipt.receiptNumber },
+        { label: 'Código origen', value: receipt.originMaskedTransferCode },
+        {
+          label: 'Código destino',
+          value: receipt.destinationMaskedTransferCode,
+        },
+        { label: 'Fecha', value: formatBogotaDateTime(receipt.completedAt) },
+        { label: 'Autorización', value: receipt.authorizationCode },
+        { label: 'Estado', value: mapTransferStatus(receipt.status) },
+      ]
+    : [
+        {
+          label: 'Para',
+          value: `${transfer.counterpartyName} · ${transfer.counterpartyCode}`,
+        },
+        { label: 'Mensaje', value: transfer.message || '—' },
+        { label: 'Referencia', value: transfer.reference },
+        { label: 'Estado', value: transfer.statusLabel },
+        // El contrato no expone saldo posterior: se omite en lugar de inventarlo.
+        ...(typeof transfer.balanceAfterCents === 'number'
+          ? [
+              {
+                label: 'Saldo después',
+                value: formatCopFromCents(transfer.balanceAfterCents),
+              },
+            ]
+          : []),
+      ];
+
+  const amountCents =
+    receipt?.amountCents ?? (transfer.amountCents || DEMO_TRANSFER_DRAFT.amountCents);
+  const occurredAtLabel = receipt
+    ? formatBogotaDateTime(receipt.completedAt)
+    : transfer.occurredAtLabel;
 
   return (
     <View style={styles.root}>
@@ -63,11 +103,9 @@ export const Transfers22Screen: React.FC<Transfers22ScreenProps> = ({
         <View style={styles.amountCard}>
           <Text style={styles.amountLabel}>Transferencia exitosa</Text>
           <Text style={styles.amount}>
-            {formatCopFromCents(
-              transfer.amountCents || DEMO_TRANSFER_DRAFT.amountCents,
-            )}
+            {formatCopFromCents(amountCents)}
           </Text>
-          <Text style={styles.date}>{transfer.occurredAtLabel}</Text>
+          <Text style={styles.date}>{occurredAtLabel}</Text>
         </View>
 
         <View style={styles.detailCard}>
@@ -85,17 +123,19 @@ export const Transfers22Screen: React.FC<Transfers22ScreenProps> = ({
           ))}
         </View>
 
-        <Text style={styles.demoHint}>
-          Comprobante DEMO · no es un documento fiscal ni una operación real
-        </Text>
+        {demoMode ? (
+          <Text style={styles.demoHint}>
+            Comprobante DEMO · no es un documento fiscal ni una operación real
+          </Text>
+        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
         <TransferActionButtons
           primaryLabel="Descargar comprobante"
-          onPrimary={() => showDemoNotice('Descargar comprobante')}
+          onPrimary={() => showUnavailable('Descargar comprobante')}
           secondaryLabel="Compartir"
-          onSecondary={() => showDemoNotice('Compartir')}
+          onSecondary={() => showUnavailable('Compartir')}
         />
       </View>
     </View>

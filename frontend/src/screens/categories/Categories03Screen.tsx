@@ -22,12 +22,18 @@ export interface Categories03ScreenProps {
   readonly onBack?: () => void;
   readonly onSubmit?: (name: string, color: string, type: CategoryType) => void;
   readonly onCancel?: () => void;
+  /** Bloquea el formulario mientras el servidor confirma. */
+  readonly submitting?: boolean;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Categories03Screen: React.FC<Categories03ScreenProps> = ({
   onBack,
   onSubmit,
   onCancel,
+  submitting = false,
+  demo = true,
 }) => {
   const [name, setName] = useState('');
   const [color, setColor] = useState('');
@@ -66,21 +72,25 @@ export const Categories03Screen: React.FC<Categories03ScreenProps> = ({
             value={color}
             placeholder="Elige un color"
             onChangeText={setColor}
+            helper="Referencia visual. El servidor no almacena el color."
             inputProps={{ autoCapitalize: 'none' }}
           />
         </View>
 
-        <Text style={styles.demoHint}>
-          Vista DEMO · los datos no se guardan en el backend
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Vista DEMO · los datos no se guardan en el backend
+          </Text>
+        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
         <CategoryActions
-          primaryLabel="Crear categoría"
+          primaryLabel={submitting ? 'Guardando…' : 'Crear categoría'}
           onPrimary={() => onSubmit?.(name.trim(), color.trim(), type)}
           secondaryLabel="Cancelar"
           onSecondary={onCancel}
+          primaryDisabled={submitting || name.trim().length < 2}
         />
       </View>
     </KeyboardAvoidingView>
