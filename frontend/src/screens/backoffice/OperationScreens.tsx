@@ -18,7 +18,7 @@ import {
   SectionTitle,
   Timeline,
 } from '../../components/backoffice/ui';
-import { OPERATION_TYPE_LABEL, formatCents, formatDateTime, toneForStatus } from '../../utils/format';
+import { OPERATION_TYPE_LABEL, TIMELINE_STEP_LABEL, formatCents, formatDateTime, toneForStatus } from '../../utils/format';
 import { OperationTab } from '../../types/backoffice';
 
 type Area = 'support' | 'finance';
@@ -107,7 +107,7 @@ function OperationDetail({ id, area }: { id: string; area: Area }) {
             {o.originalOperationId ? <KeyValue label="Operación original" value={o.originalOperationId} mono /> : null}
             {o.reason ? <KeyValue label="Motivo" value={o.reason} /> : null}
           </Card>
-          {area === 'finance' && o.type === 'TRANSFER' && o.status === 'COMPLETED' && (
+          {area === 'finance' && o.type === 'INTERNAL_TRANSFER' && o.status === 'COMPLETED' && (
             <BoButton label="Solicitar reverso" variant="secondary" onPress={() => nav.push({ name: 'reversalCreate', operationId: o.publicReference })} />
           )}
         </>
@@ -129,7 +129,7 @@ function TimelineTab({ id }: { id: string }) {
             <SectionTitle right={`${timeline.length} eventos`}>Del primero al último · Colombia</SectionTitle>
             <Timeline
               items={timeline.map((t) => ({
-                title: t.step,
+                title: TIMELINE_STEP_LABEL[t.step] ?? t.step,
                 time: formatDateTime(t.at, true),
                 detail: t.detail,
                 meta: t.eventId ? `Evento ${t.eventId}` : undefined,

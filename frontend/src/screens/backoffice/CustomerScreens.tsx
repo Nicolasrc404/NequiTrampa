@@ -70,9 +70,10 @@ export function CustomerProfileScreen({ id }: { id: string }) {
 
 const TYPE_FILTERS = [
   { value: '', label: 'Todos' },
-  { value: 'TRANSFER', label: 'Transferencias' },
-  { value: 'RECHARGE', label: 'Recargas' },
+  { value: 'INTERNAL_TRANSFER', label: 'Transferencias' },
+  { value: 'SIMULATED_RECHARGE', label: 'Recargas' },
   { value: 'REVERSAL', label: 'Reversos' },
+  { value: 'ADMIN_ADJUSTMENT', label: 'Ajustes' },
 ];
 
 export function CustomerOperationsScreen({ id }: { id: string }) {

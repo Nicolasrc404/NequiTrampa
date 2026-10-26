@@ -46,10 +46,17 @@ export const USER_STATUS_LABEL: Record<string, string> = {
 };
 
 export const OPERATION_TYPE_LABEL: Record<string, string> = {
-  TRANSFER: 'Transferencia',
-  RECHARGE: 'Recarga',
+  INTERNAL_TRANSFER: 'Transferencia',
+  SIMULATED_RECHARGE: 'Recarga simulada',
   REVERSAL: 'Reverso',
   ADMIN_ADJUSTMENT: 'Ajuste administrativo',
+};
+
+export const TIMELINE_STEP_LABEL: Record<string, string> = {
+  LEDGER_OPERATION_CREATED: 'Operación registrada',
+  OUTBOX_EVENT_RECORDED: 'Evento registrado',
+  EVENT_PUBLISHED: 'Evento publicado',
+  PROJECTED_TO_FIRESTORE: 'Reflejado en el historial',
 };
 
 export const ROLE_INFO: Record<string, string> = {
@@ -80,6 +87,7 @@ export function toneForStatus(status: string): Tone {
     case 'CLOSED':
       return 'danger';
     case 'ESCALATED':
+    case 'REVERSED':
     case 'LOW':
       return 'info';
     case 'OPEN':
