@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-na
 import { Feather } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import { MovementItem } from '../../types/movements';
+import { formatCopCents } from '../../utils/money';
 
 interface Movements05ScreenProps {
   movement?: MovementItem;
@@ -27,9 +28,21 @@ export const Movements05Screen: React.FC<Movements05ScreenProps> = ({
     status: 'Completada',
   };
 
-  const isPositive = item.amount > 0;
-  const formattedAmount = `${isPositive ? '+ ' : '- '}$ ${Math.abs(item.amount).toLocaleString('es-CO')}`;
-  const formattedBalance = `$ ${item.balanceAfter.toLocaleString('es-CO')}`;
+  const signedCents =
+    typeof item.amountCents === 'number'
+      ? item.amountCents
+      : Math.round(item.amount * 100);
+  const isPositive = signedCents > 0;
+  const formattedAmount = `${isPositive ? '+ ' : '- '}${formatCopCents(
+    Math.abs(signedCents),
+  )}`;
+  // Solo se muestra el saldo posterior cuando el backend lo confirma.
+  const formattedBalance =
+    typeof item.balanceAfterCents === 'number'
+      ? formatCopCents(item.balanceAfterCents)
+      : item.balanceAfter === null
+        ? null
+        : formatCopCents(Math.round(item.balanceAfter * 100));
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -69,16 +82,23 @@ export const Movements05Screen: React.FC<Movements05ScreenProps> = ({
             </View>
 
             {/* Row 3: Tipo */}
-            <View style={[styles.detailRow, styles.rowBorder]}>
+            <View
+              style={[
+                styles.detailRow,
+                formattedBalance ? styles.rowBorder : null,
+              ]}
+            >
               <Text style={styles.detailLabel}>Tipo</Text>
               <Text style={styles.detailValue}>{item.categoryLabel}</Text>
             </View>
 
-            {/* Row 4: Saldo después */}
-            <View style={styles.detailRow}>
-              <Text style={styles.detailLabel}>Saldo después</Text>
-              <Text style={styles.detailValue}>{formattedBalance}</Text>
-            </View>
+            {/* Row 4: Saldo después — solo si el backend lo expone */}
+            {formattedBalance ? (
+              <View style={styles.detailRow}>
+                <Text style={styles.detailLabel}>Saldo después</Text>
+                <Text style={styles.detailValue}>{formattedBalance}</Text>
+              </View>
+            ) : null}
           </View>
         </View>
 

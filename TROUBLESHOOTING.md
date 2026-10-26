@@ -283,3 +283,29 @@ Ejecución en Bruno contra Cloud Spanner confirmando respuesta `403 Forbidden` (
 
 **Prevención futura:**
 En pruebas de autorización basada en recursos (Resource Authorization), asegurar que los actores de prueba negativos sean identidades completamente externas a las entidades involucradas en el recurso.
+
+---
+
+## 2026-10-26 - Sesión frontend, SecureStore y toolchain TypeScript 6
+
+| Fecha | Capa | Problema | Causa | Solución |
+|---|---|---|---|---|
+| 2026-10-26 | Frontend / dependencias | `npx expo install expo-secure-store` terminó con `EALLOWSCRIPTS` | npm 11 rechaza `--allow-scripts` en instalaciones de proyecto y la configuración global solo permitía `opencode-ai` | Se instaló `npm install expo-secure-store@~58.0.2 --ignore-scripts`; el paquete no requiere scripts de instalación |
+| 2026-10-26 | Frontend / pruebas | El runner fallaba con `TS5107` y `TS5098` | `tsconfig.test.json` usaba `moduleResolution=node10` (obsoleto en TS 6) y `customConditions` sin `node16/nodenext` | Se compila con `module` y `moduleResolution` en `nodenext` |
+| 2026-10-26 | Frontend / sesión web | `expo-secure-store` no persiste tokens en web | La implementación web del módulo es vacía (`ExpoSecureStore.web.js` exporta `{}`) | El gate usa memoria en web (`MemorySessionStorage`); nunca `localStorage` para tokens |
+
+**Prevención futura:**
+Mantener el núcleo de sesión sin imports de Expo/React Native (probable en Node) y aislar el cableado de plataforma en `src/services/session/platform.ts`, excluido del `tsconfig` de pruebas.
+
+---
+
+## 2026-10-26 - Fase 4: accesibilidad de DTOs y contrato real de categorías
+
+| Fecha | Capa | Problema | Causa | Solución |
+|---|---|---|---|---|
+| 2026-10-26 | Backend / compilación | `CS0051`: `BudgetComputation.For` era público y recibía `BudgetDocument`, que es `internal` | El record de cálculo quedó `public` aunque solo lo consume `BudgetService` dentro del mismo ensamblado | Se declaró `BudgetComputation` como `internal`; la API expone únicamente `BudgetDto`/`BudgetDetailDto` |
+| 2026-10-26 | Backend / pruebas | La prueba de aislamiento de categorías esperaba `404` en `GET /v1/categories/{id}` y recibió `405 MethodNotAllowed` | El contrato implementado no incluye detalle de categoría: solo `GET/POST /v1/categories` y `PATCH/DELETE /v1/categories/{id}` | La prueba verifica el aislamiento con `PATCH`/`DELETE` y con la ausencia del recurso en el listado del otro cliente |
+
+**Prevención futura:**
+Las pruebas de contrato deben derivarse de las rutas realmente registradas; si una ruta no existe para un recurso, el aislamiento se comprueba por las operaciones que sí están expuestas.
+

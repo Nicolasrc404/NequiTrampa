@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import { MovementItem } from '../../types/movements';
+import { formatCopCents } from '../../utils/money';
 
 interface TransactionItemProps {
   item: MovementItem;
@@ -15,11 +16,17 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
   onPress,
   showDivider = true,
 }) => {
-  const isPositive = item.amount > 0;
+  const signedCents = item.amountCents ?? Math.round(item.amount * 100);
+  const isPositive = signedCents > 0;
   const isRecharge = item.type === 'RECHARGE';
 
-  const formatAmount = (val: number) => {
-    const absVal = Math.abs(val);
+  const formatAmount = (item: MovementItem) => {
+    if (typeof item.amountCents === 'number') {
+      return `${item.amountCents > 0 ? '+' : '-'} ${formatCopCents(
+        Math.abs(item.amountCents),
+      )}`;
+    }
+    const absVal = Math.abs(item.amount);
     const formatted = absVal.toLocaleString('es-CO');
     return isPositive ? `+ $ ${formatted}` : `- $ ${formatted}`;
   };
@@ -64,7 +71,7 @@ export const TransactionItem: React.FC<TransactionItemProps> = ({
               isPositive ? styles.amountGreen : styles.amountNavy,
             ]}
           >
-            {formatAmount(item.amount)}
+            {formatAmount(item)}
           </Text>
         </View>
       </TouchableOpacity>

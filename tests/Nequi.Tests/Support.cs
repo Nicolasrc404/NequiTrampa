@@ -26,6 +26,30 @@ public static class Env
     public static WebApplicationFactory<Nequi.Realtime.RealtimeMarker> Realtime() =>
         new WebApplicationFactory<Nequi.Realtime.RealtimeMarker>().WithWebHostBuilder(b => { foreach (var (k, v) in Config) b.UseSetting(k, v); });
 
+    public static WebApplicationFactory<Nequi.Wallet.WalletMarker> Wallet() =>
+        new WebApplicationFactory<Nequi.Wallet.WalletMarker>().WithWebHostBuilder(b => { foreach (var (k, v) in Config) b.UseSetting(k, v); });
+
+    public static WebApplicationFactory<Nequi.Finance.FinanceMarker> Finance() =>
+        new WebApplicationFactory<Nequi.Finance.FinanceMarker>().WithWebHostBuilder(b => { foreach (var (k, v) in Config) b.UseSetting(k, v); });
+
+    /// <summary>Gateway host with synthetic upstreams and no GCP identity tokens (route-map tests).</summary>
+    public static WebApplicationFactory<Nequi.Gateway.GatewayMarker> Gateway()
+    {
+        var config = new Dictionary<string, string?>
+        {
+            ["Services:Wallet"] = "http://localhost:9101",
+            ["Services:Finance"] = "http://localhost:9102",
+            ["Services:Profile"] = "http://localhost:9103",
+            ["Services:Assistant"] = "http://localhost:9104",
+            ["Services:Backoffice"] = "http://localhost:9105",
+            ["Services:Workers"] = "http://localhost:9106",
+            ["Services:Realtime"] = "http://localhost:9107",
+            ["Gateway:IdentityTokens"] = "false",
+        };
+        return new WebApplicationFactory<Nequi.Gateway.GatewayMarker>()
+            .WithWebHostBuilder(b => { foreach (var (k, v) in config) b.UseSetting(k, v); });
+    }
+
     public static HttpClient As(this HttpClient c, string uid, string role = "CLIENTE")
     {
         c.DefaultRequestHeaders.Remove("X-Demo-User");

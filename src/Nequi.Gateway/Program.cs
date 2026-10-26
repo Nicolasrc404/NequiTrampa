@@ -37,8 +37,8 @@ foreach (var (name, url) in services)
 
 (string Cluster, string[] Paths)[] map =
 [
-    ("wallet", ["/v1/wallet", "/v1/transfers", "/v1/recharges"]),
-    ("finance", ["/v1/movements"]),
+    ("wallet", ["/v1/wallet", "/v1/transfers", "/v1/recharges", "/v1/beneficiaries"]),
+    ("finance", ["/v1/movements", "/v1/categories", "/v1/budgets", "/v1/goals", "/v1/cash", "/v1/analytics"]),
     ("profile", ["/v1/profile", "/v1/me"]),
     ("assistant", ["/v1/assistant"]),
     ("workers", ["/v1/notifications", "/v1/reports", "/v1/projections", "/v1/outbox"]),
@@ -135,3 +135,9 @@ app.MapReverseProxy();
 app.Run();
 
 public partial class Program { }
+
+namespace Nequi.Gateway
+{
+    /// <summary>Stable marker for <c>WebApplicationFactory</c> (route-map tests).</summary>
+    public sealed class GatewayMarker;
+}

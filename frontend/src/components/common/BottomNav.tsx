@@ -6,14 +6,16 @@ import colors from '../../theme/colors';
 interface BottomNavProps {
   activeTab?: 'inicio' | 'movimientos' | 'asistente' | 'perfil';
   onTabPress?: (tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil') => void;
+  bottomOffset?: number;
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({
   activeTab = 'movimientos',
   onTabPress,
+  bottomOffset = 0,
 }) => {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { bottom: bottomOffset }]}>
       <TouchableOpacity
         style={styles.tab}
         activeOpacity={0.7}
