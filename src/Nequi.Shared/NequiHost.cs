@@ -53,9 +53,11 @@ public static class NequiHost
         if (cfg["Spanner:Database"] is { Length: > 0 } spannerDb)
         {
             services.AddSingleton(new SpannerDb(spannerDb));
+            services.AddSingleton<IClientDirectory, SpannerClientDirectory>();
             services.AddSingleton<IIdempotencyStore, SpannerIdempotencyStore>();
             health.AddDelegateCheck("spanner", ct => new SpannerOutboxStore(new SpannerDb(spannerDb)).PingAsync(ct));
         }
+        services.AddSingleton<ClientIdentityResolver>();
         services.TryAddSingleton<IIdempotencyStore, InMemoryIdempotencyStore>();
         return builder;
     }

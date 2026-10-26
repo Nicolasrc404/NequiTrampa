@@ -54,12 +54,33 @@ public static class ProjectionEndpoints
             return Results.NoContent();
         }).AllowAnonymous();
 
-        app.MapGet("/v1/projections/movements", async (HttpContext ctx, string? clientId, int? limit, IDocumentStore docs) =>
+        app.MapGet("/v1/projections/movements", async (HttpContext ctx, string? clientId, int? limit, IDocumentStore docs, ClientIdentityResolver identities) =>
         {
             var user = CurrentUser.From(ctx.User)!;
-            var owner = clientId ?? ResourceAccess.OwnerKey(user);
-            if (!ResourceAccess.CanRead(user, owner))
-                return Problems.Problem(ctx, 403, "Forbidden", "You can only read your own movements.", "forbidden");
+            var ownClientId = await identities.ResolveAsync(user, ctx.RequestAborted);
+
+            string? owner;
+            if (user.IsStaff)
+            {
+                // Staff must be explicit: never scan the whole collection by default.
+                if (string.IsNullOrWhiteSpace(clientId))
+                    return Problems.Problem(ctx, 400, "Bad Request",
+                        "Staff must provide ?clientId= to query projections.", "clientid_required");
+                owner = clientId;
+            }
+            else
+            {
+                // A client can only read their own resolved client_id; ?clientId= may repeat it
+                // but can never select another client.
+                if (ownClientId is null)
+                    return Problems.Problem(ctx, 403, "Forbidden",
+                        "No linked client context for this identity.", "client_context_unresolved");
+                if (!string.IsNullOrWhiteSpace(clientId) && clientId != ownClientId)
+                    return Problems.Problem(ctx, 403, "Forbidden",
+                        "You can only read your own movements.", "forbidden");
+                owner = ownClientId;
+            }
+
             var rows = await docs.QueryEqualsAsync(Collections.Movements, "clientId", owner, Math.Clamp(limit ?? 50, 1, 200), ctx.RequestAborted);
             var items = rows.OrderByDescending(r => r["occurredAt"]?.ToString()).ToList();
             return Results.Ok(new { clientId = owner, count = items.Count, items });

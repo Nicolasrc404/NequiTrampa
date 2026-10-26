@@ -93,7 +93,8 @@ public static class MovementsEndpoints
             HttpContext ctx,
             string? clientId,
             int? limit,
-            IDocumentStore docs) =>
+            IDocumentStore docs,
+            ClientIdentityResolver identities) =>
         {
             // ---------------------------------------------------------------
             // 1. Identity
@@ -126,15 +127,16 @@ public static class MovementsEndpoints
             string owner;
             if (isClient)
             {
-                // For CLIENTE, the domain clientId comes from the 'client_id' claim set by Identity Platform
-                // (or X-Demo-Client-Id in smoke tests). It is distinct from the auth subject (user.Uid).
-                // We never fall back to user.Uid silently: a missing claim means the token has no
-                // financial context and the request cannot be served.
-                if (string.IsNullOrWhiteSpace(user.ClientId))
+                // El claim 'client_id' es el camino normal. Si falta (token antiguo o sin
+                // custom claim), se resuelve auth_subject → clients.client_id en Spanner.
+                // Nunca se usa el auth subject como client_id: si no hay cliente ACTIVE
+                // vinculado, la solicitud se rechaza en lugar de consultar datos ajenos.
+                var resolved = await identities.ResolveAsync(user, ctx.RequestAborted);
+                if (string.IsNullOrWhiteSpace(resolved))
                     return Problems.Problem(ctx, 400, "Bad Request",
-                        "No client context found in token. Ensure the 'client_id' claim is present.",
+                        "No client context found for this identity. Ensure an ACTIVE client is linked to the auth subject.",
                         "missing_client_id");
-                owner = user.ClientId;
+                owner = resolved;
             }
             else
             {

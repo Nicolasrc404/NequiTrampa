@@ -88,12 +88,26 @@ public static class ReportEndpoints
     {
         var g = app.MapGroup("/v1/reports").RequireAuthorization(Policies.CanGenerateReports);
 
-        g.MapPost("/", async (HttpContext ctx, CreateReportRequest req, IDocumentStore docs, ReportQueue queue) =>
+        g.MapPost("/", async (HttpContext ctx, CreateReportRequest req, IDocumentStore docs, ReportQueue queue, ClientIdentityResolver identities) =>
         {
             var user = CurrentUser.From(ctx.User)!;
-            var target = req.ClientId ?? ResourceAccess.OwnerKey(user);
-            if (!ResourceAccess.CanRead(user, target))
-                return Problems.Problem(ctx, 403, "Forbidden", "Clients can only request their own reports.", "forbidden");
+            var ownClientId = await identities.ResolveAsync(user, ctx.RequestAborted);
+
+            string target;
+            if (user.IsStaff)
+            {
+                target = req.ClientId ?? ownClientId ?? user.Uid;
+            }
+            else
+            {
+                // Clients can only generate reports for their own resolved client_id.
+                if (ownClientId is null)
+                    return Problems.Problem(ctx, 403, "Forbidden",
+                        "No linked client context for this identity.", "client_context_unresolved");
+                if (!string.IsNullOrWhiteSpace(req.ClientId) && req.ClientId != ownClientId)
+                    return Problems.Problem(ctx, 403, "Forbidden", "Clients can only request their own reports.", "forbidden");
+                target = ownClientId;
+            }
             if (req.From is { } f && req.To is { } t && f > t)
                 return Problems.Problem(ctx, 422, "Invalid range", "'from' must be on or before 'to'.", "invalid_range");
 
@@ -116,15 +130,15 @@ public static class ReportEndpoints
             return Results.Ok(new { count = rows.Count, items = rows.OrderByDescending(r => r["createdAt"]?.ToString()).Select(Public) });
         });
 
-        g.MapGet("/{id}", async (HttpContext ctx, string id, IDocumentStore docs) =>
+        g.MapGet("/{id}", async (HttpContext ctx, string id, IDocumentStore docs, ClientIdentityResolver identities) =>
         {
-            var r = await Load(ctx, id, docs);
+            var r = await Load(ctx, id, docs, identities);
             return r is null ? Problems.Problem(ctx, 404, "Report not found", code: "not_found") : Results.Ok(Public(r));
         });
 
-        g.MapGet("/{id}/download", async (HttpContext ctx, string id, IDocumentStore docs) =>
+        g.MapGet("/{id}/download", async (HttpContext ctx, string id, IDocumentStore docs, ClientIdentityResolver identities) =>
         {
-            var r = await Load(ctx, id, docs);
+            var r = await Load(ctx, id, docs, identities);
             if (r is null) return Problems.Problem(ctx, 404, "Report not found", code: "not_found");
             if (r["status"]?.ToString() != "COMPLETED")
                 return Problems.Problem(ctx, 409, "Report not ready", $"Status is {r["status"]}.", "report_not_ready");
@@ -132,10 +146,16 @@ public static class ReportEndpoints
         });
     }
 
-    private static async Task<IDictionary<string, object?>?> Load(HttpContext ctx, string id, IDocumentStore docs)
+    private static async Task<IDictionary<string, object?>?> Load(HttpContext ctx, string id, IDocumentStore docs, ClientIdentityResolver identities)
     {
         var user = CurrentUser.From(ctx.User)!;
         var r = await docs.GetAsync(Collections.Reports, id, ctx.RequestAborted);
-        return r is not null && ResourceAccess.CanRead(user, r["clientId"]!.ToString()!) ? r : null;
+        if (r is null) return null;
+        var owner = r["clientId"]?.ToString();
+        if (string.IsNullOrWhiteSpace(owner)) return null;
+        if (user.IsStaff) return r;
+
+        var ownClientId = await identities.ResolveAsync(user, ctx.RequestAborted);
+        return ownClientId is not null && ownClientId == owner ? r : null;
     }
 }

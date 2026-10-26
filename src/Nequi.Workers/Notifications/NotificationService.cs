@@ -68,20 +68,25 @@ public static class NotificationEndpoints
             return Results.NoContent();
         }).AllowAnonymous();
 
-        app.MapGet("/v1/notifications", async (HttpContext ctx, IDocumentStore docs) =>
+        app.MapGet("/v1/notifications", async (HttpContext ctx, IDocumentStore docs, ClientIdentityResolver identities) =>
         {
             var user = CurrentUser.From(ctx.User)!;
-            var rows = await docs.QueryEqualsAsync(Collections.Notifications, "clientId", ResourceAccess.OwnerKey(user), 100, ctx.RequestAborted);
+            var owner = await identities.ResolveAsync(user, ctx.RequestAborted);
+            if (owner is null)
+                return Problems.Problem(ctx, 403, "Forbidden",
+                    "No linked client context for this identity.", "client_context_unresolved");
+            var rows = await docs.QueryEqualsAsync(Collections.Notifications, "clientId", owner, 100, ctx.RequestAborted);
             var items = rows.OrderByDescending(r => r["createdAt"]?.ToString()).ToList();
             return Results.Ok(new { count = items.Count, unread = items.Count(r => r["read"] is false), items });
         });
 
-        app.MapPatch("/v1/notifications/{id}/read", async (HttpContext ctx, string id, IDocumentStore docs) =>
+        app.MapPatch("/v1/notifications/{id}/read", async (HttpContext ctx, string id, IDocumentStore docs, ClientIdentityResolver identities) =>
         {
             var user = CurrentUser.From(ctx.User)!;
+            var owner = await identities.ResolveAsync(user, ctx.RequestAborted);
             var doc = await docs.GetAsync(Collections.Notifications, id, ctx.RequestAborted);
             // 404 for both "missing" and "not yours": do not reveal other users' resources.
-            if (doc is null || doc["clientId"]?.ToString() != ResourceAccess.OwnerKey(user))
+            if (doc is null || owner is null || doc["clientId"]?.ToString() != owner)
                 return Problems.Problem(ctx, 404, "Notification not found", code: "not_found");
             doc["read"] = true;
             await docs.UpsertAsync(Collections.Notifications, id, doc, ctx.RequestAborted);
