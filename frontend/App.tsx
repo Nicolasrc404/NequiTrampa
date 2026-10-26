@@ -183,6 +183,9 @@ import Analytics08Screen from './src/screens/analytics/Analytics08Screen';
 import Analytics09Screen from './src/screens/analytics/Analytics09Screen';
 import Analytics10Screen from './src/screens/analytics/Analytics10Screen';
 
+// ── Stitch Modulo 1 (35 pantallas, modo DEMO aislado) ─────
+import Module1Screen, { Module1ScreenKey } from './src/screens/module1/Module1Screen';
+
 // ── Dev preview bar (multi-module) ─────────────────────────
 import DevStateBarMulti from './src/components/common/DevStateBarMulti';
 
@@ -196,7 +199,8 @@ type AppState =
   | CashState
   | BudgetsState
   | GoalsState
-  | AnalyticsState;
+  | AnalyticsState
+  | Module1ScreenKey;
 
 // ── Aislamiento del modo DEMO ──────────────────────────────
 // `appConfig.demoModeEnabled` solo puede ser true en builds de desarrollo.
@@ -225,7 +229,9 @@ type SessionGateState = 'loading' | 'ready' | SessionGateReason;
  * el gate solo informa y permite reintentar la validación.
  */
 export default function App() {
-  const [currentState, setCurrentState] = useState<AppState>('Movements_01');
+  const [currentState, setCurrentState] = useState<AppState>(
+    demoEnabled ? 'Access_01' : 'Movements_01',
+  );
   const [selectedMovement, setSelectedMovement] = useState<MovementItem>(
     DEMO_MOVEMENTS[1],
   );
@@ -1634,6 +1640,19 @@ export default function App() {
             }}
           />
         )}
+
+        {/* ── STITCH MODULO 1 ─────────────────────────────── */}
+        {currentState.startsWith('Access_') ||
+        currentState.startsWith('Wallet_') ||
+        currentState.startsWith('Profile_') ||
+        currentState.startsWith('Configuration_') ||
+        currentState.startsWith('Projection_Status_') ? (
+          <Module1Screen
+            screenKey={currentState as Module1ScreenKey}
+            onNavigate={(key) => setCurrentState(key)}
+            onHome={() => setCurrentState('Movements_01')}
+          />
+        ) : null}
           </View>
         </>
       )}
