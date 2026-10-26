@@ -19,14 +19,17 @@ interface Beneficiaries06ScreenProps {
   onBack?: () => void;
   onRetry?: (code: string) => void;
   errorMessage?: string;
+  /** Código que el usuario intentó registrar y que el servidor rechazó. */
+  initialCode?: string;
 }
 
 export const Beneficiaries06Screen: React.FC<Beneficiaries06ScreenProps> = ({
   onBack,
   onRetry,
   errorMessage = 'El código ingresado no tiene el formato correcto. Revisa que sea un código válido e intenta de nuevo.',
+  initialCode = 'ABCD12345',
 }) => {
-  const [code, setCode] = useState('ABCD12345'); // Demo valor incorrecto
+  const [code, setCode] = useState(initialCode); // En DEMO muestra un valor inválido
   const [alias, setAlias] = useState('');
 
   return (

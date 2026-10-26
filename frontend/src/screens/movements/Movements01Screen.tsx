@@ -11,15 +11,22 @@ import { MovementFilter, MovementItem } from '../../types/movements';
 interface Movements01ScreenProps {
   onOpenFilter?: () => void;
   onSelectMovement?: (item: MovementItem) => void;
+  /** Datos reales de la API. Si se omite, se usa DEMO en desarrollo. */
+  movements?: readonly MovementItem[];
+  /** Título de la sección; el backend no agrupa por día. */
+  sectionTitle?: string;
 }
 
 export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
   onOpenFilter,
   onSelectMovement,
+  movements,
+  sectionTitle = 'Hoy',
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<MovementFilter>('TODOS');
+  const source = movements ?? DEMO_MOVEMENTS;
 
-  const filteredMovements = DEMO_MOVEMENTS.filter((m) => {
+  const filteredMovements = source.filter((m) => {
     if (selectedFilter === 'TODOS') return true;
     if (selectedFilter === 'ENVIADOS') return m.type === 'TRANSFER_SENT';
     if (selectedFilter === 'RECIBIDOS') return m.type === 'TRANSFER_RECEIVED';
@@ -45,7 +52,7 @@ export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
 
         {/* Section Title */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Hoy</Text>
+          <Text style={styles.sectionTitle}>{sectionTitle}</Text>
         </View>
 
         {/* Transactions Card */}

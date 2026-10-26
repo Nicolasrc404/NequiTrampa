@@ -25,6 +25,8 @@ export interface Categories01ScreenProps {
   readonly onBack?: () => void;
   readonly onCreate?: () => void;
   readonly onSelectCategory?: (category: CategoryItem) => void;
+  /** Datos reales del backend. Si se omite, se usa el DEMO. */
+  readonly categories?: readonly CategoryItem[];
 }
 
 type CategoryTab = 'gastos' | 'ingresos';
@@ -33,13 +35,16 @@ export const Categories01Screen: React.FC<Categories01ScreenProps> = ({
   onBack,
   onCreate,
   onSelectCategory,
+  categories: sourceCategories,
 }) => {
   const [activeTab, setActiveTab] = useState<CategoryTab>('gastos');
 
-  const categories =
-    activeTab === 'gastos' ? DEMO_EXPENSE_CATEGORIES : DEMO_INCOME_CATEGORIES;
-
   const type: CategoryType = activeTab === 'gastos' ? 'gasto' : 'ingreso';
+  const categories = sourceCategories
+    ? sourceCategories.filter((category) => category.type === type)
+    : activeTab === 'gastos'
+      ? DEMO_EXPENSE_CATEGORIES
+      : DEMO_INCOME_CATEGORIES;
 
   return (
     <View style={styles.root}>

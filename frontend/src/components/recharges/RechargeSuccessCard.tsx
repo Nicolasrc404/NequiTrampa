@@ -14,10 +14,15 @@ export const RechargeSuccessCard: React.FC<RechargeSuccessCardProps> = ({
   const rows = [
     { label: 'Referencia', value: result.reference },
     { label: 'Fecha', value: result.occurredAtLabel },
-    {
-      label: 'Saldo después',
-      value: formatRechargeAmount(result.balanceAfterCents),
-    },
+    // El saldo posterior solo se muestra si fue confirmado por una consulta.
+    ...(typeof result.balanceAfterCents === 'number'
+      ? [
+          {
+            label: 'Saldo después',
+            value: formatRechargeAmount(result.balanceAfterCents),
+          },
+        ]
+      : []),
   ];
 
   return (

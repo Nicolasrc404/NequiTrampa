@@ -15,6 +15,7 @@ export interface CategoryFieldProps {
   readonly onChangeText?: (text: string) => void;
   readonly error?: string;
   readonly editable?: boolean;
+  readonly helper?: string;
   readonly inputProps?: TextInputProps;
 }
 
@@ -25,6 +26,7 @@ export const CategoryField: React.FC<CategoryFieldProps> = ({
   onChangeText,
   error,
   editable = true,
+  helper,
   inputProps,
 }) => {
   return (
@@ -41,6 +43,7 @@ export const CategoryField: React.FC<CategoryFieldProps> = ({
         {...inputProps}
       />
       {error ? <Text style={styles.errorText}>{error}</Text> : null}
+      {!error && helper ? <Text style={styles.helperText}>{helper}</Text> : null}
     </View>
   );
 };
@@ -74,6 +77,11 @@ const styles = StyleSheet.create({
   errorText: {
     fontSize: 12.5,
     color: colors.categoriesError,
+    paddingLeft: 2,
+  },
+  helperText: {
+    fontSize: 12,
+    color: colors.categoriesLabel,
     paddingLeft: 2,
   },
 });

@@ -1,4 +1,8 @@
-export type MovementType = 'TRANSFER_SENT' | 'TRANSFER_RECEIVED' | 'RECHARGE';
+export type MovementType =
+  | 'TRANSFER_SENT'
+  | 'TRANSFER_RECEIVED'
+  | 'RECHARGE'
+  | 'OTHER';
 
 export type MovementFilter = 'TODOS' | 'ENVIADOS' | 'RECIBIDOS' | 'RECARGAS';
 
@@ -10,9 +14,13 @@ export interface MovementItem {
   categoryLabel: string;
   timestamp: string;
   formattedDate: string;
-  amount: number; // in COP
-  balanceAfter: number;
-  status: 'Completada' | 'Pendiente' | 'Fallida';
+  amount: number; // in COP (legacy; prefer amountCents)
+  /** Signed amount in integer cents when it comes from the API. */
+  amountCents?: number;
+  balanceAfter: number | null;
+  /** Balance after in integer cents when the API provides it. */
+  balanceAfterCents?: number | null;
+  status: 'Completada' | 'Pendiente' | 'Fallida' | 'Desconocido';
   initialLetter?: string;
 }
 

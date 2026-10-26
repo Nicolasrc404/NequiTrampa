@@ -9,11 +9,14 @@ import TransferStatusScreen from '../../components/transfers/TransferStatusScree
 export interface Recharges07ScreenProps {
   readonly onRetry?: () => void;
   readonly onGoHome?: () => void;
+  /** `false` cuando el resultado viene de la API real. */
+  readonly demoMode?: boolean;
 }
 
 export const Recharges07Screen: React.FC<Recharges07ScreenProps> = ({
   onRetry,
   onGoHome,
+  demoMode = true,
 }) => {
   return (
     <TransferStatusScreen
@@ -29,7 +32,9 @@ export const Recharges07Screen: React.FC<Recharges07ScreenProps> = ({
       onPrimary={onRetry}
       secondaryLabel="Volver al inicio"
       onSecondary={onGoHome}
-      demoHint="Estado DEMO · sin reintentos automáticos"
+      demoHint={
+        demoMode ? 'Estado DEMO · sin reintentos automáticos' : undefined
+      }
     />
   );
 };

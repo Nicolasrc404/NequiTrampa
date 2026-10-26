@@ -22,16 +22,24 @@ export interface Categories06ScreenProps {
   readonly onBack?: () => void;
   readonly onCreate?: (name: string, color: string, type: CategoryType) => void;
   readonly onViewCategories?: () => void;
+  /** Nombre que produjo el conflicto (para que el usuario lo corrija). */
+  readonly initialName?: string;
+  readonly initialType?: CategoryType;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Categories06Screen: React.FC<Categories06ScreenProps> = ({
   onBack,
   onCreate,
   onViewCategories,
+  initialName = 'Mercado',
+  initialType = 'gasto',
+  demo = true,
 }) => {
-  const [name, setName] = useState('Mercado');
+  const [name, setName] = useState(initialName);
   const [color] = useState('Magenta');
-  const [type, setType] = useState<CategoryType>('gasto');
+  const [type, setType] = useState<CategoryType>(initialType);
 
   return (
     <KeyboardAvoidingView
@@ -67,12 +75,19 @@ export const Categories06Screen: React.FC<Categories06ScreenProps> = ({
             error="Elige un nombre distinto o edita la categoría existente."
             inputProps={{ maxLength: 30, autoCapitalize: 'sentences' }}
           />
-          <CategoryField label="Color" value={color} editable={false} />
+          <CategoryField
+            label="Color"
+            value={color}
+            editable={false}
+            helper="Referencia visual. El servidor no almacena el color."
+          />
         </View>
 
-        <Text style={styles.demoHint}>
-          Respuesta DEMO 409 · conflicto simulado
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Respuesta DEMO 409 · conflicto simulado
+          </Text>
+        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>

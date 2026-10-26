@@ -3,7 +3,7 @@
 // Fuente visual: Stitch screen cd78ba148dab4b2bb61a5b2df8b60e36
 // ============================================================
 import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import colors from '../../theme/colors';
 import TransfersHeader from '../../components/transfers/TransfersHeader';
 import CashTransactionRow from '../../components/cash/CashTransactionRow';
@@ -14,21 +14,33 @@ import {
   DEMO_CASH_RECENT,
   formatCashAmount,
 } from '../../data/demoCash';
+import type { CashTransaction } from '../../types/cash';
 
 export interface Cash01ScreenProps {
   readonly onBack?: () => void;
   readonly onRegisterExpense?: () => void;
   readonly onRegisterIncome?: () => void;
+  readonly onViewHistory?: () => void;
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** Saldo de efectivo confirmado por el backend. */
+  readonly availableCents?: number;
+  /** Movimientos recientes confirmados por el backend. */
+  readonly recentTransactions?: readonly CashTransaction[];
+  /** `true` solo en modo demostración: oculta los textos DEMO en modo real. */
+  readonly demo?: boolean;
 }
 
 export const Cash01Screen: React.FC<Cash01ScreenProps> = ({
   onBack,
   onRegisterExpense,
   onRegisterIncome,
+  onViewHistory,
   onTabPress,
+  availableCents = DEMO_CASH_AVAILABLE_CENTS,
+  recentTransactions = DEMO_CASH_RECENT,
+  demo = true,
 }) => {
   return (
     <View style={styles.root}>
@@ -44,7 +56,7 @@ export const Cash01Screen: React.FC<Cash01ScreenProps> = ({
         <View style={styles.balanceCard}>
           <Text style={styles.balanceLabel}>Efectivo disponible</Text>
           <Text style={styles.balanceAmount}>
-            {formatCashAmount(DEMO_CASH_AVAILABLE_CENTS)}
+            {formatCashAmount(availableCents)}
           </Text>
           <Text style={styles.balanceNote}>Registrado manualmente por ti</Text>
         </View>
@@ -52,24 +64,43 @@ export const Cash01Screen: React.FC<Cash01ScreenProps> = ({
         <Text style={styles.sectionTitle}>Últimos registros</Text>
 
         <View style={styles.card}>
-          {DEMO_CASH_RECENT.map((item, index) => (
-            <View
-              key={item.id}
-              style={[
-                styles.rowContainer,
-                index < DEMO_CASH_RECENT.length - 1
-                  ? styles.rowDivider
-                  : null,
-              ]}
-            >
-              <CashTransactionRow item={item} />
-            </View>
-          ))}
+          {recentTransactions.length === 0 ? (
+            <Text style={styles.emptyText}>
+              Aún no has registrado ingresos ni gastos en efectivo.
+            </Text>
+          ) : (
+            recentTransactions.map((item, index) => (
+              <View
+                key={item.id}
+                style={[
+                  styles.rowContainer,
+                  index < recentTransactions.length - 1
+                    ? styles.rowDivider
+                    : null,
+                ]}
+              >
+                <CashTransactionRow item={item} />
+              </View>
+            ))
+          )}
         </View>
 
-        <Text style={styles.demoHint}>
-          Saldos y registros DEMO · no son operaciones reales
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Saldos y registros DEMO · no son operaciones reales
+          </Text>
+        ) : null}
+        {onViewHistory ? (
+          <TouchableOpacity
+            style={styles.historyLink}
+            activeOpacity={0.7}
+            onPress={onViewHistory}
+            accessibilityRole="button"
+            accessibilityLabel="Ver historial de efectivo"
+          >
+            <Text style={styles.historyLinkText}>Ver historial</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
 
       <View style={styles.actionBlock}>
@@ -161,6 +192,24 @@ const styles = StyleSheet.create({
   rowDivider: {
     borderBottomWidth: 1,
     borderBottomColor: colors.cashBorderCard,
+  },
+  emptyText: {
+    paddingVertical: 22,
+    paddingHorizontal: 4,
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.cashMuted,
+    textAlign: 'center',
+  },
+  historyLink: {
+    marginTop: 16,
+    alignSelf: 'center',
+    paddingVertical: 6,
+  },
+  historyLinkText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.cashMagenta,
   },
   demoHint: {
     marginTop: 16,

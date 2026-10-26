@@ -12,11 +12,14 @@ import BackButton from '../../components/categories/BackButton';
 export interface Categories02ScreenProps {
   readonly onBack?: () => void;
   readonly onCreateCategory?: () => void;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Categories02Screen: React.FC<Categories02ScreenProps> = ({
   onBack,
   onCreateCategory,
+  demo = true,
 }) => {
   return (
     <View style={styles.root}>
@@ -47,7 +50,9 @@ export const Categories02Screen: React.FC<Categories02ScreenProps> = ({
           >
             <Text style={styles.ctaText}>Crear categoría</Text>
           </TouchableOpacity>
-          <Text style={styles.demoHint}>Vista DEMO · sin operaciones reales</Text>
+          {demo ? (
+            <Text style={styles.demoHint}>Vista DEMO · sin operaciones reales</Text>
+          ) : null}
         </View>
       </View>
 

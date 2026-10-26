@@ -12,12 +12,15 @@ export interface Categories05ScreenProps {
   readonly categoryName?: string;
   readonly onCreateBudget?: () => void;
   readonly onViewCategories?: () => void;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Categories05Screen: React.FC<Categories05ScreenProps> = ({
   categoryName = 'Mercado',
   onCreateBudget,
   onViewCategories,
+  demo = true,
 }) => {
   return (
     <View style={styles.root}>
@@ -50,9 +53,11 @@ export const Categories05Screen: React.FC<Categories05ScreenProps> = ({
           secondaryLabel="Ver categorías"
           onSecondary={onViewCategories}
         />
-        <Text style={styles.demoHint}>
-          Respuesta DEMO 201 · no se ejecutó una operación real
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Respuesta DEMO 201 · no se ejecutó una operación real
+          </Text>
+        ) : null}
       </View>
     </View>
   );

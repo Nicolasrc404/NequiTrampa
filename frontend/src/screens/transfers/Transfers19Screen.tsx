@@ -17,23 +17,32 @@ export interface Transfers19ScreenProps {
   readonly transfer?: TransferItem;
   readonly onBack?: () => void;
   readonly onViewReceipt?: () => void;
+  /** `false` cuando los datos provienen de la API real. */
+  readonly demoMode?: boolean;
 }
 
 export const Transfers19Screen: React.FC<Transfers19ScreenProps> = ({
   transfer = DEMO_TRANSFER_DETAIL,
   onBack,
   onViewReceipt,
+  demoMode = true,
 }) => {
   const isSent = transfer.direction === 'sent';
+  const balanceAfterCents = transfer.balanceAfterCents;
   const rows = [
     { label: 'Referencia', value: transfer.reference },
     { label: 'Fecha', value: transfer.occurredAtLabel },
     { label: 'Mensaje', value: transfer.message || '—' },
     { label: 'Estado', value: transfer.statusLabel },
-    {
-      label: 'Saldo después',
-      value: formatCopFromCents(transfer.balanceAfterCents),
-    },
+    // El contrato no expone saldo posterior: se omite en lugar de inventarlo.
+    ...(typeof balanceAfterCents === 'number'
+      ? [
+          {
+            label: 'Saldo después',
+            value: formatCopFromCents(balanceAfterCents),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -76,9 +85,11 @@ export const Transfers19Screen: React.FC<Transfers19ScreenProps> = ({
           ))}
         </View>
 
-        <Text style={styles.demoHint}>
-          Detalle DEMO · no corresponde a una operación real
-        </Text>
+        {demoMode ? (
+          <Text style={styles.demoHint}>
+            Detalle DEMO · no corresponde a una operación real
+          </Text>
+        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>

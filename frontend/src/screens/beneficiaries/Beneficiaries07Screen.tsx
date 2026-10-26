@@ -9,11 +9,14 @@ import colors from '../../theme/colors';
 interface Beneficiaries07ScreenProps {
   onBack?: () => void;
   onTryAgain?: () => void;
+  /** Código que el usuario buscó y el servidor no encontró. */
+  searchedCode?: string;
 }
 
 export const Beneficiaries07Screen: React.FC<Beneficiaries07ScreenProps> = ({
   onBack,
   onTryAgain,
+  searchedCode = 'XXXX-0000',
 }) => {
   return (
     <View style={styles.root}>
@@ -51,7 +54,7 @@ export const Beneficiaries07Screen: React.FC<Beneficiaries07ScreenProps> = ({
         {/* Code shown */}
         <View style={styles.codeCard}>
           <Text style={styles.codeLabel}>Código buscado</Text>
-          <Text style={styles.codeValue}>XXXX-0000</Text>
+          <Text style={styles.codeValue}>{searchedCode}</Text>
         </View>
       </View>
 

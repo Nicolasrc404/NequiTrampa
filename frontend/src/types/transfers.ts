@@ -52,8 +52,8 @@ export interface TransferItem {
   occurredAtLabel: string;
   message: string;
   statusLabel: string;
-  /** Saldo después en centavos de COP. */
-  balanceAfterCents: number;
+  /** Saldo después en centavos de COP; `null` si el contrato no lo expone. */
+  balanceAfterCents: number | null;
 }
 
 export interface TransferDraft {

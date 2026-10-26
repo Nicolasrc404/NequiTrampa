@@ -27,6 +27,12 @@ export interface Categories04ScreenProps {
   readonly onSave?: (name: string, color: string, type: CategoryType) => void;
   readonly onDelete?: () => void;
   readonly onCancel?: () => void;
+  /** Una categoría del sistema no se puede desactivar. */
+  readonly isSystem?: boolean;
+  /** Bloquea el formulario mientras el servidor confirma. */
+  readonly submitting?: boolean;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Categories04Screen: React.FC<Categories04ScreenProps> = ({
@@ -37,10 +43,13 @@ export const Categories04Screen: React.FC<Categories04ScreenProps> = ({
   onSave,
   onDelete,
   onCancel,
+  isSystem = false,
+  submitting = false,
+  demo = true,
 }) => {
   const [name, setName] = useState(categoryName);
   const [color, setColor] = useState(categoryColor);
-  const [type, setType] = useState<CategoryType>(categoryType);
+  const [type] = useState<CategoryType>(categoryType);
 
   return (
     <KeyboardAvoidingView
@@ -58,22 +67,30 @@ export const Categories04Screen: React.FC<Categories04ScreenProps> = ({
             <BackButton onPress={onBack} />
             <Text style={styles.title}>Editar categoría</Text>
           </View>
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={onDelete}
-            accessibilityRole="button"
-            accessibilityLabel="Eliminar categoría"
-          >
-            <Text style={styles.deleteLink}>Eliminar</Text>
-          </TouchableOpacity>
+          {isSystem ? (
+            <Text style={styles.systemBadge}>Sistema</Text>
+          ) : (
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={onDelete}
+              accessibilityRole="button"
+              accessibilityLabel="Eliminar categoría"
+            >
+              <Text style={styles.deleteLink}>Eliminar</Text>
+            </TouchableOpacity>
+          )}
         </View>
 
         <View style={styles.typeWrap}>
           <CategoryTypeSelector
             selected={type}
-            onChange={setType}
             compact
+            disabled
           />
+          <Text style={styles.typeHint}>
+            El tipo no se puede cambiar: reclasificaría tus movimientos
+            históricos.
+          </Text>
         </View>
 
         <View style={styles.form}>
@@ -89,21 +106,25 @@ export const Categories04Screen: React.FC<Categories04ScreenProps> = ({
             value={color}
             placeholder="Elige un color"
             onChangeText={setColor}
+            helper="Referencia visual. El servidor no almacena el color."
             inputProps={{ autoCapitalize: 'none' }}
           />
         </View>
 
-        <Text style={styles.demoHint}>
-          Vista DEMO · los cambios no se guardan en el backend
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Vista DEMO · los cambios no se guardan en el backend
+          </Text>
+        ) : null}
       </ScrollView>
 
       <View style={styles.footer}>
         <CategoryActions
-          primaryLabel="Guardar cambios"
+          primaryLabel={submitting ? 'Guardando…' : 'Guardar cambios'}
           onPrimary={() => onSave?.(name.trim(), color.trim(), type)}
           secondaryLabel="Cancelar"
           onSecondary={onCancel}
+          primaryDisabled={submitting || name.trim().length < 2}
         />
       </View>
     </KeyboardAvoidingView>
@@ -148,8 +169,21 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: colors.categoriesMagenta,
   },
+  systemBadge: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: colors.categoriesLabel,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+  },
   typeWrap: {
     marginBottom: 28,
+  },
+  typeHint: {
+    marginTop: 8,
+    fontSize: 12,
+    lineHeight: 17,
+    color: colors.categoriesLabel,
   },
   form: {
     gap: 18,

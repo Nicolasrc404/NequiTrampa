@@ -18,17 +18,37 @@ export interface Transfers04ScreenProps {
   readonly recipient?: TransferRecipient;
   readonly amountCents?: number;
   readonly reference?: string;
+  /** Saldo posterior confirmado; `null`/`undefined` omite la fila. */
+  readonly balanceAfterCents?: number | null;
   readonly onViewReceipt?: () => void;
   readonly onGoHome?: () => void;
+  /** `false` cuando los datos provienen de la API real. */
+  readonly demoMode?: boolean;
 }
 
 export const Transfers04Screen: React.FC<Transfers04ScreenProps> = ({
   recipient = DEMO_TRANSFER_DRAFT.recipient,
   amountCents = DEMO_TRANSFER_DRAFT.amountCents,
   reference = DEMO_TRANSFER_HISTORY[0].reference,
+  balanceAfterCents = DEMO_TRANSFER_BALANCE_AFTER_CENTS,
   onViewReceipt,
   onGoHome,
+  demoMode = true,
 }) => {
+  const rows = [
+    { label: 'Para', value: `${recipient.name} · ${recipient.code}` },
+    { label: 'Referencia', value: reference },
+    ...(typeof balanceAfterCents === 'number'
+      ? [
+          {
+            label: 'Saldo después',
+            value: formatCopFromCents(balanceAfterCents),
+            strong: true,
+          },
+        ]
+      : []),
+  ];
+
   return (
     <TransferStatusScreen
       icon="check"
@@ -43,19 +63,13 @@ export const Transfers04Screen: React.FC<Transfers04ScreenProps> = ({
       onPrimary={onViewReceipt}
       secondaryLabel="Volver al inicio"
       onSecondary={onGoHome}
-      demoHint="Previsualización DEMO · no se procesó una transacción"
+      demoHint={
+        demoMode
+          ? 'Previsualización DEMO · no se procesó una transacción'
+          : undefined
+      }
     >
-      <TransferDetailCard
-        rows={[
-          { label: 'Para', value: `${recipient.name} · ${recipient.code}` },
-          { label: 'Referencia', value: reference },
-          {
-            label: 'Saldo después',
-            value: formatCopFromCents(DEMO_TRANSFER_BALANCE_AFTER_CENTS),
-            strong: true,
-          },
-        ]}
-      />
+      <TransferDetailCard rows={rows} />
     </TransferStatusScreen>
   );
 };

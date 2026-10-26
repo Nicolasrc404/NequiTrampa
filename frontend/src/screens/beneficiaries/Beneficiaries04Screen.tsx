@@ -18,16 +18,19 @@ import colors from '../../theme/colors';
 interface Beneficiaries04ScreenProps {
   onBack?: () => void;
   onSubmit?: (code: string, alias: string) => void;
+  /** Bloquea el botón mientras el servidor confirma. */
+  submitting?: boolean;
 }
 
 export const Beneficiaries04Screen: React.FC<Beneficiaries04ScreenProps> = ({
   onBack,
   onSubmit,
+  submitting = false,
 }) => {
   const [code, setCode] = useState('');
   const [alias, setAlias] = useState('');
 
-  const canSubmit = code.trim().length >= 4;
+  const canSubmit = code.trim().length >= 4 && !submitting;
 
   return (
     <KeyboardAvoidingView
@@ -109,7 +112,9 @@ export const Beneficiaries04Screen: React.FC<Beneficiaries04ScreenProps> = ({
           disabled={!canSubmit}
           accessibilityLabel="Agregar beneficiario"
         >
-          <Text style={styles.ctaText}>Agregar beneficiario</Text>
+          <Text style={styles.ctaText}>
+            {submitting ? 'Agregando…' : 'Agregar beneficiario'}
+          </Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>

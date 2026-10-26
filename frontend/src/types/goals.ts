@@ -21,6 +21,10 @@ export interface GoalItem {
   readonly percent: number;
   readonly targetDateLabel: string;
   readonly currencyLabel: string;
+  /** Fecha `AAAA-MM-DD` tal como la devuelve el backend. */
+  readonly targetDate?: string;
+  readonly daysRemaining?: number;
+  readonly isAchieved?: boolean;
 }
 
 export interface GoalDraft {

@@ -15,18 +15,25 @@ import { TransferFilter, TransferItem } from '../../types/transfers';
 export interface Transfers15ScreenProps {
   readonly onBack?: () => void;
   readonly onSelectTransfer?: (transfer: TransferItem) => void;
+  /** Transferencias confirmadas por la API. `undefined` usa DEMO. */
+  readonly transfers?: readonly TransferItem[];
+  /** `false` cuando los datos provienen de la API real. */
+  readonly demoMode?: boolean;
 }
 
 export const Transfers15Screen: React.FC<Transfers15ScreenProps> = ({
   onBack,
   onSelectTransfer,
+  transfers,
+  demoMode = true,
 }) => {
   const [filter, setFilter] = useState<TransferFilter>('all');
+  const source = transfers ?? DEMO_TRANSFER_HISTORY;
 
   const visible = useMemo(() => {
-    if (filter === 'all') return DEMO_TRANSFER_HISTORY;
-    return DEMO_TRANSFER_HISTORY.filter((item) => item.direction === filter);
-  }, [filter]);
+    if (filter === 'all') return source;
+    return source.filter((item) => item.direction === filter);
+  }, [filter, source]);
 
   return (
     <View style={styles.root}>
@@ -62,9 +69,11 @@ export const Transfers15Screen: React.FC<Transfers15ScreenProps> = ({
           ) : null}
         </View>
 
-        <Text style={styles.demoHint}>
-          Historial DEMO · datos locales de previsualización
-        </Text>
+        {demoMode ? (
+          <Text style={styles.demoHint}>
+            Historial DEMO · datos locales de previsualización
+          </Text>
+        ) : null}
       </ScrollView>
 
       <BottomNav activeTab="movimientos" />
