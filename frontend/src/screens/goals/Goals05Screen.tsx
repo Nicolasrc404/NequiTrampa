@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import colors from '../../theme/colors';
 import GoalsHeader from '../../components/goals/GoalsHeader';
@@ -8,18 +8,29 @@ import {
   DEMO_GOAL_CREATE_DRAFT,
   formatGoalAmount,
 } from '../../data/demoGoals';
+import type { CreateGoalInput } from '../../services/goalsService';
 
 export interface Goals05ScreenProps {
   readonly onBack?: () => void;
   readonly onCreate?: () => void;
   readonly onCancel?: () => void;
+  readonly onCreateInput?: (input: CreateGoalInput) => void;
+  readonly demo?: boolean;
+  readonly submitting?: boolean;
 }
 
 export const Goals05Screen: React.FC<Goals05ScreenProps> = ({
   onBack,
   onCreate,
   onCancel,
+  onCreateInput,
+  demo = true,
+  submitting = false,
 }) => {
+  const [name, setName] = useState(demo ? DEMO_GOAL_CREATE_DRAFT.name : '');
+  const [target, setTarget] = useState(demo ? String(DEMO_GOAL_CREATE_DRAFT.targetCents / 100) : '');
+  const [targetDate, setTargetDate] = useState(demo ? '2027-06-30' : '');
+  const targetCents = Math.round(Number(target.replace(/[^0-9]/g, '')) * 100);
   return (
     <View style={styles.root}>
       <ScrollView
@@ -39,7 +50,9 @@ export const Goals05Screen: React.FC<Goals05ScreenProps> = ({
         <View style={styles.form}>
           <GoalFormField
             label="Nombre de la meta"
-            value={DEMO_GOAL_CREATE_DRAFT.name}
+            value={name}
+            editable={!demo}
+            onChangeText={setName}
             error
             errorBorderColor={colors.goalsErrorFormBorder}
             helper="Escribe un nombre de al menos 3 caracteres."
@@ -48,7 +61,10 @@ export const Goals05Screen: React.FC<Goals05ScreenProps> = ({
           />
           <GoalFormField
             label="Monto objetivo (COP)"
-            value={formatGoalAmount(DEMO_GOAL_CREATE_DRAFT.targetCents)}
+            value={demo ? formatGoalAmount(DEMO_GOAL_CREATE_DRAFT.targetCents) : target}
+            editable={!demo}
+            onChangeText={setTarget}
+            keyboardType="numeric"
             error
             errorBorderColor={colors.goalsErrorFormBorder}
             helper="Ingresa un monto mayor a $ 0 COP."
@@ -57,21 +73,25 @@ export const Goals05Screen: React.FC<Goals05ScreenProps> = ({
           />
           <GoalFormField
             label="Fecha objetivo"
-            value={DEMO_GOAL_CREATE_DRAFT.targetDateLabel}
+            value={demo ? DEMO_GOAL_CREATE_DRAFT.targetDateLabel : targetDate}
+            editable={!demo}
+            onChangeText={setTargetDate}
             helper="Elige una fecha futura para alcanzar tu meta."
             labelColor={colors.goalsFormLabel}
           />
         </View>
 
-        <Text style={styles.demoHint}>
+        {demo ? <Text style={styles.demoHint}>
           Meta DEMO · no se guardará en el servidor
-        </Text>
+        </Text> : null}
       </ScrollView>
 
       <View style={styles.footer}>
         <GoalsActionButtons
-          primaryLabel="Crear meta"
-          onPrimary={onCreate}
+          primaryLabel={submitting ? 'Guardando…' : 'Crear meta'}
+          onPrimary={onCreateInput
+            ? () => onCreateInput({ name, targetCents, targetDate })
+            : onCreate}
           secondaryLabel="Cancelar"
           onSecondary={onCancel}
           primaryBackground={colors.goalsMagentaForm}

@@ -10,11 +10,13 @@ import { DEMO_CASH_EXPENSE_DRAFT } from '../../data/demoCash';
 export interface Cash09ScreenProps {
   readonly onChooseCategory?: () => void;
   readonly onCreateCategory?: () => void;
+  readonly demo?: boolean;
 }
 
 export const Cash09Screen: React.FC<Cash09ScreenProps> = ({
   onChooseCategory,
   onCreateCategory,
+  demo = true,
 }) => {
   return (
     <TransferStatusScreen
@@ -30,7 +32,7 @@ export const Cash09Screen: React.FC<Cash09ScreenProps> = ({
       onPrimary={onChooseCategory}
       secondaryLabel="Crear categoría"
       onSecondary={onCreateCategory}
-      demoHint="Estado DEMO · no se modificó ninguna categoría"
+      demoHint={demo ? 'Estado DEMO · no se modificó ninguna categoría' : undefined}
     />
   );
 };

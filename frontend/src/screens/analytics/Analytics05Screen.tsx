@@ -9,9 +9,11 @@ import AnalyticsHeader from '../../components/analytics/AnalyticsHeader';
 import AnalyticsTabs from '../../components/analytics/AnalyticsTabs';
 import AnalyticsPeriodSelector from '../../components/analytics/AnalyticsPeriodSelector';
 import AnalyticsDonutChart from '../../components/analytics/AnalyticsDonutChart';
+import LoadingState from '../../components/common/states/LoadingState';
 import BottomNav from '../../components/common/BottomNav';
 import { DEMO_CATEGORY_DATA } from '../../data/demoAnalytics';
 import { AnalyticsTab } from '../../types/analytics';
+import type { AnalyticsCategoryData } from '../../types/analytics';
 
 export interface Analytics05ScreenProps {
   readonly onBack?: () => void;
@@ -20,6 +22,9 @@ export interface Analytics05ScreenProps {
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  readonly categories?: AnalyticsCategoryData;
+  readonly demo?: boolean;
+  readonly loading?: boolean;
 }
 
 export const Analytics05Screen: React.FC<Analytics05ScreenProps> = ({
@@ -27,7 +32,14 @@ export const Analytics05Screen: React.FC<Analytics05ScreenProps> = ({
   onSelectTab,
   onSelectPeriod,
   onTabPress,
+  categories,
+  demo = true,
+  loading = false,
 }) => {
+  if (loading) {
+    return <LoadingState message="Cargando categorías…" hint="Consultando gastos confirmados." />;
+  }
+  const data = categories ?? DEMO_CATEGORY_DATA;
   return (
     <View style={styles.root}>
       <ScrollView
@@ -41,7 +53,7 @@ export const Analytics05Screen: React.FC<Analytics05ScreenProps> = ({
 
         <AnalyticsPeriodSelector
           periodLabel="Periodo"
-          periodValue={DEMO_CATEGORY_DATA.period}
+          periodValue={data.period}
           onPress={onSelectPeriod}
         />
 
@@ -49,20 +61,20 @@ export const Analytics05Screen: React.FC<Analytics05ScreenProps> = ({
         <View style={styles.headingSection}>
           <Text style={styles.headingTitle}>Gastos por categoría</Text>
           <Text style={styles.headingSubtitle}>
-            {DEMO_CATEGORY_DATA.periodSubtitle}
+            {data.periodSubtitle}
           </Text>
         </View>
 
         {/* Donut Chart Card */}
         <AnalyticsDonutChart
-          totalFormatted={DEMO_CATEGORY_DATA.totalExpenseFormatted}
-          currency={DEMO_CATEGORY_DATA.currency}
-          categories={DEMO_CATEGORY_DATA.categories}
+          totalFormatted={data.totalExpenseFormatted}
+          currency={data.currency}
+          categories={data.categories}
         />
 
         {/* Category Breakdown List */}
         <View style={styles.listCard}>
-          {DEMO_CATEGORY_DATA.categories.map((item, index) => (
+          {data.categories.map((item, index) => (
             <React.Fragment key={item.id}>
               <View style={styles.listItem}>
                 <View style={styles.itemLeft}>
@@ -78,7 +90,7 @@ export const Analytics05Screen: React.FC<Analytics05ScreenProps> = ({
                 </View>
                 <Text style={styles.categoryPct}>{item.percentage}%</Text>
               </View>
-              {index < DEMO_CATEGORY_DATA.categories.length - 1 && (
+              {index < data.categories.length - 1 && (
                 <View style={styles.divider} />
               )}
             </React.Fragment>
@@ -86,7 +98,7 @@ export const Analytics05Screen: React.FC<Analytics05ScreenProps> = ({
         </View>
 
         <Text style={styles.footnote}>
-          Solo consulta · tus saldos no cambian
+          {data.dataNote ?? 'Solo consulta · tus saldos no cambian'}
         </Text>
       </ScrollView>
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
 import colors from '../../theme/colors';
 import Header from '../../components/common/Header';
 import FilterPills from '../../components/common/FilterPills';
@@ -15,6 +15,8 @@ interface Movements01ScreenProps {
   movements?: readonly MovementItem[];
   /** Título de la sección; el backend no agrupa por día. */
   sectionTitle?: string;
+  readonly onRefresh?: () => void;
+  readonly realMode?: boolean;
 }
 
 export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
@@ -22,6 +24,8 @@ export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
   onSelectMovement,
   movements,
   sectionTitle = 'Hoy',
+  onRefresh,
+  realMode = false,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<MovementFilter>('TODOS');
   const source = movements ?? DEMO_MOVEMENTS;
@@ -53,7 +57,10 @@ export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
         {/* Section Title */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>{sectionTitle}</Text>
+          {onRefresh ? <TouchableOpacity onPress={onRefresh} accessibilityRole="button" accessibilityLabel="Actualizar movimientos"><Text style={styles.refresh}>Actualizar</Text></TouchableOpacity> : null}
         </View>
+
+        {realMode ? <Text style={styles.realHint}>Historial confirmado por el backend · los filtros se aplican solo a la página cargada.</Text> : null}
 
         {/* Transactions Card */}
         <View style={styles.card}>
@@ -88,7 +95,12 @@ const styles = StyleSheet.create({
   sectionHeader: {
     paddingHorizontal: 20,
     marginBottom: 10,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
+  refresh: { color: colors.magenta, fontSize: 13, fontWeight: '800' },
+  realHint: { color: colors.graySub, fontSize: 12, lineHeight: 18, marginHorizontal: 20, marginBottom: 10 },
   sectionTitle: {
     fontSize: 20,
     fontWeight: '800',

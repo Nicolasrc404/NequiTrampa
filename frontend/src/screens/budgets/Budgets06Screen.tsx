@@ -10,23 +10,34 @@ import BudgetsSummaryCard from '../../components/budgets/BudgetsSummaryCard';
 import BudgetsMetricsCard from '../../components/budgets/BudgetsMetricsCard';
 import BudgetsExpenseRow from '../../components/budgets/BudgetsExpenseRow';
 import BudgetsActionButtons from '../../components/budgets/BudgetsActionButtons';
+import LoadingState from '../../components/common/states/LoadingState';
 import {
   DEMO_BUDGET_DETAIL,
   formatBudgetAmount,
 } from '../../data/demoBudgets';
+import type { BudgetDetail } from '../../types/budgets';
 
 export interface Budgets06ScreenProps {
   readonly onBack?: () => void;
   readonly onEdit?: () => void;
   readonly onRegisterExpense?: () => void;
+  readonly budget?: BudgetDetail;
+  readonly loading?: boolean;
+  readonly demo?: boolean;
 }
 
 export const Budgets06Screen: React.FC<Budgets06ScreenProps> = ({
   onBack,
   onEdit,
   onRegisterExpense,
+  budget: sourceBudget,
+  loading = false,
+  demo = true,
 }) => {
-  const budget = DEMO_BUDGET_DETAIL;
+  if (loading) {
+    return <LoadingState message="Cargando presupuesto…" hint="Consultando consumo confirmado." />;
+  }
+  const budget = sourceBudget ?? DEMO_BUDGET_DETAIL;
 
   return (
     <View style={styles.root}>
@@ -78,9 +89,9 @@ export const Budgets06Screen: React.FC<Budgets06ScreenProps> = ({
           ))}
         </View>
 
-        <Text style={styles.demoHint}>
+        {demo ? <Text style={styles.demoHint}>
           Detalle DEMO · no representa tu presupuesto real
-        </Text>
+        </Text> : null}
       </ScrollView>
 
       <View style={styles.footer}>

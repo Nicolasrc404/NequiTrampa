@@ -9,6 +9,7 @@ import BudgetsHeader from '../../components/budgets/BudgetsHeader';
 import BudgetsProgressItem from '../../components/budgets/BudgetsProgressItem';
 import BottomNav from '../../components/common/BottomNav';
 import { DEMO_BUDGETS, DEMO_BUDGET_MONTH } from '../../data/demoBudgets';
+import type { BudgetItem } from '../../types/budgets';
 
 export interface Budgets01ScreenProps {
   readonly onBack?: () => void;
@@ -16,13 +17,22 @@ export interface Budgets01ScreenProps {
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  readonly budgets?: readonly BudgetItem[];
+  readonly periodLabel?: string;
+  readonly demo?: boolean;
+  readonly onSelectBudget?: (budget: BudgetItem) => void;
 }
 
 export const Budgets01Screen: React.FC<Budgets01ScreenProps> = ({
   onBack,
   onCreate,
   onTabPress,
+  budgets,
+  periodLabel = DEMO_BUDGET_MONTH,
+  demo = true,
+  onSelectBudget,
 }) => {
+  const items = budgets ?? DEMO_BUDGETS;
   return (
     <View style={styles.root}>
       <ScrollView
@@ -38,18 +48,24 @@ export const Budgets01Screen: React.FC<Budgets01ScreenProps> = ({
         />
 
         <View style={styles.monthPill}>
-          <Text style={styles.monthText}>{DEMO_BUDGET_MONTH}</Text>
+          <Text style={styles.monthText}>{periodLabel}</Text>
         </View>
 
         <View style={styles.card}>
-          {DEMO_BUDGETS.map((budget) => (
-            <BudgetsProgressItem key={budget.id} item={budget} />
+          {items.map((budget) => (
+            <BudgetsProgressItem
+              key={budget.id}
+              item={budget}
+              onPress={() => onSelectBudget?.(budget)}
+            />
           ))}
         </View>
 
-        <Text style={styles.demoHint}>
-          Presupuestos DEMO · no representan tu cuenta real
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Presupuestos DEMO · no representan tu cuenta real
+          </Text>
+        ) : null}
       </ScrollView>
 
       <BottomNav activeTab="inicio" onTabPress={onTabPress} />

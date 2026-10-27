@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { KeyboardTypeOptions, StyleSheet, Text, TextInput, View } from 'react-native';
 import colors from '../../theme/colors';
 
 export interface GoalFormFieldProps {
@@ -14,6 +14,9 @@ export interface GoalFormFieldProps {
   readonly errorBorderColor?: string;
   readonly helperColor?: string;
   readonly labelColor?: string;
+  readonly editable?: boolean;
+  readonly onChangeText?: (value: string) => void;
+  readonly keyboardType?: KeyboardTypeOptions;
 }
 
 export const GoalFormField: React.FC<GoalFormFieldProps> = ({
@@ -28,6 +31,9 @@ export const GoalFormField: React.FC<GoalFormFieldProps> = ({
   errorBorderColor = colors.goalsError,
   helperColor,
   labelColor = colors.goalsMuted,
+  editable = false,
+  onChangeText,
+  keyboardType = 'default',
 }) => {
   return (
     <View style={styles.group}>
@@ -43,7 +49,13 @@ export const GoalFormField: React.FC<GoalFormFieldProps> = ({
             : null,
         ]}
       >
-        <Text style={styles.value}>{value}</Text>
+        {editable ? <TextInput
+          style={styles.value}
+          value={value}
+          onChangeText={onChangeText}
+          accessibilityLabel={label}
+          keyboardType={keyboardType}
+        /> : <Text style={styles.value}>{value}</Text>}
       </View>
       {helper ? (
         <Text

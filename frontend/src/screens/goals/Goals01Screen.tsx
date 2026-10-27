@@ -4,7 +4,9 @@ import { Feather } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import GoalProgressCard from '../../components/goals/GoalProgressCard';
 import BottomNav from '../../components/common/BottomNav';
+import LoadingState from '../../components/common/states/LoadingState';
 import { DEMO_GOALS } from '../../data/demoGoals';
+import type { GoalItem } from '../../types/goals';
 
 export interface Goals01ScreenProps {
   readonly onBack?: () => void;
@@ -12,13 +14,25 @@ export interface Goals01ScreenProps {
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  readonly goals?: readonly GoalItem[];
+  readonly demo?: boolean;
+  readonly loading?: boolean;
+  readonly onSelectGoal?: (goal: GoalItem) => void;
 }
 
 export const Goals01Screen: React.FC<Goals01ScreenProps> = ({
   onBack,
   onCreate,
   onTabPress,
+  goals,
+  demo = true,
+  loading = false,
+  onSelectGoal,
 }) => {
+  if (loading) {
+    return <LoadingState message="Cargando metas…" hint="Consultando tus metas informativas." />;
+  }
+  const items = goals ?? DEMO_GOALS;
   return (
     <View style={styles.root}>
       <ScrollView
@@ -40,8 +54,8 @@ export const Goals01Screen: React.FC<Goals01ScreenProps> = ({
         <Text style={styles.subtitle}>Así van tus metas financieras.</Text>
 
         <View style={styles.list}>
-          {DEMO_GOALS.map((goal) => (
-            <GoalProgressCard key={goal.id} goal={goal} />
+          {items.map((goal) => (
+            <GoalProgressCard key={goal.id} goal={goal} onPress={() => onSelectGoal?.(goal)} />
           ))}
         </View>
 
@@ -55,9 +69,11 @@ export const Goals01Screen: React.FC<Goals01ScreenProps> = ({
           <Text style={styles.createText}>Crear meta</Text>
         </TouchableOpacity>
 
-        <Text style={styles.demoHint}>
-          Metas DEMO · no representan tu cuenta real
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Metas DEMO · no representan tu cuenta real
+          </Text>
+        ) : null}
       </ScrollView>
 
       <BottomNav activeTab="inicio" onTabPress={onTabPress} />

@@ -17,20 +17,24 @@ export interface Cash12ScreenProps {
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  readonly recentTransactions?: readonly import('../../types/cash').CashTransaction[];
+  readonly demo?: boolean;
 }
 
 export const Cash12Screen: React.FC<Cash12ScreenProps> = ({
   onBack,
   onTabPress,
+  recentTransactions,
+  demo = true,
 }) => {
   const [filter, setFilter] = useState<CashFilter>('all');
 
   const transactions = useMemo(() => {
     if (filter === 'all') {
-      return DEMO_CASH_HISTORY;
+      return recentTransactions ?? DEMO_CASH_HISTORY;
     }
-    return DEMO_CASH_HISTORY.filter((item) => item.direction === filter);
-  }, [filter]);
+    return (recentTransactions ?? DEMO_CASH_HISTORY).filter((item) => item.direction === filter);
+  }, [filter, recentTransactions]);
 
   return (
     <View style={styles.root}>
@@ -73,9 +77,9 @@ export const Cash12Screen: React.FC<Cash12ScreenProps> = ({
           )}
         </View>
 
-        <Text style={styles.demoHint}>
+        {demo ? <Text style={styles.demoHint}>
           Historial DEMO · no representa movimientos reales
-        </Text>
+        </Text> : null}
       </ScrollView>
 
       <BottomNav activeTab="inicio" onTabPress={onTabPress} />

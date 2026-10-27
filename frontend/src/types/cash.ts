@@ -39,6 +39,8 @@ export interface CashFormDraft {
   /** Monto en centavos de COP. */
   readonly amountCents: number;
   readonly direction: CashDirection;
+  /** Fecha YYYY-MM-DD que se enviará al contrato de Cash. */
+  readonly occurredOn?: string;
 }
 
 export interface CashResult {

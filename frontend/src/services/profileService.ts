@@ -14,32 +14,13 @@ import {
   requireString,
 } from './contract';
 import { normalizeBaseUrl } from '../utils/url';
+import type { ProfileDto, UpdateProfileInput } from '../types/profile';
+
+// Compatibilidad para consumidores que aún importan tipos desde el servicio.
+export type { ProfileDto, UpdateProfileInput } from '../types/profile';
 
 export const MIN_ALIAS_LENGTH = 2;
 export const MAX_ALIAS_LENGTH = 50;
-
-export interface ProfileDto {
-  readonly clientId: string;
-  readonly authSubject: string;
-  readonly email: string;
-  readonly username: string;
-  readonly firstName: string;
-  readonly lastName: string;
-  readonly alias: string | null;
-  readonly transferCode: string;
-  readonly status: string;
-  readonly timezone: string;
-  readonly walletId: string | null;
-  readonly walletStatus: string | null;
-  readonly currency: string | null;
-  readonly createdAt: string | null;
-  readonly updatedAt: string | null;
-}
-
-export interface UpdateProfileInput {
-  readonly timezone?: string;
-  readonly alias?: string;
-}
 
 export interface ProfileService {
   get(options?: { readonly signal?: AbortSignal }): Promise<ProfileDto>;

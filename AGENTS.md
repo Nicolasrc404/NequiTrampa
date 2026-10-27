@@ -247,3 +247,13 @@ No reinventes funcionalidades, tecnologías, contratos ni reglas de negocio.
 Si falta información, inspecciona primero el repositorio, Stitch y el UX Mapping.
 
 **No sacrifiques la integridad del backend para acelerar la implementación visual.**
+
+## INSPECCIONAR Y REUTILIZAR ANTES DE IMPLEMENTAR
+
+Antes de implementar cualquier funcionalidad, el agente debe revisar las
+implementaciones existentes, las carpetas del proyecto y los patrones
+arquitectónicos aplicables. Debe reutilizar y extender la estructura actual
+siempre que sea posible. Solo puede crear carpetas, servicios, hooks,
+componentes o abstracciones nuevos cuando haya verificado que no existe una
+alternativa adecuada. Está prohibido introducir estructuras paralelas o
+duplicadas sin justificación técnica.

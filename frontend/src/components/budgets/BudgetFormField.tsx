@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TextInput, View } from 'react-native';
 import colors from '../../theme/colors';
 
 export interface BudgetFormFieldProps {
@@ -8,6 +8,8 @@ export interface BudgetFormFieldProps {
   readonly placeholder?: string;
   readonly error?: boolean;
   readonly helper?: string;
+  readonly editable?: boolean;
+  readonly onChangeText?: (value: string) => void;
 }
 
 export const BudgetFormField: React.FC<BudgetFormFieldProps> = ({
@@ -16,12 +18,22 @@ export const BudgetFormField: React.FC<BudgetFormFieldProps> = ({
   placeholder,
   error = false,
   helper,
+  editable = false,
+  onChangeText,
 }) => {
   return (
     <View style={styles.group}>
       <Text style={styles.label}>{label}</Text>
       <View style={[styles.field, error ? styles.fieldError : null]}>
-        <Text
+        {editable ? <TextInput
+          style={styles.value}
+          value={value}
+          onChangeText={onChangeText}
+          placeholder={placeholder}
+          placeholderTextColor={colors.budgetsMutedAlt}
+          keyboardType="numeric"
+          accessibilityLabel={label}
+        /> : <Text
           style={[
             styles.value,
             !value ? styles.placeholder : null,
@@ -29,7 +41,7 @@ export const BudgetFormField: React.FC<BudgetFormFieldProps> = ({
           ]}
         >
           {value || placeholder}
-        </Text>
+        </Text>}
       </View>
       {helper ? (
         <Text style={[styles.helper, error ? styles.helperError : null]}>

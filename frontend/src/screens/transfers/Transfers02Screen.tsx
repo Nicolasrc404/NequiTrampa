@@ -24,6 +24,8 @@ export interface Transfers02ScreenProps {
   readonly onBack?: () => void;
   readonly onSelectRecipient?: (recipient: TransferRecipient) => void;
   readonly onContinue?: (recipient: TransferRecipient) => void;
+  readonly recipients?: readonly TransferRecipient[];
+  readonly realMode?: boolean;
 }
 
 type RecipientTab = 'beneficiaries' | 'code';
@@ -42,14 +44,16 @@ export const Transfers02Screen: React.FC<Transfers02ScreenProps> = ({
   onBack,
   onSelectRecipient,
   onContinue,
+  recipients: providedRecipients,
+  realMode = false,
 }) => {
   const [activeTab, setActiveTab] = useState<RecipientTab>('beneficiaries');
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState(selectedRecipientId);
 
   const recipients = useMemo(
-    () => DEMO_BENEFICIARIES.slice(0, 3).map(toRecipient),
-    [],
+    () => providedRecipients ?? DEMO_BENEFICIARIES.slice(0, 3).map(toRecipient),
+    [providedRecipients],
   );
 
   const filtered = useMemo(() => {
@@ -62,8 +66,7 @@ export const Transfers02Screen: React.FC<Transfers02ScreenProps> = ({
     );
   }, [recipients, search]);
 
-  const selected =
-    recipients.find((recipient) => recipient.id === selectedId) ?? recipients[0];
+  const selected = recipients.find((recipient) => recipient.id === selectedId) ?? (activeTab === 'code' && search.trim().length > 0 ? { id: `code-${search.trim()}`, name: 'Destinatario', code: search.trim(), initialLetter: '?' } : recipients[0]);
 
   const handleSelect = (recipient: TransferRecipient) => {
     setSelectedId(recipient.id);
@@ -192,14 +195,15 @@ export const Transfers02Screen: React.FC<Transfers02ScreenProps> = ({
         </View>
 
         <Text style={styles.demoHint}>
-          Destinatarios DEMO · selección local sin llamada al backend
+          {realMode ? 'Modo real · el backend validará el destinatario y sus permisos' : 'Destinatarios DEMO · selección local sin llamada al backend'}
         </Text>
       </ScrollView>
 
       <View style={styles.footer}>
         <TransferActionButtons
           primaryLabel="Continuar"
-          onPrimary={() => onContinue?.(selected)}
+          onPrimary={() => selected && onContinue?.(selected)}
+          disabled={!selected || selected.code.trim().length === 0}
         />
       </View>
     </KeyboardAvoidingView>
