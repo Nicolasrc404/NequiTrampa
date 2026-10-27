@@ -1,10 +1,8 @@
 // ============================================================
 // Presupuestos: DTO de API → view model
 // ============================================================
-// Límite de datos: `financial_movements` no proyecta `categoryId`, por lo que
-// el backend puede devolver `spentCents = 0` aunque existan gastos. El mapper
-// marca `spentDataAvailable = false` en ese caso y la UI muestra "sin dato
-// confiable" en lugar de presentar $0 como consumo confirmado.
+// `financial_movements` proyecta `categoryId`, así que `spentCents` es el
+// consumo confirmado de la categoría. Un presupuesto sin gastos devuelve 0.
 
 import type { BudgetDetailDto, BudgetDto } from '../budgetsService';
 import type { BudgetDetail, BudgetItem } from '../../types/budgets';
@@ -20,7 +18,6 @@ export function mapBudget(dto: BudgetDto): BudgetItem {
     limitCents: dto.limitCents,
     percent: dto.percent,
     health: dto.health,
-    spentDataAvailable: dto.spentCents > 0,
   };
 }
 
@@ -38,7 +35,6 @@ export function mapBudgetDetail(dto: BudgetDetailDto): BudgetDetail {
     percent: dto.percent,
     daysRemaining: dto.daysRemaining,
     dailySuggestedCents: dto.dailySuggestedCents,
-    spentDataAvailable: dto.spentCents > 0,
     expenses: dto.expenses.map((expense) => ({
       id: expense.id,
       merchant: expense.merchant?.trim() || 'Gasto sin comercio',

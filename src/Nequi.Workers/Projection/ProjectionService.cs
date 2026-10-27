@@ -18,7 +18,7 @@ public sealed class ProjectionService(IDocumentStore docs, ILogger<ProjectionSer
 {
     public async Task<bool> ApplyAsync(DomainEvent e, CancellationToken ct)
     {
-        var created = await docs.CreateIfAbsentAsync(Collections.Movements, e.EventId, new Dictionary<string, object?>
+        var document = new Dictionary<string, object?>
         {
             ["eventId"] = e.EventId,
             ["operationId"] = e.OperationId,
@@ -32,7 +32,14 @@ public sealed class ProjectionService(IDocumentStore docs, ILogger<ProjectionSer
             ["occurredAt"] = e.OccurredAt.UtcDateTime.ToString("O"),
             ["syncStatus"] = "SYNCED",
             ["status"] = "COMPLETED",
-        }, ct);
+        };
+
+        // Old outbox payloads (and events emitted before categorization existed) have no
+        // categoryId. Only write the field when present so legacy projections keep their shape
+        // and are treated as "Sin categoría" by budgets and analytics.
+        if (!string.IsNullOrWhiteSpace(e.CategoryId)) document["categoryId"] = e.CategoryId;
+
+        var created = await docs.CreateIfAbsentAsync(Collections.Movements, e.EventId, document, ct);
         if (!created) logger.LogInformation("Projection skipped duplicate event {EventId}", e.EventId);
         return created;
     }

@@ -9,17 +9,39 @@ import type { MovementDto } from '../movementsService';
 import type { MovementItem, MovementType } from '../../types/movements';
 import { formatBogotaDateTime, formatBogotaTime } from '../../utils/datetime';
 
-const TYPE_LABELS: Readonly<Record<string, string>> = {
+const TYPE_LABELS: Readonly<Record<MovementType, string>> = {
   TRANSFER_SENT: 'Transferencia enviada',
   TRANSFER_RECEIVED: 'Transferencia recibida',
   RECHARGE: 'Recarga',
+  OTHER: 'Movimiento',
 };
 
-function mapType(type: string | null): MovementType {
-  if (type === 'TRANSFER_SENT') return 'TRANSFER_SENT';
-  if (type === 'TRANSFER_RECEIVED') return 'TRANSFER_RECEIVED';
-  if (type === 'RECHARGE') return 'RECHARGE';
-  return 'OTHER';
+/**
+ * Tipos de evento que emite el backend (`Nequi.Shared.Events.EventTypes`) y
+ * tipos heredados de la proyección anterior. Para `TRANSFER_COMPLETED` la
+ * dirección se deduce del signo: negativo = enviado, positivo = recibido.
+ */
+function mapType(type: string | null, amountCents: number): MovementType {
+  switch ((type ?? '').trim().toUpperCase()) {
+    case 'TRANSFER_COMPLETED':
+      return amountCents < 0 ? 'TRANSFER_SENT' : 'TRANSFER_RECEIVED';
+    case 'TRANSFER_SENT':
+      return 'TRANSFER_SENT';
+    case 'TRANSFER_RECEIVED':
+      return 'TRANSFER_RECEIVED';
+    case 'RECHARGE':
+    case 'RECHARGE_COMPLETED':
+      return 'RECHARGE';
+    default:
+      return 'OTHER';
+  }
+}
+
+function typeLabel(type: MovementType, rawType: string | null): string {
+  if (type === 'OTHER' && rawType && rawType.trim().length > 0) {
+    return rawType.trim();
+  }
+  return TYPE_LABELS[type];
 }
 
 function mapStatus(status: string | null): MovementItem['status'] {
@@ -36,11 +58,6 @@ function mapStatus(status: string | null): MovementItem['status'] {
   return 'Desconocido';
 }
 
-function typeLabel(type: string | null): string {
-  if (!type) return 'Movimiento';
-  return TYPE_LABELS[type] ?? type;
-}
-
 /** `null` cuando el backend no entrega ningún identificador estable. */
 export function movementIdentifier(dto: MovementDto): string | null {
   return dto.operationId ?? dto.eventId;
@@ -51,15 +68,16 @@ export function mapMovement(dto: MovementDto): MovementItem | null {
   if (!id) return null;
 
   const description = dto.description?.trim() ?? '';
-  const type = mapType(dto.type);
+  const type = mapType(dto.type, dto.amountCents);
+  const label = typeLabel(type, dto.type);
   const balanceAfterCents = dto.balanceAfterCents;
 
   return {
     id,
     reference: id,
-    title: description.length > 0 ? description : typeLabel(dto.type),
+    title: description.length > 0 ? description : label,
     type,
-    categoryLabel: typeLabel(dto.type),
+    categoryLabel: label,
     timestamp: formatBogotaTime(dto.occurredAt),
     formattedDate: formatBogotaDateTime(dto.occurredAt),
     amount: Math.trunc(dto.amountCents / 100),

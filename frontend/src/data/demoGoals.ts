@@ -13,6 +13,7 @@ export const DEMO_GOALS: GoalItem[] = [
     targetCents: 500_000_000,
     percent: 30,
     targetDateLabel: '31 de diciembre de 2027',
+    targetDate: '2027-12-31',
     currencyLabel: 'COP · pesos colombianos',
   },
   {
@@ -22,6 +23,7 @@ export const DEMO_GOALS: GoalItem[] = [
     targetCents: 240_000_000,
     percent: 50,
     targetDateLabel: '31 de marzo de 2027',
+    targetDate: '2027-03-31',
     currencyLabel: 'COP · pesos colombianos',
   },
   {
@@ -31,6 +33,7 @@ export const DEMO_GOALS: GoalItem[] = [
     targetCents: 300_000_000,
     percent: 0,
     targetDateLabel: '30 de junio de 2027',
+    targetDate: '2027-06-30',
     currencyLabel: 'COP · pesos colombianos',
   },
 ];

@@ -12,6 +12,9 @@ import BackButton from '../../components/categories/BackButton';
 export interface Categories02ScreenProps {
   readonly onBack?: () => void;
   readonly onCreateCategory?: () => void;
+  readonly onTabPress?: (
+    tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
+  ) => void;
   /** `true` solo en modo demostración. */
   readonly demo?: boolean;
 }
@@ -19,6 +22,7 @@ export interface Categories02ScreenProps {
 export const Categories02Screen: React.FC<Categories02ScreenProps> = ({
   onBack,
   onCreateCategory,
+  onTabPress,
   demo = true,
 }) => {
   return (
@@ -56,7 +60,7 @@ export const Categories02Screen: React.FC<Categories02ScreenProps> = ({
         </View>
       </View>
 
-      <BottomNav activeTab="inicio" />
+      <BottomNav activeTab="inicio" onTabPress={onTabPress} />
     </View>
   );
 };

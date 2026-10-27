@@ -24,4 +24,6 @@ export interface CategoryItem {
   movementsCount: number;
   formattedAmount: string;
   initialLetter: string;
+  /** `true` para categorías del catálogo del sistema (no editables). */
+  isSystem?: boolean;
 }

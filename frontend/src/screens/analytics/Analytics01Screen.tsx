@@ -22,7 +22,9 @@ export interface Analytics01ScreenProps {
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** Resumen confirmado por el backend. Si se omite, se usa el DEMO. */
   readonly summary?: AnalyticsSummaryData;
+  /** `true` solo en modo demostración. */
   readonly demo?: boolean;
   readonly loading?: boolean;
 }
@@ -33,11 +35,16 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
   onSelectPeriod,
   onTabPress,
   summary,
-  demo = true,
+  demo: _demo = true,
   loading = false,
 }) => {
   if (loading) {
-    return <LoadingState message="Cargando resumen…" hint="Consultando datos confirmados." />;
+    return (
+      <LoadingState
+        message="Cargando resumen…"
+        hint="Consultando datos confirmados."
+      />
+    );
   }
   const data = summary ?? DEMO_SUMMARY_DATA;
   return (
@@ -64,7 +71,7 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
         <View style={styles.headingSection}>
           <Text style={styles.headingTitle}>Resumen financiero</Text>
           <Text style={styles.headingSubtitle}>
-            Tu comportamiento en septiembre · {data.currency}
+            Tu comportamiento en el periodo · {data.currency}
           </Text>
         </View>
 
@@ -87,13 +94,13 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
           <View style={styles.gridCard}>
             <Text style={styles.gridLabel}>Ingresos</Text>
             <Text style={styles.gridAmount}>
-            {data.totalIncomeFormatted}
+              {data.totalIncomeFormatted}
             </Text>
           </View>
           <View style={styles.gridCard}>
             <Text style={styles.gridLabel}>Gastos</Text>
             <Text style={styles.gridAmount}>
-            {data.totalExpenseFormatted}
+              {data.totalExpenseFormatted}
             </Text>
           </View>
         </View>
@@ -111,7 +118,7 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
           <View>
             <Text style={styles.topExpenseLabel}>Tu gasto principal</Text>
             <Text style={styles.topExpenseCategory}>
-            {data.topExpenseCategory}
+              {data.topExpenseCategory}
             </Text>
           </View>
           <Text style={styles.topExpenseAmount}>

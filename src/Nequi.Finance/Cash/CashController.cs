@@ -47,8 +47,9 @@ public sealed class CashController(
     }
 
     /// <summary>
-    /// Registra un ingreso o gasto de efectivo. Idempotente por Idempotency-Key; además
-    /// rechaza con 409 un registro declarado idéntico (fecha, dirección, monto, categoría y nota).
+    /// Registra un ingreso o gasto de efectivo. Idempotente por Idempotency-Key: repetir la
+    /// misma clave devuelve la misma respuesta, mientras que dos declaraciones idénticas con
+    /// claves distintas son dos intenciones legítimas y se registran por separado.
     /// </summary>
     [HttpPost("movements")]
     [TypeFilter(typeof(IdempotencyActionFilter))]
@@ -59,13 +60,16 @@ public sealed class CashController(
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
-    public async Task<IActionResult> Create([FromBody] CreateCashMovementRequest request, CancellationToken ct)
+    public async Task<IActionResult> Create(
+        [FromHeader(Name = "Idempotency-Key")] string? idempotencyKey,
+        [FromBody] CreateCashMovementRequest request,
+        CancellationToken ct)
     {
         var owner = await FinanceOwner.ResolveAsync(User, identities, ct);
         if (owner is null)
             return this.ProblemJson(403, "Forbidden", "No linked client context for this identity.", "client_context_unresolved");
 
-        var (outcome, movement, balance) = await service.CreateAsync(owner, request, ct);
+        var (outcome, movement, balance) = await service.CreateAsync(owner, request, idempotencyKey ?? "", ct);
         return outcome switch
         {
             CashCreateOutcome.Created => Created(

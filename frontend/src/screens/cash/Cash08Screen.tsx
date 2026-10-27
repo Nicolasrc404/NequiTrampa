@@ -8,9 +8,11 @@ import TransferStatusScreen from '../../components/transfers/TransferStatusScree
 
 export interface Cash08ScreenProps {
   readonly onLogin?: () => void;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
-export const Cash08Screen: React.FC<Cash08ScreenProps> = ({ onLogin }) => {
+export const Cash08Screen: React.FC<Cash08ScreenProps> = ({ onLogin, demo = true }) => {
   return (
     <TransferStatusScreen
       icon="lock"
@@ -23,7 +25,7 @@ export const Cash08Screen: React.FC<Cash08ScreenProps> = ({ onLogin }) => {
       description="Tu sesión terminó por seguridad. Inicia sesión para consultar tu efectivo."
       primaryLabel="Iniciar sesión"
       onPrimary={onLogin}
-      demoHint="Estado DEMO · no se enviaron credenciales"
+      demoHint={demo ? 'Estado DEMO · no se enviaron credenciales' : undefined}
     />
   );
 };

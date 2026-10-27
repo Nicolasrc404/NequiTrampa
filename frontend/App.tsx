@@ -6,6 +6,7 @@ import { appConfig } from './src/config/appConfig';
 import BackofficeApp from './src/navigation/BackofficeApp';
 import SimulationBanner from './src/components/common/SimulationBanner';
 import LoadingState from './src/components/common/states/LoadingState';
+import ErrorState from './src/components/common/states/ErrorState';
 import SessionGate, {
   type SessionGateReason,
 } from './src/components/common/SessionGate';
@@ -29,14 +30,19 @@ import {
 import { useWalletBalance } from './src/hooks/useWallet';
 import { FinancialOperation } from './src/services/financialOperation';
 import { classifyOperationFailure } from './src/services/operationFailure';
+import { asApiError } from './src/services/http';
+import { routeCategoryFailure } from './src/services/categorySubmission';
 import { mapTransfer } from './src/services/mappers/transferMapper';
 import { mapRechargeResult } from './src/services/mappers/rechargeMapper';
-import { mapCashResult } from './src/services/mappers/cashMapper';
 import { mapCategory } from './src/services/mappers/categoryMapper';
-import { mapBeneficiary } from './src/services/mappers/beneficiaryMapper';
+import { mapCashResult } from './src/services/mappers/cashMapper';
 import { mapBudget } from './src/services/mappers/budgetMapper';
 import { mapGoal } from './src/services/mappers/goalMapper';
-import { formatMonthPeriodLabel } from './src/utils/datetime';
+import { mapBeneficiary } from './src/services/mappers/beneficiaryMapper';
+import {
+  formatLongDateLabel,
+  formatMonthPeriodLabel,
+} from './src/utils/datetime';
 
 // ── Movements imports ──────────────────────────────────────
 import { MovementsState, MovementItem } from './src/types/movements';
@@ -72,7 +78,11 @@ import Beneficiaries14Screen from './src/screens/beneficiaries/Beneficiaries14Sc
 
 // ── Categories imports ─────────────────────────────────────
 import { CategoriesState, CategoryItem } from './src/types/categories';
-import { DEMO_CATEGORY_TO_EDIT } from './src/data/demoCategories';
+import {
+  DEMO_CATEGORY_TO_EDIT,
+  DEMO_EXPENSE_CATEGORIES,
+  DEMO_INCOME_CATEGORIES,
+} from './src/data/demoCategories';
 
 import Categories01Screen from './src/screens/categories/Categories01Screen';
 import Categories02Screen from './src/screens/categories/Categories02Screen';
@@ -135,10 +145,9 @@ import Recharges09Screen from './src/screens/recharges/Recharges09Screen';
 import Recharges10Screen from './src/screens/recharges/Recharges10Screen';
 
 // ── Cash imports ───────────────────────────────────────────
-import { CashState, CashFormDraft, CashResult } from './src/types/cash';
-import type { CreateBudgetInput } from './src/services/budgetsService';
-import type { CreateGoalInput } from './src/services/goalsService';
-import type { UpdateGoalInput } from './src/services/goalsService';
+import { CashDirection, CashResult, CashState } from './src/types/cash';
+import { formatCashAmount } from './src/data/demoCash';
+import type { CashFormSubmit } from './src/screens/cash/Cash02Screen';
 
 import Cash01Screen from './src/screens/cash/Cash01Screen';
 import Cash02Screen from './src/screens/cash/Cash02Screen';
@@ -154,7 +163,10 @@ import Cash11Screen from './src/screens/cash/Cash11Screen';
 import Cash12Screen from './src/screens/cash/Cash12Screen';
 
 // ── Budgets imports ────────────────────────────────────────
-import { BudgetsState, BudgetItem } from './src/types/budgets';
+import { BudgetItem, BudgetsState } from './src/types/budgets';
+import { formatBudgetAmount } from './src/data/demoBudgets';
+import type { BudgetFormSubmit } from './src/screens/budgets/Budgets04Screen';
+import type { BudgetUpdateSubmit } from './src/screens/budgets/Budgets05Screen';
 
 import Budgets01Screen from './src/screens/budgets/Budgets01Screen';
 import Budgets02Screen from './src/screens/budgets/Budgets02Screen';
@@ -171,7 +183,9 @@ import Budgets12Screen from './src/screens/budgets/Budgets12Screen';
 import Budgets13Screen from './src/screens/budgets/Budgets13Screen';
 
 // ── Goals imports ──────────────────────────────────────────
-import { GoalsState, GoalItem } from './src/types/goals';
+import { GoalItem, GoalsState } from './src/types/goals';
+import { formatGoalAmount } from './src/data/demoGoals';
+import type { GoalFormSubmit } from './src/screens/goals/Goals05Screen';
 
 import Goals01Screen from './src/screens/goals/Goals01Screen';
 import Goals02Screen from './src/screens/goals/Goals02Screen';
@@ -243,6 +257,21 @@ const SIMULATED_SUCCESS_STATES: ReadonlySet<AppState> = new Set<AppState>([
 type SessionGateState = 'loading' | 'ready' | SessionGateReason;
 
 /**
+ * Guardia de actor: descarta respuestas que llegan después de un cambio de
+ * sesión. Evita aplicar una operación al usuario equivocado.
+ */
+function actorGuard(): () => boolean {
+  const actor = sessionManager.getSnapshot().user?.uid ?? null;
+  return () => {
+    const snapshot = sessionManager.getSnapshot();
+    return (
+      snapshot.status === 'authenticated' &&
+      (snapshot.user?.uid ?? null) === actor
+    );
+  };
+}
+
+/**
  * Fuera de DEMO la app exige una sesión válida antes de renderizar cualquier
  * módulo. No existe todavía pantalla de login (BLOQUEADA por diseño), así que
  * el gate solo informa y permite reintentar la validación.
@@ -257,10 +286,6 @@ function MainApp() {
   const [selectedCategory, setSelectedCategory] = useState<CategoryItem>(
     DEMO_CATEGORY_TO_EDIT,
   );
-  const [selectedBudget, setSelectedBudget] = useState<BudgetItem | null>(null);
-  const [selectedGoal, setSelectedGoal] = useState<GoalItem | null>(null);
-  const [selectedBeneficiary, setSelectedBeneficiary] =
-    useState<BeneficiaryItem | null>(null);
   const [transferDraft, setTransferDraft] = useState<TransferDraft>(() =>
     demoEnabled
       ? DEMO_TRANSFER_DRAFT
@@ -274,6 +299,79 @@ function MainApp() {
     useState<TransferItem>(DEMO_TRANSFER_DETAIL);
   const [rechargeDraft, setRechargeDraft] =
     useState<RechargeDraft>(DEMO_RECHARGE_DRAFT);
+  const [categorySubmitting, setCategorySubmitting] = useState(false);
+  const [categoryDeleting, setCategoryDeleting] = useState(false);
+  const [categoryDraft, setCategoryDraft] = useState<{
+    readonly name: string;
+    readonly type: CategoryItem['type'];
+  }>({ name: '', type: 'gasto' });
+  const [categoryFormError, setCategoryFormError] = useState<string | null>(
+    null,
+  );
+
+  // ── Fase 8: borradores y selección de escrituras ───────────
+  const [beneficiaryDraft, setBeneficiaryDraft] = useState({
+    code: '',
+    alias: '',
+  });
+  const [beneficiarySubmitting, setBeneficiarySubmitting] = useState(false);
+  const [beneficiaryDeleting, setBeneficiaryDeleting] = useState(false);
+  const [createdBeneficiary, setCreatedBeneficiary] =
+    useState<BeneficiaryItem | null>(null);
+  const [selectedBeneficiary, setSelectedBeneficiary] =
+    useState<BeneficiaryItem | null>(null);
+  const [deletedBeneficiary, setDeletedBeneficiary] =
+    useState<BeneficiaryItem | null>(null);
+
+  const [cashDraft, setCashDraft] = useState<{
+    readonly direction: CashDirection;
+    readonly input: CashFormSubmit;
+  } | null>(null);
+  const [cashSubmitting, setCashSubmitting] = useState(false);
+  const [cashResult, setCashResult] = useState<CashResult | null>(null);
+  const [cashRejected, setCashRejected] = useState<{
+    readonly attemptedCents: number;
+    readonly categoryName: string;
+    readonly errorReference: string | null;
+  } | null>(null);
+
+  const [budgetDraft, setBudgetDraft] = useState<{
+    readonly mode: 'create' | 'update';
+    readonly categoryId: string;
+    readonly categoryName: string;
+    readonly period: string;
+    readonly limitCents: number;
+  } | null>(null);
+  const [budgetSubmitting, setBudgetSubmitting] = useState(false);
+  const [selectedBudget, setSelectedBudget] = useState<BudgetItem | null>(
+    null,
+  );
+  const [createdBudget, setCreatedBudget] = useState<BudgetItem | null>(null);
+  const [budgetConflictName, setBudgetConflictName] = useState<string | null>(
+    null,
+  );
+  const [budgetErrorReference, setBudgetErrorReference] = useState<
+    string | null
+  >(null);
+
+  const [goalDraft, setGoalDraft] = useState<{
+    readonly mode: 'create' | 'update';
+    readonly name: string;
+    readonly targetCents: number;
+    readonly targetDate: string;
+  } | null>(null);
+  const [goalSubmitting, setGoalSubmitting] = useState(false);
+  const [selectedGoal, setSelectedGoal] = useState<GoalItem | null>(null);
+  const [createdGoal, setCreatedGoal] = useState<GoalItem | null>(null);
+  const [updatedGoal, setUpdatedGoal] = useState<GoalItem | null>(null);
+  const [goalInvalid, setGoalInvalid] = useState<{
+    readonly name: string;
+    readonly targetCents: number;
+    readonly targetDate: string;
+  } | null>(null);
+  const [goalErrorReference, setGoalErrorReference] = useState<string | null>(
+    null,
+  );
 
   // ── Gate de sesión (bypass explícito en DEMO) ──────────────
   const sessionGateRequired = !demoEnabled;
@@ -301,6 +399,9 @@ function MainApp() {
   );
 
   const beneficiaries = useBeneficiaries(services, realReady);
+  const beneficiariesStatus = beneficiaries.status;
+  const beneficiariesCount = beneficiaries.data?.length ?? 0;
+  const beneficiariesError = beneficiaries.error;
   const categories = useCategories(services, realReady);
   const cashRegister = useCashRegister(services, realReady);
   const budgets = useBudgets(services, realReady);
@@ -337,6 +438,25 @@ function MainApp() {
     ? classifyOperationFailure(receipt.error)
     : null;
 
+  const categoriesStatus = categories.status;
+  const categoriesCount = categories.data?.length ?? 0;
+  const categoriesError = categories.error;
+  const cashStatus = cashRegister.status;
+  const cashError = cashRegister.error;
+  const budgetsStatus = budgets.status;
+  const budgetsCount = budgets.data?.length ?? 0;
+  const budgetsError = budgets.error;
+  const goalsStatus = goals.status;
+  const goalsError = goals.error;
+  const analyticsStatus = analytics.status;
+  const analyticsError = analytics.error;
+
+  /** Periodo del mes en curso, usado si el backend no devuelve presupuestos. */
+  const currentPeriod = useMemo(() => {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }, []);
+
   // Una intención = una clave. El guardia impide doble envío.
   const transferOperation = useMemo(
     () => new FinancialOperation({ scope: 'transfers.create' }),
@@ -346,8 +466,34 @@ function MainApp() {
     () => new FinancialOperation({ scope: 'recharges.create' }),
     [],
   );
+  // Escrituras de la Fase 8. Cada intención tiene su propia instancia: una
+  // clave por intención y bloqueo de doble envío local.
+  const beneficiaryOperation = useMemo(
+    () => new FinancialOperation({ scope: 'beneficiaries.create' }),
+    [],
+  );
+  const beneficiaryDeleteOperation = useMemo(
+    () => new FinancialOperation({ scope: 'beneficiaries.remove' }),
+    [],
+  );
   const cashOperation = useMemo(
-    () => new FinancialOperation({ scope: 'cash.movements.create' }),
+    () => new FinancialOperation({ scope: 'cash.create' }),
+    [],
+  );
+  const budgetCreateOperation = useMemo(
+    () => new FinancialOperation({ scope: 'budgets.create' }),
+    [],
+  );
+  const budgetUpdateOperation = useMemo(
+    () => new FinancialOperation({ scope: 'budgets.update' }),
+    [],
+  );
+  const goalCreateOperation = useMemo(
+    () => new FinancialOperation({ scope: 'goals.create' }),
+    [],
+  );
+  const goalUpdateOperation = useMemo(
+    () => new FinancialOperation({ scope: 'goals.update' }),
     [],
   );
   const transferAttempt = useRef<string | null>(null);
@@ -357,16 +503,13 @@ function MainApp() {
   const [rechargeResult, setRechargeResult] = useState<RechargeResult | null>(
     null,
   );
-  const [cashSubmitting, setCashSubmitting] = useState(false);
-  const [cashResult, setCashResult] = useState<CashResult | null>(null);
-  const [budgetSubmitting, setBudgetSubmitting] = useState(false);
-  const [goalSubmitting, setGoalSubmitting] = useState(false);
   const [budgetUpdating, setBudgetUpdating] = useState(false);
   const [goalUpdating, setGoalUpdating] = useState(false);
-  const [createdBudget, setCreatedBudget] = useState<import('./src/types/budgets').BudgetItem | null>(null);
-  const [createdGoal, setCreatedGoal] = useState<import('./src/types/goals').GoalItem | null>(null);
-  const [beneficiarySubmitting, setBeneficiarySubmitting] = useState(false);
-  const [categorySubmitting, setCategorySubmitting] = useState(false);
+
+  // Última pantalla visible: permite descartar respuestas que llegan después
+  // de que el usuario abandonó el formulario que inició la operación.
+  const currentStateRef = useRef(currentState);
+  currentStateRef.current = currentState;
 
   useEffect(() => {
     if (!sessionGateRequired || !appConfig.apiConfigured) return;
@@ -406,66 +549,6 @@ function MainApp() {
 
   const handleTransferRecipient = (recipient: TransferRecipient) => {
     setTransferDraft((current) => ({ ...current, recipient }));
-  };
-
-  const handleBeneficiaryCreate = async (code: string, alias: string) => {
-    if (demoEnabled) {
-      openSimulatedSuccess('Beneficiaries_05', 'Beneficiaries_06');
-      return;
-    }
-    if (!services || !realReady || beneficiarySubmitting) return;
-    setBeneficiarySubmitting(true);
-    try {
-      const created = await services.beneficiaries.create({
-        transferCode: code,
-        name: alias || code,
-      });
-      setSelectedBeneficiary(mapBeneficiary(created));
-      beneficiaries.reload();
-      setCurrentState('Beneficiaries_05');
-    } catch (error) {
-      switch (classifyOperationFailure(error)) {
-        case 'session':
-          setCurrentState('Beneficiaries_11');
-          break;
-        case 'not_found':
-          setCurrentState('Beneficiaries_07');
-          break;
-        case 'conflict':
-          setCurrentState('Beneficiaries_08');
-          break;
-        case 'validation':
-          setCurrentState('Beneficiaries_06');
-          break;
-        default:
-          setCurrentState('Beneficiaries_13');
-      }
-    } finally {
-      setBeneficiarySubmitting(false);
-    }
-  };
-
-  const handleBeneficiaryDelete = async () => {
-    const beneficiary = selectedBeneficiary;
-    if (demoEnabled) {
-      setCurrentState('Beneficiaries_10');
-      return;
-    }
-    if (!services || !realReady || !beneficiary || beneficiarySubmitting) return;
-    setBeneficiarySubmitting(true);
-    try {
-      await services.beneficiaries.remove(beneficiary.id);
-      beneficiaries.reload();
-      setCurrentState('Beneficiaries_10');
-    } catch (error) {
-      if (classifyOperationFailure(error) === 'session') {
-        setCurrentState('Beneficiaries_11');
-      } else {
-        setCurrentState('Beneficiaries_13');
-      }
-    } finally {
-      setBeneficiarySubmitting(false);
-    }
   };
 
   const handleCategoryDraft = async (
@@ -531,37 +614,14 @@ function MainApp() {
     }
   };
 
-  const handleCategoryDelete = async () => {
-    if (demoEnabled) {
-      setCurrentState('Categories_01');
-      return;
-    }
-    if (!services || !realReady || categorySubmitting) return;
-    setCategorySubmitting(true);
-    try {
-      await services.categories.deactivate(selectedCategory.id);
-      categories.reload();
-      setCurrentState('Categories_01');
-    } catch (error) {
-      if (classifyOperationFailure(error) === 'session') setCurrentState('Beneficiaries_11');
-      else Alert.alert('No se pudo desactivar', 'La categoría no fue modificada.');
-    } finally {
-      setCategorySubmitting(false);
-    }
-  };
-
   /**
    * Navega a una pantalla de éxito SOLO con el modo DEMO activo.
-   * Fuera de DEMO no se fabrica ningún comprobante: se muestra el error
-   * disponible o se informa que la función aún no está conectada al backend.
+   * Fuera de DEMO no se fabrica ningún comprobante ni se simula un error de
+   * servidor: se informa que la función aún no está conectada al backend.
    */
-  const openSimulatedSuccess = (target: AppState, fallback?: AppState) => {
+  const openSimulatedSuccess = (target: AppState) => {
     if (demoEnabled) {
       setCurrentState(target);
-      return;
-    }
-    if (fallback) {
-      setCurrentState(fallback);
       return;
     }
     Alert.alert(
@@ -625,6 +685,48 @@ function MainApp() {
     realReady,
   ]);
 
+  // ── Beneficiarios: skeleton / vacío / error del listado ────
+  useEffect(() => {
+    if (demoEnabled || !realReady) return;
+    if (
+      currentState !== 'Beneficiaries_01' &&
+      currentState !== 'Beneficiaries_02' &&
+      currentState !== 'Beneficiaries_03' &&
+      currentState !== 'Beneficiaries_13'
+    ) {
+      return;
+    }
+    if (
+      beneficiariesStatus === 'loading' ||
+      beneficiariesStatus === 'idle'
+    ) {
+      if (currentState !== 'Beneficiaries_03') {
+        setCurrentState('Beneficiaries_03');
+      }
+      return;
+    }
+    if (beneficiariesStatus === 'error') {
+      setCurrentState(
+        beneficiariesError?.kind === 'unauthorized'
+          ? 'Beneficiaries_11'
+          : 'Beneficiaries_13',
+      );
+      return;
+    }
+    if (beneficiariesStatus === 'success') {
+      setCurrentState(
+        beneficiariesCount === 0 ? 'Beneficiaries_02' : 'Beneficiaries_01',
+      );
+    }
+  }, [
+    beneficiariesCount,
+    beneficiariesError,
+    beneficiariesStatus,
+    currentState,
+    demoEnabled,
+    realReady,
+  ]);
+
   // ── Transferencias: skeleton / vacío / error del historial ─
   useEffect(() => {
     if (demoEnabled || !realReady) return;
@@ -681,84 +783,105 @@ function MainApp() {
     rechargesStatus,
   ]);
 
-  // ── Dominios de datos: estados de lectura reales ───────────
+  // ── Categorías / Efectivo / Presupuestos / Metas / Analítica ──
+  // Los estados con diseño propio navegan a su pantalla; los módulos sin
+  // estados diseñados (Categorías, Efectivo) muestran el estado reutilizable
+  // dentro de la pantalla principal.
   useEffect(() => {
-    if (demoEnabled || !realReady || !['Beneficiaries_01', 'Beneficiaries_03'].includes(currentState)) return;
-    if (beneficiaries.status === 'loading' || beneficiaries.status === 'idle') {
-      setCurrentState('Beneficiaries_03');
-    } else if (beneficiaries.status === 'error') {
-      setCurrentState(
-        beneficiaries.error?.kind === 'unauthorized'
-          ? 'Beneficiaries_11'
-          : 'Beneficiaries_13',
-      );
-    } else if (beneficiaries.status === 'success' && beneficiaries.data?.length === 0) {
-      setCurrentState('Beneficiaries_02');
+    if (demoEnabled || !realReady) return;
+    if (currentState !== 'Categories_01') return;
+
+    if (categoriesStatus === 'success' && categoriesCount === 0) {
+      setCurrentState('Categories_02');
     }
   }, [
-    beneficiaries.data?.length,
-    beneficiaries.error?.kind,
-    beneficiaries.status,
+    categoriesCount,
+    categoriesStatus,
     currentState,
     demoEnabled,
     realReady,
   ]);
 
   useEffect(() => {
-    if (demoEnabled || !realReady || currentState !== 'Cash_01') return;
-    if (cashRegister.status === 'loading' || cashRegister.status === 'idle') return;
-    if (cashRegister.status === 'error') {
-      if (cashRegister.error?.kind === 'unauthorized') setCurrentState('Cash_08');
-      else setCurrentState('Cash_11');
+    if (demoEnabled || !realReady) return;
+    if (
+      currentState !== 'Cash_01' &&
+      currentState !== 'Budgets_01' &&
+      currentState !== 'Budgets_03'
+    ) {
       return;
     }
-  }, [cashRegister.error?.kind, cashRegister.status, currentState, demoEnabled, realReady]);
 
-  useEffect(() => {
-    if (demoEnabled || !realReady || !['Budgets_01', 'Budgets_03'].includes(currentState)) return;
-    if (budgets.status === 'loading' || budgets.status === 'idle') {
-      setCurrentState('Budgets_03');
-    } else if (budgets.status === 'error') {
-      setCurrentState(budgets.error?.kind === 'unauthorized' ? 'Budgets_13' : 'Budgets_12');
-    } else if (budgets.status === 'success' && (budgets.data?.length ?? 0) === 0) {
-      setCurrentState('Budgets_02');
+    if (currentState === 'Cash_01') {
+      if (cashError?.kind === 'unauthorized') setCurrentState('Cash_08');
+      return;
     }
-  }, [budgets.data?.length, budgets.error?.kind, budgets.status, currentState, demoEnabled, realReady]);
 
-  useEffect(() => {
-    if (demoEnabled || !realReady || currentState !== 'Goals_01') return;
-    if (goals.status === 'loading' || goals.status === 'idle') return;
-    if (goals.status === 'error') {
-      setCurrentState(goals.error?.kind === 'unauthorized' ? 'Goals_02' : 'Goals_03');
+    if (budgetsStatus === 'loading' || budgetsStatus === 'idle') {
+      if (currentState !== 'Budgets_03') setCurrentState('Budgets_03');
+      return;
     }
-  }, [currentState, demoEnabled, goals.error?.kind, goals.status, realReady]);
+    if (budgetsStatus === 'error') {
+      if (budgetsError?.kind === 'unauthorized') {
+        setCurrentState('Budgets_13');
+      } else if (currentState !== 'Budgets_03') {
+        setCurrentState('Budgets_03');
+      }
+      return;
+    }
+    if (budgetsStatus === 'success') {
+      setCurrentState(budgetsCount === 0 ? 'Budgets_02' : 'Budgets_01');
+    }
+  }, [
+    budgetsCount,
+    budgetsError,
+    budgetsStatus,
+    cashError,
+    currentState,
+    demoEnabled,
+    realReady,
+  ]);
 
   useEffect(() => {
     if (demoEnabled || !realReady) return;
-    if (!["Analytics_01", "Analytics_05", "Analytics_08"].includes(currentState)) return;
-    if (analytics.status === 'error') {
-      const session = analytics.error?.kind === 'unauthorized';
-      if (currentState === 'Analytics_01') setCurrentState(session ? 'Analytics_03' : 'Analytics_04');
-      if (currentState === 'Analytics_05') setCurrentState(session ? 'Analytics_06' : 'Analytics_07');
-      if (currentState === 'Analytics_08') setCurrentState(session ? 'Analytics_09' : 'Analytics_10');
+    if (currentState !== 'Goals_01' || goalsStatus !== 'error') return;
+    setCurrentState(goalsError?.kind === 'unauthorized' ? 'Goals_02' : 'Goals_03');
+  }, [
+    currentState,
+    demoEnabled,
+    goalsError,
+    goalsStatus,
+    realReady,
+  ]);
+
+  useEffect(() => {
+    if (demoEnabled || !realReady) return;
+    if (analyticsStatus !== 'error') return;
+
+    const errorState: {
+      readonly unauthorized?: AppState;
+      readonly other?: AppState;
+    } =
+      currentState === 'Analytics_01'
+        ? { unauthorized: 'Analytics_03', other: 'Analytics_04' }
+        : currentState === 'Analytics_05'
+          ? { unauthorized: 'Analytics_06', other: 'Analytics_07' }
+          : currentState === 'Analytics_08'
+            ? { unauthorized: 'Analytics_09', other: 'Analytics_10' }
+            : {};
+
+    if (analyticsError?.kind === 'unauthorized' && errorState.unauthorized) {
+      setCurrentState(errorState.unauthorized);
+    } else if (errorState.other) {
+      setCurrentState(errorState.other);
     }
-  }, [analytics.error?.kind, analytics.status, currentState, demoEnabled, realReady]);
-
-  useEffect(() => {
-    if (demoEnabled || !realReady || currentState !== 'Budgets_06') return;
-    if (budgetDetail.status !== 'error') return;
-    const failure = classifyOperationFailure(budgetDetail.error);
-    setCurrentState(failure === 'session' ? 'Budgets_13' : 'Budgets_12');
-  }, [budgetDetail.error, budgetDetail.status, currentState, demoEnabled, realReady]);
-
-  useEffect(() => {
-    if (demoEnabled || !realReady || currentState !== 'Goals_10') return;
-    if (goalDetail.status !== 'error') return;
-    const failure = classifyOperationFailure(goalDetail.error);
-    if (failure === 'session') setCurrentState('Goals_02');
-    else if (failure === 'not_found') setCurrentState('Goals_12');
-    else setCurrentState('Goals_03');
-  }, [currentState, demoEnabled, goalDetail.error, goalDetail.status, realReady]);
+  }, [
+    analyticsError,
+    analyticsStatus,
+    currentState,
+    demoEnabled,
+    realReady,
+  ]);
 
   // ── Envío real de transferencia (una sola vez por intención) ─
   useEffect(() => {
@@ -768,6 +891,7 @@ function MainApp() {
 
     const fingerprint = `${transferDraft.recipient.code}|${transferDraft.amountCents}|${transferDraft.message}`;
     transferAttempt.current = fingerprint;
+    let active = true;
     const actor = sessionManager.getSnapshot().user?.uid ?? null;
     const isSameActor = () => {
       const snapshot = sessionManager.getSnapshot();
@@ -792,8 +916,10 @@ function MainApp() {
       );
       transferAttempt.current = null;
 
-      // Respuesta tardía tras logout/login distinto: se descarta.
-      if (!isSameActor()) return;
+      // Respuesta tardía tras abandonar la pantalla o cambiar de actor: se
+      // descarta y no se navega. La operación pudo aplicarse, así que un
+      // reintento posterior conserva la misma Idempotency-Key.
+      if (!active || !isSameActor()) return;
 
       if (outcome.status === 'confirmed' && outcome.value) {
         const dto = outcome.value;
@@ -813,10 +939,7 @@ function MainApp() {
         return;
       }
 
-      if (outcome.status === 'blocked') {
-        transferAttempt.current = fingerprint;
-        return;
-      }
+      if (outcome.status === 'blocked') return;
       if (outcome.status === 'cancelled') {
         setCurrentState('Transfers_01');
         return;
@@ -862,6 +985,10 @@ function MainApp() {
           setCurrentState('Transfers_13');
       }
     })();
+
+    return () => {
+      active = false;
+    };
   }, [
     currentState,
     demoEnabled,
@@ -878,7 +1005,7 @@ function MainApp() {
   const handleRecharge = async () => {
     if (demoEnabled) {
       setRechargeResult(null);
-      openSimulatedSuccess('Recharges_02', 'Recharges_07');
+      openSimulatedSuccess('Recharges_02');
       return;
     }
     if (!services || !realReady) {
@@ -900,6 +1027,8 @@ function MainApp() {
         (snapshot.user?.uid ?? null) === actor
       );
     };
+    const shouldApplyResponse = () =>
+      isSameActor() && currentStateRef.current === 'Recharges_01';
 
     try {
       const fingerprint = `recharge|${rechargeDraft.amountCents}`;
@@ -912,7 +1041,7 @@ function MainApp() {
           ),
       );
 
-      if (!isSameActor()) return;
+      if (!shouldApplyResponse()) return;
 
       if (outcome.status === 'confirmed' && outcome.value) {
         const dto = outcome.value;
@@ -924,7 +1053,7 @@ function MainApp() {
           // Sin saldo confirmado no se inventa uno: la tarjeta lo omite.
           confirmedBalance = null;
         }
-        if (!isSameActor()) return;
+        if (!shouldApplyResponse()) return;
         setRechargeResult(mapRechargeResult(dto, confirmedBalance));
         reloadBalance();
         reloadMovements();
@@ -934,6 +1063,19 @@ function MainApp() {
       }
 
       if (outcome.status === 'blocked' || outcome.status === 'cancelled') {
+        return;
+      }
+
+      // El backend rechaza los métodos simulados fuera de entornos
+      // autorizados. No es un fallo de red ni un 500: no se inventa un cobro.
+      if (
+        (outcome.error?.problem.code ?? '').toUpperCase() ===
+        'SIMULATED_METHOD_NOT_ALLOWED'
+      ) {
+        Alert.alert(
+          'Recargas no disponibles',
+          'Este entorno no tiene habilitados los métodos de recarga simulada. No se realizó ningún cobro.',
+        );
         return;
       }
 
@@ -965,135 +1107,845 @@ function MainApp() {
     }
   };
 
-  const handleCashCreate = async (draft: CashFormDraft) => {
+  /**
+   * Crea o actualiza una categoría. El tipo solo se envía al crear: en la
+   * edición es inmutable y el backend responde 422 si se intenta cambiar.
+   */
+  const handleCategorySubmit = async (
+    name: string,
+    _color: string,
+    type: CategoryItem['type'],
+  ) => {
+    const origin = currentStateRef.current;
+    const mode = origin === 'Categories_04' ? 'update' : 'create';
+
+    setCategoryDraft({ name, type });
+    setCategoryFormError(null);
+
     if (demoEnabled) {
-      openSimulatedSuccess(
-        draft.direction === 'income' ? 'Cash_04' : 'Cash_05',
-        'Cash_11',
+      if (mode === 'update') {
+        const safeName = name || selectedCategory.name;
+        setSelectedCategory({
+          ...selectedCategory,
+          name: safeName,
+          type,
+          initialLetter: safeName.charAt(0).toUpperCase(),
+        });
+        setCurrentState('Categories_01');
+        return;
+      }
+      handleCategoryDraft(name, _color, type);
+      return;
+    }
+
+    if (!services || !realReady) {
+      if (sessionGate !== 'ready') return;
+      Alert.alert(
+        'Servicio no disponible',
+        'No hay conexión con el servidor. No se guardó la categoría.',
       );
       return;
     }
-    if (!services || !realReady || cashSubmitting || draft.amountCents < 1) return;
-    setCashSubmitting(true);
-    const fingerprint = `${draft.direction}|${draft.amountCents}|${draft.categoryId ?? ''}|${draft.note ?? ''}|${draft.occurredOn ?? ''}`;
-    const outcome = await cashOperation.run(fingerprint, (idempotencyKey) =>
-      services.cash.createMovement(draft, { idempotencyKey }),
-    );
-    if (outcome.status === 'confirmed' && outcome.value) {
-      setCashResult(mapCashResult(outcome.value));
-      cashRegister.reload();
-      setCurrentState(draft.direction === 'income' ? 'Cash_04' : 'Cash_05');
-    } else if (outcome.status !== 'blocked' && outcome.status !== 'cancelled') {
-      switch (classifyOperationFailure(outcome.error)) {
-        case 'session': setCurrentState('Cash_08'); break;
-        case 'not_found': setCurrentState('Cash_09'); break;
-        case 'conflict': setCurrentState('Cash_10'); break;
-        case 'insufficient_funds': setCurrentState('Cash_07'); break;
-        case 'validation': setCurrentState('Cash_06'); break;
-        default: setCurrentState('Cash_11');
+    if (categorySubmitting) return;
+
+    setCategorySubmitting(true);
+    const actor = sessionManager.getSnapshot().user?.uid ?? null;
+    const isSameActor = () => {
+      const snapshot = sessionManager.getSnapshot();
+      return (
+        snapshot.status === 'authenticated' &&
+        (snapshot.user?.uid ?? null) === actor
+      );
+    };
+    const shouldApplyResponse = () =>
+      isSameActor() && currentStateRef.current === origin;
+
+    try {
+      const dto =
+        mode === 'update'
+          ? await services.categories.update(selectedCategory.id, { name })
+          : await services.categories.create({ name, type });
+      const mapped = mapCategory(dto);
+      categories.reload();
+
+      if (!shouldApplyResponse()) return;
+
+      setSelectedCategory(mapped);
+      setCurrentState(mode === 'update' ? 'Categories_01' : 'Categories_05');
+    } catch (error) {
+      if (!shouldApplyResponse()) return;
+
+      const failure = classifyOperationFailure(error);
+      const route = routeCategoryFailure(failure, mode);
+      const message = asApiError(error).toUserMessage();
+
+      switch (route) {
+        case 'conflict':
+          setCurrentState('Categories_06');
+          break;
+        case 'validation':
+          setCategoryFormError(message.message);
+          setCurrentState('Categories_07');
+          break;
+        case 'session':
+          // `apiClient.onUnauthorized` invalida la sesión y muestra el gate.
+          break;
+        case 'reload':
+          Alert.alert(message.title, message.message);
+          categories.reload();
+          setCurrentState('Categories_01');
+          break;
+        default:
+          Alert.alert(message.title, message.message);
       }
+    } finally {
+      setCategorySubmitting(false);
     }
-    setCashSubmitting(false);
   };
 
-  const handleBudgetCreate = async (input: CreateBudgetInput) => {
+  /** Desactiva la categoría (soft delete). El historial no se modifica. */
+  const handleCategoryDelete = async () => {
     if (demoEnabled) {
-      openSimulatedSuccess('Budgets_09', 'Budgets_12');
+      setCurrentState('Categories_01');
       return;
     }
-    if (!services || !realReady || budgetSubmitting || !input.categoryId || input.limitCents < 1) return;
+    if (!services || !realReady) {
+      if (sessionGate !== 'ready') return;
+      Alert.alert(
+        'Servicio no disponible',
+        'No hay conexión con el servidor. No se eliminó la categoría.',
+      );
+      return;
+    }
+    if (categoryDeleting) return;
+
+    setCategoryDeleting(true);
+    const origin = currentStateRef.current;
+    const actor = sessionManager.getSnapshot().user?.uid ?? null;
+    const isSameActor = () => {
+      const snapshot = sessionManager.getSnapshot();
+      return (
+        snapshot.status === 'authenticated' &&
+        (snapshot.user?.uid ?? null) === actor
+      );
+    };
+    const shouldApplyResponse = () =>
+      isSameActor() && currentStateRef.current === origin;
+
+    try {
+      await services.categories.deactivate(selectedCategory.id);
+      categories.reload();
+      if (!shouldApplyResponse()) return;
+      setCurrentState('Categories_01');
+    } catch (error) {
+      if (!shouldApplyResponse()) return;
+
+      const failure = classifyOperationFailure(error);
+      const route = routeCategoryFailure(failure, 'delete');
+      const message = asApiError(error).toUserMessage();
+
+      if (route === 'reload') {
+        Alert.alert(message.title, message.message);
+        categories.reload();
+        setCurrentState('Categories_01');
+      } else if (route !== 'session') {
+        Alert.alert(message.title, message.message);
+      }
+    } finally {
+      setCategoryDeleting(false);
+    }
+  };
+
+  // ── Fase 8: escrituras de beneficiarios ────────────────────
+  const startTransferToBeneficiary = (beneficiary: BeneficiaryItem) => {
+    setTransferDraft((current) => ({
+      ...current,
+      recipient: {
+        id: beneficiary.id,
+        name: beneficiary.name,
+        code: beneficiary.code,
+        initialLetter: beneficiary.initialLetter,
+      },
+    }));
+    setCurrentState('Transfers_01');
+  };
+
+  const handleCreateBeneficiary = async (code: string, alias: string) => {
+    const safeCode = code.trim().toUpperCase();
+    const safeName = alias.trim() || safeCode;
+    setBeneficiaryDraft({ code, alias });
+
+    if (demoEnabled) {
+      openSimulatedSuccess('Beneficiaries_05');
+      return;
+    }
+    if (!services || !realReady) {
+      if (sessionGate !== 'ready') return;
+      Alert.alert(
+        'Servicio no disponible',
+        'No hay conexión con el servidor. No se agregó el beneficiario.',
+      );
+      return;
+    }
+    if (beneficiarySubmitting) return;
+
+    const origin = currentStateRef.current;
+    const isSameActor = actorGuard();
+    const shouldApply = () =>
+      isSameActor() && currentStateRef.current === origin;
+
+    setBeneficiarySubmitting(true);
+    try {
+      const outcome = await beneficiaryOperation.run(
+        `beneficiaries.create|${safeCode}|${safeName}`,
+        () =>
+          services.beneficiaries.create({
+            name: safeName,
+            transferCode: safeCode,
+          }),
+      );
+
+      if (outcome.status === 'confirmed' && outcome.value) {
+        const mapped = mapBeneficiary(outcome.value);
+        beneficiaries.reload();
+        if (!shouldApply()) return;
+        setCreatedBeneficiary(mapped);
+        setBeneficiaryDraft({ code: '', alias: '' });
+        setCurrentState('Beneficiaries_05');
+        return;
+      }
+      if (outcome.status === 'blocked' || outcome.status === 'cancelled') {
+        return;
+      }
+
+      const failure = classifyOperationFailure(outcome.error);
+      const apiError = asApiError(outcome.error);
+      const problemCode = (apiError.problem.code ?? '').toUpperCase();
+
+      if (!shouldApply()) return;
+
+      if (failure === 'session') {
+        setCurrentState('Beneficiaries_12');
+        return;
+      }
+      if (failure === 'conflict' || problemCode === 'BENEFICIARY_DUPLICATE') {
+        setCurrentState('Beneficiaries_08');
+        return;
+      }
+      if (problemCode === 'BENEFICIARY_SELF') {
+        setCurrentState('Beneficiaries_09');
+        return;
+      }
+      if (
+        failure === 'not_found' ||
+        problemCode === 'BENEFICIARY_CODE_NOT_FOUND'
+      ) {
+        setCurrentState('Beneficiaries_07');
+        return;
+      }
+      if (failure === 'validation') {
+        setCurrentState('Beneficiaries_06');
+        return;
+      }
+
+      // 403, 5xx o resultado incierto: no se afirma que el beneficiario se
+      // agregó. Se conserva el borrador para un nuevo intento consciente.
+      const message = apiError.toUserMessage();
+      const reference = apiError.requestId
+        ? ` Referencia: ${apiError.requestId}.`
+        : '';
+      Alert.alert(message.title, `${message.message}${reference}`);
+    } finally {
+      setBeneficiarySubmitting(false);
+    }
+  };
+
+  const handleDeleteBeneficiary = async () => {
+    const target = selectedBeneficiary;
+    if (!target) {
+      Alert.alert(
+        'Beneficiario no seleccionado',
+        'Vuelve a la lista y mantén presionado el beneficiario que quieres eliminar.',
+      );
+      setCurrentState('Beneficiaries_01');
+      return;
+    }
+
+    if (demoEnabled) {
+      setDeletedBeneficiary(target);
+      setSelectedBeneficiary(null);
+      setCurrentState('Beneficiaries_10');
+      return;
+    }
+    if (!services || !realReady) {
+      if (sessionGate !== 'ready') return;
+      Alert.alert(
+        'Servicio no disponible',
+        'No hay conexión con el servidor. No se eliminó el beneficiario.',
+      );
+      return;
+    }
+    if (beneficiaryDeleting) return;
+
+    const origin = currentStateRef.current;
+    const isSameActor = actorGuard();
+    const shouldApply = () =>
+      isSameActor() && currentStateRef.current === origin;
+
+    setBeneficiaryDeleting(true);
+    try {
+      const outcome = await beneficiaryDeleteOperation.run(
+        `beneficiaries.remove|${target.id}`,
+        () => services.beneficiaries.remove(target.id),
+      );
+
+      if (outcome.status === 'confirmed') {
+        beneficiaries.reload();
+        if (!shouldApply()) return;
+        setDeletedBeneficiary(target);
+        setSelectedBeneficiary(null);
+        setCurrentState('Beneficiaries_10');
+        return;
+      }
+      if (outcome.status === 'blocked' || outcome.status === 'cancelled') {
+        return;
+      }
+
+      const failure = classifyOperationFailure(outcome.error);
+      const apiError = asApiError(outcome.error);
+      if (!shouldApply()) return;
+
+      if (failure === 'session') {
+        setCurrentState('Beneficiaries_11');
+        return;
+      }
+      if (failure === 'not_found') {
+        beneficiaries.reload();
+        Alert.alert(
+          'Beneficiario no encontrado',
+          'Este beneficiario ya no está en tu lista.',
+        );
+        setSelectedBeneficiary(null);
+        setCurrentState('Beneficiaries_01');
+        return;
+      }
+      const message = apiError.toUserMessage();
+      Alert.alert(message.title, message.message);
+    } finally {
+      setBeneficiaryDeleting(false);
+    }
+  };
+
+  // ── Fase 8: escrituras de efectivo ─────────────────────────
+  const submitCash = async (
+    direction: CashDirection,
+    input: CashFormSubmit,
+  ) => {
+    setCashDraft({ direction, input });
+    setCashResult(null);
+    setCashRejected(null);
+
+    if (demoEnabled) {
+      setCurrentState(direction === 'income' ? 'Cash_04' : 'Cash_05');
+      return;
+    }
+    if (!services || !realReady) {
+      if (sessionGate !== 'ready') return;
+      Alert.alert(
+        'Servicio no disponible',
+        'No hay conexión con el servidor. No se guardó el registro.',
+      );
+      return;
+    }
+    if (cashSubmitting) return;
+
+    const origin = currentStateRef.current;
+    const isSameActor = actorGuard();
+    const shouldApply = () =>
+      isSameActor() && currentStateRef.current === origin;
+
+    // El backend es la fuente de verdad del saldo: se refrescan los listados
+    // afectados sin calcular saldos en el cliente.
+    const refreshCashViews = () => {
+      cashRegister.reload();
+      reloadMovements();
+      budgets.reload();
+      analytics.reload();
+    };
+
+    setCashSubmitting(true);
+    try {
+      const outcome = await cashOperation.run(
+        `cash.create|${direction}|${input.amountCents}|${input.categoryId ?? ''}|${input.note}`,
+        (idempotencyKey) =>
+          services.cash.createMovement(
+            {
+              direction,
+              amountCents: input.amountCents,
+              categoryId: input.categoryId,
+              note: input.note,
+            },
+            { idempotencyKey },
+          ),
+      );
+
+      if (outcome.status === 'confirmed' && outcome.value) {
+        const mapped = mapCashResult(outcome.value);
+        setCashResult(mapped);
+        setCashDraft(null);
+        refreshCashViews();
+        if (!shouldApply()) return;
+        setCurrentState(direction === 'income' ? 'Cash_04' : 'Cash_05');
+        return;
+      }
+      if (outcome.status === 'blocked' || outcome.status === 'cancelled') {
+        return;
+      }
+
+      const failure = classifyOperationFailure(outcome.error);
+      const apiError = asApiError(outcome.error);
+      const problemCode = (apiError.problem.code ?? '').toUpperCase();
+
+      if (failure === 'insufficient_funds') {
+        cashRegister.reload();
+      }
+      if (!shouldApply()) return;
+
+      switch (failure) {
+        case 'session':
+          setCurrentState('Cash_08');
+          break;
+        case 'insufficient_funds':
+          setCashRejected({
+            attemptedCents: input.amountCents,
+            categoryName: input.categoryName,
+            errorReference: apiError.requestId ?? null,
+          });
+          setCurrentState('Cash_07');
+          break;
+        case 'not_found':
+          if (problemCode === 'CATEGORY_NOT_FOUND') {
+            // La categoría ya no sirve: se limpia del borrador para que el
+            // usuario elija otra sin reenviar el identificador rechazado.
+            setCashDraft({
+              direction,
+              input: { ...input, categoryId: null },
+            });
+            setCashRejected({
+              attemptedCents: input.amountCents,
+              categoryName: input.categoryName,
+              errorReference: apiError.requestId ?? null,
+            });
+            setCurrentState('Cash_09');
+          } else {
+            setCashRejected({
+              attemptedCents: input.amountCents,
+              categoryName: input.categoryName,
+              errorReference: apiError.requestId ?? null,
+            });
+            setCurrentState('Cash_11');
+          }
+          break;
+        case 'conflict':
+          setCurrentState('Cash_10');
+          break;
+        case 'validation':
+        case 'forbidden': {
+          const message = apiError.toUserMessage();
+          Alert.alert(message.title, message.message);
+          break;
+        }
+        default:
+          setCashRejected({
+            attemptedCents: input.amountCents,
+            categoryName: input.categoryName,
+            errorReference: apiError.requestId ?? null,
+          });
+          setCurrentState('Cash_11');
+      }
+    } finally {
+      setCashSubmitting(false);
+    }
+  };
+
+  const handleCashSubmit = (input: CashFormSubmit) => {
+    const direction: CashDirection =
+      currentStateRef.current === 'Cash_02' ? 'income' : 'expense';
+    void submitCash(direction, input);
+  };
+
+  const retryCash = () => {
+    if (!cashDraft) {
+      setCurrentState('Cash_01');
+      return;
+    }
+    void submitCash(cashDraft.direction, cashDraft.input);
+  };
+
+  // ── Fase 8: escrituras de presupuestos ─────────────────────
+  const submitBudget = async (
+    mode: 'create' | 'update',
+    draft: {
+      readonly categoryId: string;
+      readonly categoryName: string;
+      readonly period: string;
+      readonly limitCents: number;
+    },
+  ) => {
+    setBudgetDraft({ mode, ...draft });
+    setBudgetErrorReference(null);
+
+    if (demoEnabled) {
+      if (mode === 'create') {
+        setCreatedBudget(null);
+        setCurrentState('Budgets_09');
+      } else {
+        setCurrentState('Budgets_01');
+      }
+      return;
+    }
+    if (!services || !realReady) {
+      if (sessionGate !== 'ready') return;
+      Alert.alert(
+        'Servicio no disponible',
+        'No hay conexión con el servidor. No se guardó el presupuesto.',
+      );
+      return;
+    }
+    if (mode === 'update' && !selectedBudget) {
+      Alert.alert(
+        'Presupuesto no seleccionado',
+        'Elige un presupuesto de la lista para editarlo.',
+      );
+      setCurrentState('Budgets_01');
+      return;
+    }
+    if (budgetSubmitting) return;
+
+    const origin = currentStateRef.current;
+    const isSameActor = actorGuard();
+    const shouldApply = () =>
+      isSameActor() && currentStateRef.current === origin;
+    const operation =
+      mode === 'create' ? budgetCreateOperation : budgetUpdateOperation;
+    const fingerprint =
+      mode === 'create'
+        ? `budgets.create|${draft.categoryId}|${draft.period}|${draft.limitCents}`
+        : `budgets.update|${selectedBudget?.id ?? ''}|${draft.limitCents}`;
+
     setBudgetSubmitting(true);
     try {
-      const created = await services.budgets.create(input);
-      setCreatedBudget(mapBudget(created));
-      budgets.reload();
-      setCurrentState('Budgets_09');
-    } catch (error) {
-      switch (classifyOperationFailure(error)) {
-        case 'session': setCurrentState('Budgets_13'); break;
-        case 'conflict': setCurrentState('Budgets_10'); break;
-        case 'validation': setCurrentState('Budgets_11'); break;
-        default: setCurrentState('Budgets_12');
+      // El backend de presupuestos no implementa Idempotency-Key: la clave
+      // local solo impide el doble envío mientras la solicitud está en curso.
+      const outcome = await operation.run(fingerprint, () =>
+        mode === 'create'
+          ? services.budgets.create({
+              categoryId: draft.categoryId,
+              period: draft.period,
+              limitCents: draft.limitCents,
+            })
+          : services.budgets.update(selectedBudget?.id ?? '', {
+              limitCents: draft.limitCents,
+            }),
+      );
+
+      if (outcome.status === 'confirmed' && outcome.value) {
+        const mapped = mapBudget(outcome.value);
+        budgets.reload();
+        if (!shouldApply()) return;
+        if (mode === 'create') {
+          setCreatedBudget(mapped);
+          setBudgetDraft(null);
+          setCurrentState('Budgets_09');
+        } else {
+          setSelectedBudget(mapped);
+          setBudgetDraft(null);
+          setCurrentState('Budgets_01');
+        }
+        return;
       }
+      if (outcome.status === 'blocked' || outcome.status === 'cancelled') {
+        return;
+      }
+
+      const failure = classifyOperationFailure(outcome.error);
+      const apiError = asApiError(outcome.error);
+      const problemCode = (apiError.problem.code ?? '').toUpperCase();
+      if (!shouldApply()) return;
+
+      if (failure === 'session') {
+        setCurrentState('Budgets_13');
+        return;
+      }
+      if (failure === 'conflict') {
+        setBudgetConflictName(draft.categoryName);
+        setCurrentState('Budgets_10');
+        return;
+      }
+      if (failure === 'not_found') {
+        budgets.reload();
+        Alert.alert(
+          'Presupuesto no encontrado',
+          'Este presupuesto ya no está disponible. Actualizamos la lista.',
+        );
+        setSelectedBudget(null);
+        setCurrentState('Budgets_01');
+        return;
+      }
+      if (failure === 'validation') {
+        // 422: se conserva el borrador y se pide corregir sin inventar datos.
+        const message = apiError.toUserMessage();
+        const detail =
+          problemCode === 'INVALID_CATEGORY'
+            ? 'La categoría no existe o está inactiva. Elige otra.'
+            : problemCode === 'BUDGET_SCOPE_IMMUTABLE'
+              ? 'La categoría y el periodo no se pueden cambiar.'
+              : message.message;
+        Alert.alert(message.title, detail);
+        return;
+      }
+      if (failure === 'forbidden') {
+        const message = apiError.toUserMessage();
+        Alert.alert(message.title, message.message);
+        return;
+      }
+
+      setBudgetErrorReference(apiError.requestId ?? null);
+      setCurrentState('Budgets_12');
     } finally {
       setBudgetSubmitting(false);
     }
   };
 
-  const handleGoalCreate = async (input: CreateGoalInput) => {
-    if (demoEnabled) {
-      openSimulatedSuccess('Goals_04', 'Goals_08');
+  const handleCreateBudget = (input: BudgetFormSubmit) => {
+    void submitBudget('create', input);
+  };
+
+  const handleUpdateBudget = (input: BudgetUpdateSubmit) => {
+    if (!selectedBudget) {
+      Alert.alert(
+        'Presupuesto no seleccionado',
+        'Elige un presupuesto de la lista para editarlo.',
+      );
+      setCurrentState('Budgets_01');
       return;
     }
-    if (!services || !realReady || goalSubmitting || input.targetCents < 1) return;
+    void submitBudget('update', {
+      categoryId: selectedBudget.categoryId ?? '',
+      categoryName: selectedBudget.category,
+      period: selectedBudget.period ?? currentPeriod,
+      limitCents: input.limitCents,
+    });
+  };
+
+  const retryBudget = () => {
+    if (!budgetDraft) {
+      setCurrentState('Budgets_01');
+      return;
+    }
+    void submitBudget(budgetDraft.mode, budgetDraft);
+  };
+
+  const editBudgetFromConflict = () => {
+    const existing = (budgets.data ?? []).find(
+      (item) =>
+        item.categoryId === budgetDraft?.categoryId &&
+        item.period === budgetDraft?.period,
+    );
+    if (existing) {
+      setSelectedBudget(existing);
+      setCurrentState('Budgets_05');
+      return;
+    }
+    budgets.reload();
+    Alert.alert(
+      'Actualizamos la lista',
+      'El presupuesto existente no estaba en la lista cargada. Búscalo de nuevo para editarlo.',
+    );
+    setCurrentState('Budgets_01');
+  };
+
+  // ── Fase 8: escrituras de metas ────────────────────────────
+  const submitGoal = async (
+    mode: 'create' | 'update',
+    draft: {
+      readonly name: string;
+      readonly targetCents: number;
+      readonly targetDate: string;
+    },
+  ) => {
+    setGoalDraft({ mode, ...draft });
+    setGoalErrorReference(null);
+
+    if (demoEnabled) {
+      if (mode === 'create') {
+        setCreatedGoal(null);
+        setCurrentState('Goals_04');
+      } else {
+        setUpdatedGoal(null);
+        setCurrentState('Goals_09');
+      }
+      return;
+    }
+    if (!services || !realReady) {
+      if (sessionGate !== 'ready') return;
+      Alert.alert(
+        'Servicio no disponible',
+        'No hay conexión con el servidor. No se guardó la meta.',
+      );
+      return;
+    }
+    if (mode === 'update' && !selectedGoal) {
+      Alert.alert(
+        'Meta no seleccionada',
+        'Elige una meta de la lista para editarla.',
+      );
+      setCurrentState('Goals_01');
+      return;
+    }
+    if (goalSubmitting) return;
+
+    const origin = currentStateRef.current;
+    const isSameActor = actorGuard();
+    const shouldApply = () =>
+      isSameActor() && currentStateRef.current === origin;
+    const operation =
+      mode === 'create' ? goalCreateOperation : goalUpdateOperation;
+    const fingerprint =
+      mode === 'create'
+        ? `goals.create|${draft.name}|${draft.targetCents}|${draft.targetDate}`
+        : `goals.update|${selectedGoal?.id ?? ''}|${draft.name}|${draft.targetCents}|${draft.targetDate}`;
+
     setGoalSubmitting(true);
     try {
-      const created = await services.goals.create(input);
-      setCreatedGoal(mapGoal(created));
-      goals.reload();
-      setCurrentState('Goals_04');
-    } catch (error) {
-      const failure = classifyOperationFailure(error);
-      if (failure === 'session') setCurrentState('Goals_02');
-      else if (failure === 'conflict') setCurrentState('Goals_07');
-      else if (failure === 'validation') setCurrentState('Goals_07');
-      else setCurrentState('Goals_08');
+      // El backend de metas no implementa Idempotency-Key: la clave local solo
+      // impide el doble envío mientras la solicitud está en curso.
+      const outcome = await operation.run(fingerprint, () =>
+        mode === 'create'
+          ? services.goals.create({
+              name: draft.name,
+              targetCents: draft.targetCents,
+              targetDate: draft.targetDate,
+            })
+          : services.goals.update(selectedGoal?.id ?? '', {
+              name: draft.name,
+              targetCents: draft.targetCents,
+              targetDate: draft.targetDate,
+            }),
+      );
+
+      if (outcome.status === 'confirmed' && outcome.value) {
+        const mapped = mapGoal(outcome.value);
+        goals.reload();
+        if (!shouldApply()) return;
+        if (mode === 'create') {
+          setCreatedGoal(mapped);
+          setGoalDraft(null);
+          setCurrentState('Goals_04');
+        } else {
+          setUpdatedGoal(mapped);
+          setSelectedGoal(mapped);
+          setGoalDraft(null);
+          setCurrentState('Goals_09');
+        }
+        return;
+      }
+      if (outcome.status === 'blocked' || outcome.status === 'cancelled') {
+        return;
+      }
+
+      const failure = classifyOperationFailure(outcome.error);
+      const apiError = asApiError(outcome.error);
+      const problemCode = (apiError.problem.code ?? '').toUpperCase();
+      if (!shouldApply()) return;
+
+      if (failure === 'session') {
+        setCurrentState(mode === 'create' ? 'Goals_06' : 'Goals_11');
+        return;
+      }
+      if (failure === 'not_found') {
+        goals.reload();
+        if (mode === 'update') {
+          setSelectedGoal(null);
+          setCurrentState('Goals_12');
+        } else {
+          Alert.alert(
+            'Meta no encontrada',
+            'La meta que intentabas editar ya no está disponible.',
+          );
+          setCurrentState('Goals_01');
+        }
+        return;
+      }
+      if (failure === 'conflict') {
+        // 409: se conserva el borrador para cambiar el nombre.
+        const message = apiError.toUserMessage();
+        Alert.alert(message.title, message.message);
+        return;
+      }
+      if (failure === 'validation') {
+        if (problemCode === 'INVALID_TARGET_DATE') {
+          setGoalInvalid({
+            name: draft.name,
+            targetCents: draft.targetCents,
+            targetDate: draft.targetDate,
+          });
+          setCurrentState('Goals_07');
+        } else {
+          const message = apiError.toUserMessage();
+          Alert.alert(message.title, message.message);
+        }
+        return;
+      }
+      if (failure === 'forbidden') {
+        const message = apiError.toUserMessage();
+        Alert.alert(message.title, message.message);
+        return;
+      }
+
+      setGoalErrorReference(apiError.requestId ?? null);
+      setCurrentState(mode === 'create' ? 'Goals_08' : 'Goals_13');
     } finally {
       setGoalSubmitting(false);
     }
   };
 
-  const handleBudgetUpdate = async (limitCents: number) => {
-    if (demoEnabled) {
-      setCurrentState('Budgets_06');
-      return;
-    }
-    if (!services || !realReady || !selectedBudget || budgetUpdating) return;
-    setBudgetUpdating(true);
-    try {
-      const updated = await services.budgets.update(selectedBudget.id, { limitCents });
-      setSelectedBudget(mapBudget(updated));
-      budgets.reload();
-      budgetDetail.reload();
-      setCurrentState('Budgets_06');
-    } catch (error) {
-      switch (classifyOperationFailure(error)) {
-        case 'session': setCurrentState('Budgets_13'); break;
-        case 'conflict': setCurrentState('Budgets_10'); break;
-        case 'validation': setCurrentState('Budgets_11'); break;
-        default: setCurrentState('Budgets_12');
-      }
-    } finally {
-      setBudgetUpdating(false);
-    }
+  const handleCreateGoal = (input: GoalFormSubmit) => {
+    void submitGoal('create', input);
   };
 
-  const handleGoalUpdate = async (input: UpdateGoalInput) => {
-    if (demoEnabled) {
-      setCurrentState('Goals_09');
+  const handleUpdateGoal = (input: GoalFormSubmit) => {
+    if (!selectedGoal) {
+      Alert.alert('Meta no seleccionada', 'Elige una meta de la lista para editarla.');
+      setCurrentState('Goals_01');
       return;
     }
-    if (!services || !realReady || !selectedGoal || goalUpdating) return;
-    setGoalUpdating(true);
-    try {
-      const updated = await services.goals.update(selectedGoal.id, input);
-      const mapped = mapGoal(updated);
-      setSelectedGoal(mapped);
-      setCreatedGoal(mapped);
-      goals.reload();
-      goalDetail.reload();
-      setCurrentState('Goals_09');
-    } catch (error) {
-      const failure = classifyOperationFailure(error);
-      if (failure === 'session') setCurrentState('Goals_02');
-      else if (failure === 'not_found') setCurrentState('Goals_12');
-      else if (failure === 'conflict' || failure === 'validation') setCurrentState('Goals_07');
-      else setCurrentState('Goals_13');
-    } finally {
-      setGoalUpdating(false);
-    }
+    void submitGoal('update', input);
   };
 
+  const retryCreateGoal = () => {
+    if (!goalDraft) {
+      setCurrentState('Goals_05');
+      return;
+    }
+    void submitGoal('create', goalDraft);
+  };
+
+  const retryUpdateGoal = () => {
+    if (!goalDraft) {
+      setCurrentState('Goals_01');
+      return;
+    }
+    void submitGoal('update', goalDraft);
+  };
+
+  // Categorías disponibles para los formularios de escritura.
+  const expenseCategories = demoEnabled
+    ? DEMO_EXPENSE_CATEGORIES
+    : (categories.data ?? []).filter((item) => item.type === 'gasto');
+  const incomeCategories = demoEnabled
+    ? DEMO_INCOME_CATEGORIES
+    : (categories.data ?? []).filter((item) => item.type === 'ingreso');
 
   return (
     <SafeAreaView style={styles.root}>
@@ -1184,12 +2036,18 @@ function MainApp() {
           <Beneficiaries01Screen
             onBack={() => setCurrentState('Movements_01')}
             onAddBeneficiary={() => setCurrentState('Beneficiaries_04')}
-            onSendTobeneficiary={() => setCurrentState('Movements_01')}
-            onLongPressBeneficiary={(beneficiary) => {
-              setSelectedBeneficiary(beneficiary);
+            onSendTobeneficiary={(item) => startTransferToBeneficiary(item)}
+            onLongPressBeneficiary={(item) => {
+              setSelectedBeneficiary(item);
               setCurrentState('Beneficiaries_14');
             }}
-            beneficiaries={demoEnabled ? undefined : beneficiaries.data ?? []}
+            beneficiaries={
+              demoEnabled
+                ? undefined
+                : beneficiariesStatus === 'success'
+                  ? beneficiaries.data ?? []
+                  : []
+            }
           />
         )}
         {currentState === 'Beneficiaries_02' && (
@@ -1206,32 +2064,49 @@ function MainApp() {
         {currentState === 'Beneficiaries_04' && (
           <Beneficiaries04Screen
             onBack={() => setCurrentState('Beneficiaries_01')}
-            onSubmit={handleBeneficiaryCreate}
+            onSubmit={handleCreateBeneficiary}
             submitting={beneficiarySubmitting}
+            initialCode={beneficiaryDraft.code || undefined}
+            initialAlias={beneficiaryDraft.alias || undefined}
           />
         )}
         {currentState === 'Beneficiaries_05' && (
           <Beneficiaries05Screen
+            beneficiary={createdBeneficiary ?? undefined}
             onGoToList={() => setCurrentState('Beneficiaries_01')}
-            onSendMoney={() => setCurrentState('Movements_01')}
+            onSendMoney={() => {
+              if (createdBeneficiary) {
+                startTransferToBeneficiary(createdBeneficiary);
+              } else {
+                setCurrentState('Transfers_01');
+              }
+            }}
           />
         )}
         {currentState === 'Beneficiaries_06' && (
           <Beneficiaries06Screen
             onBack={() => setCurrentState('Beneficiaries_04')}
-            onRetry={() => setCurrentState('Beneficiaries_04')}
+            onRetry={handleCreateBeneficiary}
+            initialCode={beneficiaryDraft.code || undefined}
+            initialAlias={beneficiaryDraft.alias || undefined}
           />
         )}
         {currentState === 'Beneficiaries_07' && (
           <Beneficiaries07Screen
             onBack={() => setCurrentState('Beneficiaries_01')}
             onTryAgain={() => setCurrentState('Beneficiaries_04')}
+            searchedCode={beneficiaryDraft.code.trim().toUpperCase() || undefined}
           />
         )}
         {currentState === 'Beneficiaries_08' && (
           <Beneficiaries08Screen
             onBack={() => setCurrentState('Beneficiaries_04')}
             onGoToList={() => setCurrentState('Beneficiaries_01')}
+            duplicateName={
+              beneficiaryDraft.alias.trim() ||
+              beneficiaryDraft.code.trim().toUpperCase() ||
+              undefined
+            }
           />
         )}
         {currentState === 'Beneficiaries_09' && (
@@ -1242,6 +2117,7 @@ function MainApp() {
         )}
         {currentState === 'Beneficiaries_10' && (
           <Beneficiaries10Screen
+            beneficiary={deletedBeneficiary ?? undefined}
             onGoToList={() => setCurrentState('Beneficiaries_01')}
             onAddNew={() => setCurrentState('Beneficiaries_04')}
           />
@@ -1259,41 +2135,80 @@ function MainApp() {
         )}
         {currentState === 'Beneficiaries_13' && (
           <Beneficiaries13Screen
-            onRetry={() => setCurrentState('Beneficiaries_01')}
+            onRetry={() => {
+              beneficiaries.reload();
+              setCurrentState('Beneficiaries_01');
+            }}
             onBack={() => setCurrentState('Movements_01')}
+            errorReference={
+              demoEnabled ? undefined : beneficiariesError?.requestId ?? null
+            }
           />
         )}
         {currentState === 'Beneficiaries_14' && (
           <Beneficiaries14Screen
             beneficiary={selectedBeneficiary ?? undefined}
-            onConfirmDelete={() => void handleBeneficiaryDelete()}
+            onConfirmDelete={handleDeleteBeneficiary}
             onCancel={() => setCurrentState('Beneficiaries_01')}
+            submitting={beneficiaryDeleting}
           />
         )}
 
         {/* ── CATEGORIES MODULE ── */}
-        {currentState === 'Categories_01' && (
-          <Categories01Screen
-            onBack={() => setCurrentState('Movements_01')}
-            onCreate={() => setCurrentState('Categories_03')}
-            onSelectCategory={(category) => {
-              setSelectedCategory(category);
-              setCurrentState('Categories_04');
-            }}
-            categories={demoEnabled ? undefined : categories.data ?? []}
-            demo={demoEnabled}
-          />
-        )}
+        {currentState === 'Categories_01' &&
+          (demoEnabled ? (
+            <Categories01Screen
+              onBack={() => setCurrentState('Movements_01')}
+              onCreate={() => setCurrentState('Categories_03')}
+              onSelectCategory={(category) => {
+                setSelectedCategory(category);
+                setCurrentState('Categories_04');
+              }}
+              onTabPress={(tab) => {
+                if (tab === 'inicio' || tab === 'movimientos') {
+                  setCurrentState('Movements_01');
+                }
+              }}
+            />
+          ) : categoriesStatus === 'loading' || categoriesStatus === 'idle' ? (
+            <LoadingState
+              message="Cargando categorías…"
+              hint="Consultando tus categorías y el catálogo del sistema."
+            />
+          ) : categoriesStatus === 'error' ? (
+            <ErrorState
+              error={categoriesError}
+              onRetry={categories.reload}
+              onSecondary={() => setCurrentState('Movements_01')}
+            />
+          ) : (
+            <Categories01Screen
+              onBack={() => setCurrentState('Movements_01')}
+              onCreate={() => setCurrentState('Categories_03')}
+              onSelectCategory={(category) => {
+                setSelectedCategory(category);
+                setCurrentState('Categories_04');
+              }}
+              categories={categories.data ?? []}
+              demo={false}
+            />
+          ))}
         {currentState === 'Categories_02' && (
           <Categories02Screen
             onBack={() => setCurrentState('Movements_01')}
             onCreateCategory={() => setCurrentState('Categories_03')}
+            onTabPress={(tab) => {
+              if (tab === 'inicio' || tab === 'movimientos') {
+                setCurrentState('Movements_01');
+              }
+            }}
+            demo={demoEnabled}
           />
         )}
         {currentState === 'Categories_03' && (
           <Categories03Screen
             onBack={() => setCurrentState('Categories_01')}
-            onSubmit={handleCategoryDraft}
+            onSubmit={handleCategorySubmit}
             onCancel={() => setCurrentState('Categories_01')}
             submitting={categorySubmitting}
             demo={demoEnabled}
@@ -1303,10 +2218,9 @@ function MainApp() {
           <Categories04Screen
             categoryName={selectedCategory.name}
             categoryType={selectedCategory.type}
+            isSystem={selectedCategory.isSystem === true}
             onBack={() => setCurrentState('Categories_01')}
-            onSave={(name, _color, type) => {
-              void handleCategoryUpdate(name || selectedCategory.name, _color, type);
-            }}
+            onSave={handleCategorySubmit}
             onDelete={() => setCurrentState('Categories_08')}
             onCancel={() => setCurrentState('Categories_01')}
             submitting={categorySubmitting}
@@ -1316,7 +2230,7 @@ function MainApp() {
         {currentState === 'Categories_05' && (
           <Categories05Screen
             categoryName={selectedCategory.name}
-            onCreateBudget={() => setCurrentState('Movements_01')}
+            onCreateBudget={() => setCurrentState('Budgets_04')}
             onViewCategories={() => setCurrentState('Categories_01')}
             demo={demoEnabled}
           />
@@ -1324,16 +2238,22 @@ function MainApp() {
         {currentState === 'Categories_06' && (
           <Categories06Screen
             onBack={() => setCurrentState('Categories_03')}
-            onCreate={handleCategoryDraft}
+            onCreate={handleCategorySubmit}
             onViewCategories={() => setCurrentState('Categories_01')}
+            initialName={categoryDraft.name || selectedCategory.name}
+            initialType={categoryDraft.type}
+            submitting={categorySubmitting}
             demo={demoEnabled}
           />
         )}
         {currentState === 'Categories_07' && (
           <Categories07Screen
             onBack={() => setCurrentState('Categories_03')}
-            onSubmit={handleCategoryDraft}
+            onSubmit={handleCategorySubmit}
             onCancel={() => setCurrentState('Categories_01')}
+            initialName={categoryDraft.name}
+            initialType={categoryDraft.type}
+            errorMessage={categoryFormError ?? undefined}
             submitting={categorySubmitting}
             demo={demoEnabled}
           />
@@ -1341,9 +2261,9 @@ function MainApp() {
         {currentState === 'Categories_08' && (
           <Categories08Screen
             categoryName={selectedCategory.name}
-            onConfirmDelete={() => void handleCategoryDelete()}
+            onConfirmDelete={handleCategoryDelete}
             onCancel={() => setCurrentState('Categories_04')}
-            submitting={categorySubmitting}
+            submitting={categoryDeleting}
             demo={demoEnabled}
           />
         )}
@@ -1650,39 +2570,107 @@ function MainApp() {
         )}
 
         {/* ── CASH MODULE ── */}
-        {currentState === 'Cash_01' && (
-          <Cash01Screen
-            onBack={() => setCurrentState('Movements_01')}
-            onRegisterExpense={() => setCurrentState('Cash_03')}
-            onRegisterIncome={() => setCurrentState('Cash_02')}
-            availableCents={demoEnabled ? undefined : cashRegister.balance?.availableCents ?? 0}
-            recentTransactions={demoEnabled ? undefined : cashRegister.transactions}
-            demo={demoEnabled}
-            loading={!demoEnabled && (cashRegister.status === 'loading' || cashRegister.status === 'idle')}
-            onTabPress={(tab) => {
-              if (tab === 'inicio' || tab === 'movimientos') {
-                setCurrentState('Movements_01');
-              }
-            }}
-          />
-        )}
+        {currentState === 'Cash_01' &&
+          (demoEnabled ? (
+            <Cash01Screen
+              onBack={() => setCurrentState('Movements_01')}
+              onRegisterExpense={() => setCurrentState('Cash_03')}
+              onRegisterIncome={() => setCurrentState('Cash_02')}
+              onViewHistory={() => setCurrentState('Cash_12')}
+              onTabPress={(tab) => {
+                if (tab === 'inicio' || tab === 'movimientos') {
+                  setCurrentState('Movements_01');
+                }
+              }}
+            />
+          ) : cashStatus === 'loading' || cashStatus === 'idle' ? (
+            <LoadingState
+              message="Cargando tu efectivo…"
+              hint="Consultando el saldo y los movimientos recientes."
+            />
+          ) : cashStatus === 'error' ? (
+            <ErrorState
+              error={cashError}
+              onRetry={cashRegister.reload}
+              onSecondary={() => setCurrentState('Movements_01')}
+            />
+          ) : (
+            <Cash01Screen
+              onBack={() => setCurrentState('Movements_01')}
+              onRegisterExpense={() => setCurrentState('Cash_03')}
+              onRegisterIncome={() => setCurrentState('Cash_02')}
+              onViewHistory={() => setCurrentState('Cash_12')}
+              onTabPress={(tab) => {
+                if (tab === 'inicio' || tab === 'movimientos') {
+                  setCurrentState('Movements_01');
+                }
+              }}
+              availableCents={cashRegister.balance?.availableCents}
+              recentTransactions={cashRegister.transactions}
+              demo={false}
+            />
+          ))}
         {currentState === 'Cash_02' && (
           <Cash02Screen
             onBack={() => setCurrentState('Cash_01')}
-            onSave={handleCashCreate}
+            onSubmit={handleCashSubmit}
             onCancel={() => setCurrentState('Cash_01')}
-            demo={demoEnabled}
             submitting={cashSubmitting}
+            demo={demoEnabled}
+            categories={incomeCategories}
+            initialAmountText={
+              cashDraft?.direction === 'income'
+                ? formatCashAmount(cashDraft.input.amountCents)
+                : undefined
+            }
+            initialNote={
+              cashDraft?.direction === 'income'
+                ? cashDraft.input.note
+                : undefined
+            }
+            initialCategoryId={
+              cashDraft?.direction === 'income'
+                ? cashDraft.input.categoryId
+                : undefined
+            }
+            initialCategoryName={
+              cashDraft?.direction === 'income'
+                ? cashDraft.input.categoryName
+                : undefined
+            }
           />
         )}
         {currentState === 'Cash_03' && (
           <Cash03Screen
             onBack={() => setCurrentState('Cash_01')}
-            onSave={handleCashCreate}
+            onSubmit={handleCashSubmit}
             onCancel={() => setCurrentState('Cash_01')}
-            demo={demoEnabled}
             submitting={cashSubmitting}
-            availableCents={demoEnabled ? undefined : cashRegister.balance?.availableCents ?? 0}
+            demo={demoEnabled}
+            categories={expenseCategories}
+            availableCents={
+              demoEnabled ? undefined : cashRegister.balance?.availableCents
+            }
+            initialAmountText={
+              cashDraft?.direction === 'expense'
+                ? formatCashAmount(cashDraft.input.amountCents)
+                : undefined
+            }
+            initialNote={
+              cashDraft?.direction === 'expense'
+                ? cashDraft.input.note
+                : undefined
+            }
+            initialCategoryId={
+              cashDraft?.direction === 'expense'
+                ? cashDraft.input.categoryId
+                : undefined
+            }
+            initialCategoryName={
+              cashDraft?.direction === 'expense'
+                ? cashDraft.input.categoryName
+                : undefined
+            }
           />
         )}
         {currentState === 'Cash_04' && (
@@ -1706,23 +2694,31 @@ function MainApp() {
             onBack={() => setCurrentState('Cash_03')}
             onSave={() => setCurrentState('Cash_03')}
             onCancel={() => setCurrentState('Cash_01')}
+            demo={demoEnabled}
           />
         )}
         {currentState === 'Cash_07' && (
           <Cash07Screen
             onFixAmount={() => setCurrentState('Cash_03')}
             onRegisterIncome={() => setCurrentState('Cash_02')}
+            attemptedCents={cashRejected?.attemptedCents}
+            availableCents={
+              demoEnabled ? undefined : cashRegister.balance?.availableCents
+            }
+            demo={demoEnabled}
           />
         )}
         {currentState === 'Cash_08' && (
           <Cash08Screen
             onLogin={() => setCurrentState('Movements_01')}
+            demo={demoEnabled}
           />
         )}
         {currentState === 'Cash_09' && (
           <Cash09Screen
             onChooseCategory={() => setCurrentState('Cash_03')}
             onCreateCategory={() => setCurrentState('Categories_03')}
+            categoryName={cashRejected?.categoryName}
             demo={demoEnabled}
           />
         )}
@@ -1730,51 +2726,63 @@ function MainApp() {
           <Cash10Screen
             onViewCash={() => setCurrentState('Cash_01')}
             onRegisterAnother={() => setCurrentState('Cash_03')}
+            result={cashResult ?? undefined}
             demo={demoEnabled}
           />
         )}
         {currentState === 'Cash_11' && (
           <Cash11Screen
-            onRetry={() => setCurrentState('Cash_03')}
+            onRetry={retryCash}
             onCancel={() => setCurrentState('Cash_01')}
+            demo={demoEnabled}
+            errorReference={cashRejected?.errorReference ?? null}
           />
         )}
         {currentState === 'Cash_12' && (
           <Cash12Screen
             onBack={() => setCurrentState('Cash_01')}
-            recentTransactions={demoEnabled ? undefined : cashRegister.transactions}
-            demo={demoEnabled}
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
               }
             }}
+            transactions={demoEnabled ? undefined : cashRegister.transactions}
+            demo={demoEnabled}
           />
         )}
 
         {/* ── BUDGETS MODULE ── */}
-        {currentState === 'Budgets_01' && (
-          <Budgets01Screen
-            onBack={() => setCurrentState('Movements_01')}
-            onCreate={() => setCurrentState('Budgets_04')}
-            budgets={demoEnabled ? undefined : budgets.data ?? []}
-            onSelectBudget={(budget) => {
-              setSelectedBudget(budget);
-              setCurrentState('Budgets_06');
-            }}
-            periodLabel={
-              demoEnabled
-                ? undefined
-                : formatMonthPeriodLabel(budgets.data?.[0]?.period ?? '')
-            }
-            demo={demoEnabled}
-            onTabPress={(tab) => {
-              if (tab === 'inicio' || tab === 'movimientos') {
-                setCurrentState('Movements_01');
+        {currentState === 'Budgets_01' &&
+          (!demoEnabled && budgetsStatus === 'error' ? (
+            <ErrorState
+              error={budgetsError}
+              onRetry={budgets.reload}
+              onSecondary={() => setCurrentState('Movements_01')}
+            />
+          ) : (
+            <Budgets01Screen
+              onBack={() => setCurrentState('Movements_01')}
+              onCreate={() => setCurrentState('Budgets_04')}
+              onSelectBudget={(budget) => {
+                setSelectedBudget(budget);
+                setCurrentState('Budgets_05');
+              }}
+              onTabPress={(tab) => {
+                if (tab === 'inicio' || tab === 'movimientos') {
+                  setCurrentState('Movements_01');
+                }
+              }}
+              budgets={demoEnabled ? undefined : budgets.data ?? []}
+              monthLabel={
+                demoEnabled
+                  ? undefined
+                  : formatMonthPeriodLabel(
+                      budgets.data?.[0]?.period ?? currentPeriod,
+                    )
               }
-            }}
-          />
-        )}
+              demo={demoEnabled}
+            />
+          ))}
         {currentState === 'Budgets_02' && (
           <Budgets02Screen
             onBack={() => setCurrentState('Movements_01')}
@@ -1784,38 +2792,68 @@ function MainApp() {
                 setCurrentState('Movements_01');
               }
             }}
+            demo={demoEnabled}
           />
         )}
-        {currentState === 'Budgets_03' && (
-          <Budgets03Screen
-            onBack={() => setCurrentState('Movements_01')}
-            onTabPress={(tab) => {
-              if (tab === 'inicio' || tab === 'movimientos') {
-                setCurrentState('Movements_01');
+        {currentState === 'Budgets_03' &&
+          (!demoEnabled && budgetsStatus === 'error' ? (
+            <ErrorState
+              error={budgetsError}
+              onRetry={budgets.reload}
+              onSecondary={() => setCurrentState('Movements_01')}
+            />
+          ) : (
+            <Budgets03Screen
+              onBack={() => setCurrentState('Movements_01')}
+              onTabPress={(tab) => {
+                if (tab === 'inicio' || tab === 'movimientos') {
+                  setCurrentState('Movements_01');
+                }
+              }}
+              monthLabel={
+                demoEnabled
+                  ? undefined
+                  : formatMonthPeriodLabel(
+                      budgets.data?.[0]?.period ?? currentPeriod,
+                    )
               }
-            }}
-          />
-        )}
+              demo={demoEnabled}
+            />
+          ))}
         {currentState === 'Budgets_04' && (
           <Budgets04Screen
             onBack={() => setCurrentState('Budgets_01')}
-            onCreateInput={handleBudgetCreate}
+            onCreate={handleCreateBudget}
             onCancel={() => setCurrentState('Budgets_01')}
-            categoryId={categories.data?.find((item) => item.type === 'gasto')?.id}
-            categoryName={categories.data?.find((item) => item.type === 'gasto')?.name}
-            demo={demoEnabled}
             submitting={budgetSubmitting}
+            demo={demoEnabled}
+            categories={expenseCategories}
+            period={currentPeriod}
+            initialCategoryId={
+              budgetDraft?.mode === 'create'
+                ? budgetDraft.categoryId
+                : undefined
+            }
+            initialLimitText={
+              budgetDraft?.mode === 'create'
+                ? formatBudgetAmount(budgetDraft.limitCents)
+                : undefined
+            }
           />
         )}
         {currentState === 'Budgets_05' && (
           <Budgets05Screen
-            onBack={() => setCurrentState('Budgets_06')}
-            onSave={(limitCents) => void handleBudgetUpdate(limitCents)}
-            onCancel={() => setCurrentState('Budgets_01')}
             budget={selectedBudget ?? undefined}
+            onBack={() => setCurrentState('Budgets_01')}
+            onSave={handleUpdateBudget}
+            onCancel={() => setCurrentState('Budgets_01')}
+            submitting={budgetSubmitting}
             demo={demoEnabled}
-            submitting={budgetUpdating}
-            onDelete={demoEnabled ? () => setCurrentState('Budgets_01') : undefined}
+            initialLimitText={
+              budgetDraft?.mode === 'update'
+                ? formatBudgetAmount(budgetDraft.limitCents)
+                : undefined
+            }
           />
         )}
         {currentState === 'Budgets_06' && (
@@ -1846,15 +2884,17 @@ function MainApp() {
         {currentState === 'Budgets_09' && (
           <Budgets09Screen
             budget={createdBudget ?? undefined}
-            demo={demoEnabled}
             onViewBudgets={() => setCurrentState('Budgets_01')}
             onCreateAnother={() => setCurrentState('Budgets_04')}
+            demo={demoEnabled}
           />
         )}
         {currentState === 'Budgets_10' && (
           <Budgets10Screen
-            onEditExisting={() => setCurrentState('Budgets_05')}
+            onEditExisting={editBudgetFromConflict}
             onCancel={() => setCurrentState('Budgets_01')}
+            categoryName={budgetConflictName ?? undefined}
+            demo={demoEnabled}
           />
         )}
         {currentState === 'Budgets_11' && (
@@ -1862,127 +2902,208 @@ function MainApp() {
             onBack={() => setCurrentState('Budgets_04')}
             onSubmit={() => setCurrentState('Budgets_04')}
             onCancel={() => setCurrentState('Budgets_01')}
+            demo={demoEnabled}
           />
         )}
         {currentState === 'Budgets_12' && (
           <Budgets12Screen
-            onRetry={() => setCurrentState('Budgets_04')}
+            onRetry={retryBudget}
             onCancel={() => setCurrentState('Budgets_01')}
+            demo={demoEnabled}
+            errorReference={budgetErrorReference}
           />
         )}
         {currentState === 'Budgets_13' && (
           <Budgets13Screen
             onLogin={() => setCurrentState('Movements_01')}
+            demo={demoEnabled}
           />
         )}
 
         {/* ── GOALS MODULE ── */}
-        {currentState === 'Goals_01' && (
-          <Goals01Screen
-            onBack={() => setCurrentState('Movements_01')}
-            onCreate={() => setCurrentState('Goals_05')}
-            goals={demoEnabled ? undefined : goals.data ?? []}
-            demo={demoEnabled}
-            loading={!demoEnabled && (goals.status === 'loading' || goals.status === 'idle')}
-            onSelectGoal={(goal) => {
-              setSelectedGoal(goal);
-              setCurrentState('Goals_10');
-            }}
-            onTabPress={(tab) => {
-              if (tab === 'inicio' || tab === 'movimientos') {
-                setCurrentState('Movements_01');
-              }
-            }}
-          />
-        )}
+        {currentState === 'Goals_01' &&
+          (!demoEnabled &&
+          (goalsStatus === 'loading' || goalsStatus === 'idle') ? (
+            <LoadingState
+              message="Cargando tus metas…"
+              hint="Consultando tus metas de ahorro."
+            />
+          ) : (
+            <Goals01Screen
+              onBack={() => setCurrentState('Movements_01')}
+              onCreate={() => setCurrentState('Goals_05')}
+              onSelectGoal={(goal) => {
+                setSelectedGoal(goal);
+                setGoalDraft(null);
+                setCurrentState('Goals_10');
+              }}
+              onTabPress={(tab) => {
+                if (tab === 'inicio' || tab === 'movimientos') {
+                  setCurrentState('Movements_01');
+                }
+              }}
+              goals={demoEnabled ? undefined : goals.data ?? []}
+              demo={demoEnabled}
+            />
+          ))}
         {currentState === 'Goals_02' && (
           <Goals02Screen
             onLogin={() => setCurrentState('Movements_01')}
+            demo={demoEnabled}
           />
         )}
         {currentState === 'Goals_03' && (
-          <Goals03Screen onRetry={() => setCurrentState('Goals_01')} />
+          <Goals03Screen
+            onRetry={() => {
+              goals.reload();
+              setCurrentState('Goals_01');
+            }}
+            demo={demoEnabled}
+          />
         )}
         {currentState === 'Goals_04' && (
           <Goals04Screen
-            goal={createdGoal ?? undefined}
+            goal={demoEnabled ? undefined : createdGoal ?? undefined}
+            onViewGoal={() => {
+              goals.reload();
+              setCurrentState('Goals_01');
+            }}
+            onBackToGoals={() => {
+              goals.reload();
+              setCurrentState('Goals_01');
+            }}
             demo={demoEnabled}
-            onViewGoal={() => setCurrentState('Goals_01')}
-            onBackToGoals={() => setCurrentState('Goals_01')}
           />
         )}
         {currentState === 'Goals_05' && (
           <Goals05Screen
             onBack={() => setCurrentState('Goals_01')}
-            onCreateInput={handleGoalCreate}
+            onCreate={handleCreateGoal}
             onCancel={() => setCurrentState('Goals_01')}
-            demo={demoEnabled}
             submitting={goalSubmitting}
+            demo={demoEnabled}
+            initialName={
+              goalDraft?.mode === 'create' ? goalDraft.name : undefined
+            }
+            initialAmountText={
+              goalDraft?.mode === 'create'
+                ? formatGoalAmount(goalDraft.targetCents)
+                : undefined
+            }
+            initialDate={
+              goalDraft?.mode === 'create' ? goalDraft.targetDate : undefined
+            }
           />
         )}
         {currentState === 'Goals_06' && (
           <Goals06Screen
             onLogin={() => setCurrentState('Movements_01')}
+            demo={demoEnabled}
           />
         )}
         {currentState === 'Goals_07' && (
-          <Goals07Screen onCorrect={() => setCurrentState('Goals_05')} />
+          <Goals07Screen
+            onCorrect={() =>
+              setCurrentState(
+                goalDraft?.mode === 'update' ? 'Goals_10' : 'Goals_05',
+              )
+            }
+            goalName={goalInvalid?.name}
+            targetCents={goalInvalid?.targetCents}
+            targetDateLabel={
+              goalInvalid
+                ? formatLongDateLabel(goalInvalid.targetDate)
+                : undefined
+            }
+            demo={demoEnabled}
+          />
         )}
         {currentState === 'Goals_08' && (
-          <Goals08Screen onRetry={() => setCurrentState('Goals_05')} />
+          <Goals08Screen
+            onRetry={retryCreateGoal}
+            demo={demoEnabled}
+            errorReference={goalErrorReference}
+          />
         )}
         {currentState === 'Goals_09' && (
           <Goals09Screen
-            goal={createdGoal ?? selectedGoal ?? undefined}
+            goal={demoEnabled ? undefined : updatedGoal ?? undefined}
+            onBackToGoal={() => {
+              goals.reload();
+              setCurrentState('Goals_01');
+            }}
             demo={demoEnabled}
-            onBackToGoal={() => setCurrentState('Goals_01')}
           />
         )}
         {currentState === 'Goals_10' && (
           <Goals10Screen
+            goal={selectedGoal ?? undefined}
             onBack={() => setCurrentState('Goals_01')}
-            onSave={(input) => void handleGoalUpdate(input)}
+            onSave={handleUpdateGoal}
             onCancel={() => setCurrentState('Goals_01')}
-            goal={demoEnabled ? undefined : goalDetail.data ?? selectedGoal ?? undefined}
-            loading={!demoEnabled && (goalDetail.status === 'loading' || goalDetail.status === 'idle')}
+            submitting={goalSubmitting}
             demo={demoEnabled}
-            submitting={goalUpdating}
+            initialName={
+              goalDraft?.mode === 'update' ? goalDraft.name : undefined
+            }
+            initialAmountText={
+              goalDraft?.mode === 'update'
+                ? formatGoalAmount(goalDraft.targetCents)
+                : undefined
+            }
+            initialDate={
+              goalDraft?.mode === 'update' ? goalDraft.targetDate : undefined
+            }
           />
         )}
         {currentState === 'Goals_11' && (
           <Goals11Screen
             onLogin={() => setCurrentState('Movements_01')}
+            demo={demoEnabled}
           />
         )}
         {currentState === 'Goals_12' && (
           <Goals12Screen
-            onViewGoals={() => setCurrentState('Goals_01')}
+            onViewGoals={() => {
+              goals.reload();
+              setCurrentState('Goals_01');
+            }}
             onGoHome={() => setCurrentState('Movements_01')}
+            demo={demoEnabled}
           />
         )}
         {currentState === 'Goals_13' && (
-          <Goals13Screen onRetry={() => setCurrentState('Goals_10')} />
+          <Goals13Screen
+            onRetry={retryUpdateGoal}
+            demo={demoEnabled}
+            errorReference={goalErrorReference}
+          />
         )}
 
         {/* ── Analytics Module (10 screens) ────────────────── */}
-        {currentState === 'Analytics_01' && (
-          <Analytics01Screen
-            onBack={() => setCurrentState('Movements_01')}
-            onSelectTab={(tab: AnalyticsTab) => {
-              if (tab === 'categorias') setCurrentState('Analytics_05');
-              else if (tab === 'tendencias') setCurrentState('Analytics_08');
-            }}
-            onSelectPeriod={() => setCurrentState('Analytics_02')}
-            summary={demoEnabled ? undefined : analytics.summary ?? undefined}
-            demo={demoEnabled}
-            loading={!demoEnabled && (analytics.status === 'loading' || analytics.status === 'idle')}
-            onTabPress={(tab) => {
-              if (tab === 'inicio' || tab === 'movimientos') {
-                setCurrentState('Movements_01');
-              }
-            }}
-          />
-        )}
+        {currentState === 'Analytics_01' &&
+          (!demoEnabled &&
+          (analyticsStatus === 'loading' || analyticsStatus === 'idle') ? (
+            <LoadingState
+              message="Cargando tu resumen…"
+              hint="Consultando ingresos, gastos y tendencias del periodo."
+            />
+          ) : (
+            <Analytics01Screen
+              onBack={() => setCurrentState('Movements_01')}
+              onSelectTab={(tab: AnalyticsTab) => {
+                if (tab === 'categorias') setCurrentState('Analytics_05');
+                else if (tab === 'tendencias') setCurrentState('Analytics_08');
+              }}
+              onSelectPeriod={() => setCurrentState('Analytics_02')}
+              onTabPress={(tab) => {
+                if (tab === 'inicio' || tab === 'movimientos') {
+                  setCurrentState('Movements_01');
+                }
+              }}
+              summary={demoEnabled ? undefined : analytics.summary ?? undefined}
+            />
+          ))}
         {currentState === 'Analytics_02' && (
           <Analytics02Screen
             onBack={() => setCurrentState('Analytics_01')}
@@ -2021,7 +3142,10 @@ function MainApp() {
               if (tab === 'categorias') setCurrentState('Analytics_07');
               else if (tab === 'tendencias') setCurrentState('Analytics_10');
             }}
-            onRetry={() => setCurrentState('Analytics_01')}
+            onRetry={() => {
+              analytics.reload();
+              setCurrentState('Analytics_01');
+            }}
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
@@ -2029,24 +3153,31 @@ function MainApp() {
             }}
           />
         )}
-        {currentState === 'Analytics_05' && (
-          <Analytics05Screen
-            onBack={() => setCurrentState('Analytics_01')}
-            onSelectTab={(tab: AnalyticsTab) => {
-              if (tab === 'resumen') setCurrentState('Analytics_01');
-              else if (tab === 'tendencias') setCurrentState('Analytics_08');
-            }}
-            onSelectPeriod={() => setCurrentState('Analytics_02')}
-            categories={demoEnabled ? undefined : analytics.categories ?? undefined}
-            demo={demoEnabled}
-            loading={!demoEnabled && (analytics.status === 'loading' || analytics.status === 'idle')}
-            onTabPress={(tab) => {
-              if (tab === 'inicio' || tab === 'movimientos') {
-                setCurrentState('Movements_01');
+        {currentState === 'Analytics_05' &&
+          (!demoEnabled &&
+          (analyticsStatus === 'loading' || analyticsStatus === 'idle') ? (
+            <LoadingState
+              message="Cargando gastos por categoría…"
+              hint="Consultando el desglose del periodo."
+            />
+          ) : (
+            <Analytics05Screen
+              onBack={() => setCurrentState('Analytics_01')}
+              onSelectTab={(tab: AnalyticsTab) => {
+                if (tab === 'resumen') setCurrentState('Analytics_01');
+                else if (tab === 'tendencias') setCurrentState('Analytics_08');
+              }}
+              onSelectPeriod={() => setCurrentState('Analytics_02')}
+              onTabPress={(tab) => {
+                if (tab === 'inicio' || tab === 'movimientos') {
+                  setCurrentState('Movements_01');
+                }
+              }}
+              categories={
+                demoEnabled ? undefined : analytics.categories ?? undefined
               }
-            }}
-          />
-        )}
+            />
+          ))}
         {currentState === 'Analytics_06' && (
           <Analytics06Screen
             onBack={() => setCurrentState('Analytics_05')}
@@ -2069,7 +3200,10 @@ function MainApp() {
               if (tab === 'resumen') setCurrentState('Analytics_04');
               else if (tab === 'tendencias') setCurrentState('Analytics_10');
             }}
-            onRetry={() => setCurrentState('Analytics_05')}
+            onRetry={() => {
+              analytics.reload();
+              setCurrentState('Analytics_05');
+            }}
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
@@ -2077,24 +3211,29 @@ function MainApp() {
             }}
           />
         )}
-        {currentState === 'Analytics_08' && (
-          <Analytics08Screen
-            onBack={() => setCurrentState('Analytics_01')}
-            onSelectTab={(tab: AnalyticsTab) => {
-              if (tab === 'resumen') setCurrentState('Analytics_01');
-              else if (tab === 'categorias') setCurrentState('Analytics_05');
-            }}
-            onSelectPeriod={() => setCurrentState('Analytics_02')}
-            trends={demoEnabled ? undefined : analytics.trends ?? undefined}
-            demo={demoEnabled}
-            loading={!demoEnabled && (analytics.status === 'loading' || analytics.status === 'idle')}
-            onTabPress={(tab) => {
-              if (tab === 'inicio' || tab === 'movimientos') {
-                setCurrentState('Movements_01');
-              }
-            }}
-          />
-        )}
+        {currentState === 'Analytics_08' &&
+          (!demoEnabled &&
+          (analyticsStatus === 'loading' || analyticsStatus === 'idle') ? (
+            <LoadingState
+              message="Cargando tendencias…"
+              hint="Consultando ingresos y gastos por semana."
+            />
+          ) : (
+            <Analytics08Screen
+              onBack={() => setCurrentState('Analytics_01')}
+              onSelectTab={(tab: AnalyticsTab) => {
+                if (tab === 'resumen') setCurrentState('Analytics_01');
+                else if (tab === 'categorias') setCurrentState('Analytics_05');
+              }}
+              onSelectPeriod={() => setCurrentState('Analytics_02')}
+              onTabPress={(tab) => {
+                if (tab === 'inicio' || tab === 'movimientos') {
+                  setCurrentState('Movements_01');
+                }
+              }}
+              trends={demoEnabled ? undefined : analytics.trends ?? undefined}
+            />
+          ))}
         {currentState === 'Analytics_09' && (
           <Analytics09Screen
             onBack={() => setCurrentState('Analytics_08')}
@@ -2117,7 +3256,10 @@ function MainApp() {
               if (tab === 'resumen') setCurrentState('Analytics_04');
               else if (tab === 'categorias') setCurrentState('Analytics_07');
             }}
-            onRetry={() => setCurrentState('Analytics_08')}
+            onRetry={() => {
+              analytics.reload();
+              setCurrentState('Analytics_08');
+            }}
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');

@@ -7,13 +7,15 @@ import type { GoalItem } from '../../types/goals';
 
 export interface Goals09ScreenProps {
   readonly onBackToGoal?: () => void;
+  /** Meta actualizada confirmada por el backend. */
   readonly goal?: GoalItem;
+  /** `true` solo en modo demostración. */
   readonly demo?: boolean;
 }
 
 export const Goals09Screen: React.FC<Goals09ScreenProps> = ({
   onBackToGoal,
-  goal,
+  goal = DEMO_GOAL_EDITED,
   demo = true,
 }) => {
   return (
@@ -28,15 +30,17 @@ export const Goals09Screen: React.FC<Goals09ScreenProps> = ({
       description="El monto objetivo y la fecha de tu meta se actualizaron correctamente."
       primaryLabel="Volver a mi meta"
       onPrimary={onBackToGoal}
-      demoHint={demo ? 'Previsualización DEMO · no se guardaron cambios' : undefined}
-      >
-        <GoalSummaryCard
-          goal={goal ?? DEMO_GOAL_EDITED}
-          titleSize={17}
-          padding={24}
-          amountSize={16}
-        />
-      </GoalsStatusScreen>
+      demoHint={
+        demo ? 'Previsualización DEMO · no se guardaron cambios' : undefined
+      }
+    >
+      <GoalSummaryCard
+        goal={goal}
+        titleSize={17}
+        padding={24}
+        amountSize={16}
+      />
+    </GoalsStatusScreen>
   );
 };
 

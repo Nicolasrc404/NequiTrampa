@@ -17,10 +17,11 @@ import colors from '../../theme/colors';
 
 interface Beneficiaries06ScreenProps {
   onBack?: () => void;
-  onRetry?: (code: string) => void;
+  onRetry?: (code: string, alias: string) => void;
   errorMessage?: string;
   /** Código que el usuario intentó registrar y que el servidor rechazó. */
   initialCode?: string;
+  initialAlias?: string;
 }
 
 export const Beneficiaries06Screen: React.FC<Beneficiaries06ScreenProps> = ({
@@ -28,9 +29,10 @@ export const Beneficiaries06Screen: React.FC<Beneficiaries06ScreenProps> = ({
   onRetry,
   errorMessage = 'El código ingresado no tiene el formato correcto. Revisa que sea un código válido e intenta de nuevo.',
   initialCode = 'ABCD12345',
+  initialAlias = '',
 }) => {
   const [code, setCode] = useState(initialCode); // En DEMO muestra un valor inválido
-  const [alias, setAlias] = useState('');
+  const [alias, setAlias] = useState(initialAlias);
 
   return (
     <KeyboardAvoidingView
@@ -105,7 +107,7 @@ export const Beneficiaries06Screen: React.FC<Beneficiaries06ScreenProps> = ({
         <TouchableOpacity
           style={styles.ctaButton}
           activeOpacity={0.85}
-          onPress={() => onRetry?.(code.trim())}
+          onPress={() => onRetry?.(code.trim(), alias.trim())}
           accessibilityLabel="Intentar de nuevo"
         >
           <Text style={styles.ctaText}>Intentar de nuevo</Text>

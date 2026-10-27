@@ -25,7 +25,8 @@ public sealed record DomainEvent(
     string Currency,
     string? CounterpartyClientId = null,
     string? Description = null,
-    long? BalanceAfterCents = null)
+    long? BalanceAfterCents = null,
+    string? CategoryId = null)
 {
     public static readonly JsonSerializerOptions Json = new(JsonSerializerDefaults.Web)
     {

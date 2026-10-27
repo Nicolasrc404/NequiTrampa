@@ -9,9 +9,23 @@ import {
 
 export interface Goals07ScreenProps {
   readonly onCorrect?: () => void;
+  /** Nombre de la meta rechazada. */
+  readonly goalName?: string;
+  /** Monto objetivo rechazado, en centavos. */
+  readonly targetCents?: number;
+  /** Fecha rechazada, ya formateada para lectura. */
+  readonly targetDateLabel?: string;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
-export const Goals07Screen: React.FC<Goals07ScreenProps> = ({ onCorrect }) => {
+export const Goals07Screen: React.FC<Goals07ScreenProps> = ({
+  onCorrect,
+  goalName = DEMO_GOAL_INVALID_DATE.name,
+  targetCents = DEMO_GOAL_INVALID_DATE.targetCents,
+  targetDateLabel = DEMO_GOAL_INVALID_DATE.targetDateLabel,
+  demo = true,
+}) => {
   return (
     <GoalsStatusScreen
       icon="file-text"
@@ -23,16 +37,13 @@ export const Goals07Screen: React.FC<Goals07ScreenProps> = ({ onCorrect }) => {
       description="La fecha objetivo debe ser futura. Elige una fecha posterior a hoy para crear tu meta."
       primaryLabel="Corregir información"
       onPrimary={onCorrect}
-      demoHint="Estado DEMO · sin conexión al backend"
+      demoHint={demo ? 'Estado DEMO · sin conexión al backend' : undefined}
     >
       <View style={styles.card}>
         <Text style={styles.line}>
-          {DEMO_GOAL_INVALID_DATE.name} ·{' '}
-          {formatGoalAmount(DEMO_GOAL_INVALID_DATE.targetCents)} COP
+          {goalName} · {formatGoalAmount(targetCents)} COP
         </Text>
-        <Text style={styles.line}>
-          Fecha elegida: {DEMO_GOAL_INVALID_DATE.targetDateLabel}.
-        </Text>
+        <Text style={styles.line}>Fecha elegida: {targetDateLabel}.</Text>
         <Text style={styles.line}>Cámbiala por una fecha futura.</Text>
       </View>
     </GoalsStatusScreen>

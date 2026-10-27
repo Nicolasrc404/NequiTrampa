@@ -16,12 +16,15 @@ export interface Budgets02ScreenProps {
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Budgets02Screen: React.FC<Budgets02ScreenProps> = ({
   onBack,
   onCreate,
   onTabPress,
+  demo = true,
 }) => {
   return (
     <View style={styles.root}>
@@ -42,9 +45,11 @@ export const Budgets02Screen: React.FC<Budgets02ScreenProps> = ({
           Define cuánto quieres gastar por categoría y te avisamos cuando te
           acerques al límite.
         </Text>
-        <Text style={styles.demoHint}>
-          Estado DEMO · no hay presupuestos reales
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Estado DEMO · no hay presupuestos reales
+          </Text>
+        ) : null}
       </View>
 
       <View style={styles.actionBlock}>

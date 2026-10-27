@@ -72,15 +72,38 @@ public sealed class CashTests : IDisposable
     }
 
     [Fact]
-    public async Task IdenticalEntry_Returns409()
+    public async Task IdenticalEntries_WithDifferentIntentions_AreBothCreated()
     {
         using var http = _factory.Client(Phase4.NewClient());
-        await RegisterAsync(http, Entry("income", 10_000));
 
-        var duplicate = await RegisterAsync(http, Entry("income", 10_000));
+        var first = await RegisterAsync(http, Entry("income", 10_000));
+        var second = await RegisterAsync(http, Entry("income", 10_000));
 
-        Assert.Equal(HttpStatusCode.Conflict, duplicate.StatusCode);
-        Assert.Equal("CASH_DUPLICATE", await Phase4.ProblemCodeAsync(duplicate));
+        Assert.Equal(HttpStatusCode.Created, first.StatusCode);
+        Assert.Equal(HttpStatusCode.Created, second.StatusCode);
+        var firstId = (await Phase4.BodyAsync(first)).GetProperty("movement").GetProperty("id").GetString();
+        var secondId = (await Phase4.BodyAsync(second)).GetProperty("movement").GetProperty("id").GetString();
+        Assert.NotEqual(firstId, secondId);
+
+        var balance = await Phase4.BodyAsync(await http.GetAsync("/v1/cash/balance"));
+        Assert.Equal(20_000, balance.GetProperty("availableCents").GetInt64());
+        Assert.Equal(2, balance.GetProperty("movementCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task Store_RepeatedIntentionKey_IsRejected_ButDifferentKeysCreateIndependentEntries()
+    {
+        var store = new InMemoryCashStore();
+        var owner = Phase4.NewClient();
+
+        var first = await store.AppendAsync(owner, Draft("m1", "income", 10_000, "intent-1"), CancellationToken.None);
+        var replay = await store.AppendAsync(owner, Draft("m2", "income", 10_000, "intent-1"), CancellationToken.None);
+        var independent = await store.AppendAsync(owner, Draft("m3", "income", 10_000, "intent-2"), CancellationToken.None);
+
+        Assert.Equal(CashAppendOutcome.Created, first.Outcome);
+        Assert.Equal(CashAppendOutcome.Duplicate, replay.Outcome);
+        Assert.Equal(CashAppendOutcome.Created, independent.Outcome);
+        Assert.Equal(20_000, (await store.ReadAccountAsync(owner, CancellationToken.None)).AvailableCents);
     }
 
     [Fact]

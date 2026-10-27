@@ -10,10 +10,10 @@
 // mes en curso. Solo se agregan movimientos CONFIRMADOS: la analítica nunca
 // mezcla pendientes.
 //
-// Limitación de datos vigente: `financial_movements` no proyecta `categoryId`,
-// por lo que `uncategorizedCents` puede concentrar todos los gastos. La UI
-// debe mostrar esa limitación y no presentar el bucket "Sin categoría" como
-// una clasificación financiera completa.
+// El backend proyecta `categoryId` (outbox → Workers → financial_movements) y
+// agrupa por categoría. Los movimientos sin categoría —por ejemplo eventos
+// anteriores a la categorización— se devuelven en `uncategorizedCents`, que la
+// UI muestra como "Sin categoría" y no como una clasificación completa.
 
 import type { HttpClient } from './http';
 import {

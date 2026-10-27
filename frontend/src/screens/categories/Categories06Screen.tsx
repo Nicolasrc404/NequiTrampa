@@ -25,6 +25,8 @@ export interface Categories06ScreenProps {
   /** Nombre que produjo el conflicto (para que el usuario lo corrija). */
   readonly initialName?: string;
   readonly initialType?: CategoryType;
+  /** `true` mientras el reintento de creación está en curso. */
+  readonly submitting?: boolean;
   /** `true` solo en modo demostración. */
   readonly demo?: boolean;
 }
@@ -35,6 +37,7 @@ export const Categories06Screen: React.FC<Categories06ScreenProps> = ({
   onViewCategories,
   initialName = 'Mercado',
   initialType = 'gasto',
+  submitting = false,
   demo = true,
 }) => {
   const [name, setName] = useState(initialName);
@@ -92,7 +95,8 @@ export const Categories06Screen: React.FC<Categories06ScreenProps> = ({
 
       <View style={styles.footer}>
         <CategoryActions
-          primaryLabel="Crear categoría"
+          primaryLabel={submitting ? 'Creando…' : 'Crear categoría'}
+          primaryDisabled={submitting}
           onPrimary={() => onCreate?.(name.trim(), color.trim(), type)}
           secondaryLabel="Ver categorías"
           onSecondary={onViewCategories}

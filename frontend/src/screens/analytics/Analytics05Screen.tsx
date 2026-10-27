@@ -22,7 +22,9 @@ export interface Analytics05ScreenProps {
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** Desglose confirmado por el backend. Si se omite, se usa el DEMO. */
   readonly categories?: AnalyticsCategoryData;
+  /** `true` solo en modo demostración. */
   readonly demo?: boolean;
   readonly loading?: boolean;
 }
@@ -32,14 +34,19 @@ export const Analytics05Screen: React.FC<Analytics05ScreenProps> = ({
   onSelectTab,
   onSelectPeriod,
   onTabPress,
-  categories,
-  demo = true,
+  categories: sourceCategories,
+  demo: _demo = true,
   loading = false,
 }) => {
   if (loading) {
-    return <LoadingState message="Cargando categorías…" hint="Consultando gastos confirmados." />;
+    return (
+      <LoadingState
+        message="Cargando categorías…"
+        hint="Consultando gastos confirmados."
+      />
+    );
   }
-  const data = categories ?? DEMO_CATEGORY_DATA;
+  const data = sourceCategories ?? DEMO_CATEGORY_DATA;
   return (
     <View style={styles.root}>
       <ScrollView

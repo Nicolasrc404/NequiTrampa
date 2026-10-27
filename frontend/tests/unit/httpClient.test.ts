@@ -358,6 +358,34 @@ test('una señal ya abortada no dispara la solicitud', async () => {
   assert.equal(calls.length, 0);
 });
 
+test('abortar mientras se resuelve el token no envía la solicitud', async () => {
+  const { fetcher, calls } = createFetcher(() => jsonResponse({}));
+  const controller = new AbortController();
+  let releaseToken: (token: string | null) => void = () => {};
+  const tokenReady = new Promise<string | null>((resolve) => {
+    releaseToken = resolve;
+  });
+  const client = createHttpClient({
+    baseUrl: 'https://api.test',
+    fetchImpl: fetcher,
+    getAccessToken: () => tokenReady,
+  });
+
+  const pending = client
+    .get('/v1/x', { signal: controller.signal })
+    .then(() => null, (caught: unknown) => caught as ApiError);
+
+  // La señal se cancela antes de que el proveedor de sesión responda:
+  // el listener todavía no existe, así que debe comprobarse al reanudar.
+  controller.abort();
+  releaseToken('token');
+
+  const error = await pending;
+  assert.ok(error instanceof ApiError);
+  assert.equal(error.kind, 'aborted');
+  assert.equal(calls.length, 0);
+});
+
 test('cancelar durante la solicitud se clasifica como aborted', async () => {
   const client = createHttpClient({
     baseUrl: 'https://api.test',

@@ -10,12 +10,16 @@ import { DEMO_CASH_EXPENSE_DRAFT } from '../../data/demoCash';
 export interface Cash09ScreenProps {
   readonly onChooseCategory?: () => void;
   readonly onCreateCategory?: () => void;
+  /** Nombre de la categoría rechazada por el backend. */
+  readonly categoryName?: string;
+  /** `true` solo en modo demostración. */
   readonly demo?: boolean;
 }
 
 export const Cash09Screen: React.FC<Cash09ScreenProps> = ({
   onChooseCategory,
   onCreateCategory,
+  categoryName = DEMO_CASH_EXPENSE_DRAFT.category,
   demo = true,
 }) => {
   return (
@@ -27,12 +31,14 @@ export const Cash09Screen: React.FC<Cash09ScreenProps> = ({
       badgeBackground={colors.cashWarningBadgeSoft}
       badgeColor={colors.cashWarningBadgeSoftText}
       title="Categoría no encontrada"
-      description={`No encontramos la categoría "${DEMO_CASH_EXPENSE_DRAFT.category}". Puede que se haya eliminado.`}
+      description={`No encontramos la categoría "${categoryName}". Puede que se haya eliminado.`}
       primaryLabel="Elegir otra categoría"
       onPrimary={onChooseCategory}
       secondaryLabel="Crear categoría"
       onSecondary={onCreateCategory}
-      demoHint={demo ? 'Estado DEMO · no se modificó ninguna categoría' : undefined}
+      demoHint={
+        demo ? 'Estado DEMO · no se modificó ninguna categoría' : undefined
+      }
     />
   );
 };

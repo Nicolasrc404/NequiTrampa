@@ -1,10 +1,18 @@
 import React from 'react';
-import { KeyboardTypeOptions, StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  KeyboardTypeOptions,
+  StyleSheet,
+  Text,
+  TextInput,
+  TextInputProps,
+  View,
+} from 'react-native';
 import colors from '../../theme/colors';
 
 export interface GoalFormFieldProps {
   readonly label: string;
   readonly value: string;
+  readonly placeholder?: string;
   readonly error?: boolean;
   readonly helper?: string;
   readonly helperError?: boolean;
@@ -14,14 +22,20 @@ export interface GoalFormFieldProps {
   readonly errorBorderColor?: string;
   readonly helperColor?: string;
   readonly labelColor?: string;
+  readonly onChangeText?: (text: string) => void;
+  /** Marca el campo como solo lectura. Se mantiene por compatibilidad. */
+  readonly readOnly?: boolean;
+  /** Alternativa a `readOnly`; tiene prioridad cuando se especifica. */
   readonly editable?: boolean;
-  readonly onChangeText?: (value: string) => void;
-  readonly keyboardType?: KeyboardTypeOptions;
+  readonly keyboardType?: TextInputProps['keyboardType'] | KeyboardTypeOptions;
+  readonly autoCapitalize?: TextInputProps['autoCapitalize'];
+  readonly maxLength?: number;
 }
 
 export const GoalFormField: React.FC<GoalFormFieldProps> = ({
   label,
   value,
+  placeholder,
   error = false,
   helper,
   helperError = false,
@@ -31,10 +45,15 @@ export const GoalFormField: React.FC<GoalFormFieldProps> = ({
   errorBorderColor = colors.goalsError,
   helperColor,
   labelColor = colors.goalsMuted,
-  editable = false,
   onChangeText,
+  readOnly,
+  editable,
   keyboardType = 'default',
+  autoCapitalize,
+  maxLength,
 }) => {
+  const isEditable = editable ?? !(readOnly ?? true);
+
   return (
     <View style={styles.group}>
       <Text style={[styles.label, { fontSize: labelSize, color: labelColor }]}>
@@ -49,13 +68,21 @@ export const GoalFormField: React.FC<GoalFormFieldProps> = ({
             : null,
         ]}
       >
-        {editable ? <TextInput
-          style={styles.value}
-          value={value}
-          onChangeText={onChangeText}
-          accessibilityLabel={label}
-          keyboardType={keyboardType}
-        /> : <Text style={styles.value}>{value}</Text>}
+        {isEditable ? (
+          <TextInput
+            style={styles.input}
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            placeholderTextColor={colors.goalsMuted}
+            keyboardType={keyboardType}
+            autoCapitalize={autoCapitalize}
+            maxLength={maxLength}
+            accessibilityLabel={label}
+          />
+        ) : (
+          <Text style={styles.value}>{value || placeholder}</Text>
+        )}
       </View>
       {helper ? (
         <Text
@@ -98,6 +125,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '400',
     color: colors.goalsDark,
+  },
+  input: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: colors.goalsDark,
+    paddingVertical: 0,
   },
   helper: {
     paddingLeft: 2,

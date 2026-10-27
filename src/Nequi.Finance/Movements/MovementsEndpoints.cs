@@ -25,7 +25,8 @@ public sealed record MovementDto(
     long? BalanceAfterCents,
     string? OccurredAt,
     string? SyncStatus,
-    string? Status)
+    string? Status,
+    string? CategoryId = null)
 {
     /// <summary>Maps a Firestore document dictionary to the DTO. Unknown fields are ignored.</summary>
     public static MovementDto From(IDictionary<string, object?> d)
@@ -54,7 +55,8 @@ public sealed record MovementDto(
             BalanceAfterCents: NullableLong(d, "balanceAfterCents"),
             OccurredAt: Str(d, "occurredAt"),
             SyncStatus: Str(d, "syncStatus"),
-            Status: Str(d, "status"));
+            Status: Str(d, "status"),
+            CategoryId: Str(d, "categoryId"));
     }
 }
 

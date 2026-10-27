@@ -185,6 +185,39 @@ public sealed class CategoriesTests : IDisposable
     }
 
     [Fact]
+    public async Task Create_WhileAnotherRequestIsWriting_DoesNotStealNameReservation()
+    {
+        var inner = new InMemoryDocumentStore();
+        var writing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = new FlakyDocumentStore(inner)
+        {
+            BeforeCreateAsync = async (collection, _, _) =>
+            {
+                if (collection != CategoryCollections.Categories) return;
+                writing.TrySetResult();
+                await release.Task;
+            },
+        };
+        var service = new CategoryService(store, new MovementReader(store));
+        var owner = Phase4.NewClient();
+
+        var first = service.CreateAsync(owner, new CreateCategoryRequest("Transporte", "gasto"), CancellationToken.None);
+        await writing.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        // The second request reaches the reservation while the first is still writing its
+        // category. It must report a duplicate instead of reclaiming the in-flight key.
+        var second = await service.CreateAsync(owner, new CreateCategoryRequest("Transporte", "gasto"), CancellationToken.None);
+        Assert.Equal(CategoryCreateOutcome.Duplicate, second.Outcome);
+
+        release.TrySetResult();
+        Assert.Equal(CategoryCreateOutcome.Created, (await first).Outcome);
+
+        var categories = await service.ListAsync(owner, includeInactive: false, CancellationToken.None);
+        Assert.Single(categories, c => c.Name == "Transporte");
+    }
+
+    [Fact]
     public async Task Create_WhenPersistenceFails_ReleasesNameReservation()
     {
         var inner = new InMemoryDocumentStore();

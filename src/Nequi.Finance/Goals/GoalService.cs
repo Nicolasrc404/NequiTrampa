@@ -151,6 +151,12 @@ public sealed class GoalService(IDocumentStore docs)
             : null;
     }
 
+    /// <summary>
+    /// Reserves the (owner,normalized-name) key. Never reclaims an existing reservation inline:
+    /// a concurrent request cannot distinguish a fresh reservation from an abandoned one, and
+    /// deleting it would allow two goals with the same name. The catch block compensates
+    /// in-process write failures; a key leaked by a hard process crash needs operational cleanup.
+    /// </summary>
     private async Task<bool> TryReserveKeyAsync(
         string owner, string nameKey, string keyId, string goalId, CancellationToken ct)
     {
@@ -162,16 +168,6 @@ public sealed class GoalService(IDocumentStore docs)
             ["createdAt"] = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
         };
 
-        if (await docs.CreateIfAbsentAsync(GoalCollections.Keys, keyId, payload, ct)) return true;
-
-        var existing = await docs.GetAsync(GoalCollections.Keys, keyId, ct);
-        var existingGoalId = existing is null ? null : GoalDocument.Str(existing, "goalId");
-        if (existingGoalId is null) return false;
-
-        var goal = await docs.GetAsync(GoalCollections.Goals, existingGoalId, ct);
-        if (goal is not null) return false;
-
-        await docs.DeleteAsync(GoalCollections.Keys, keyId, ct);
         return await docs.CreateIfAbsentAsync(GoalCollections.Keys, keyId, payload, ct);
     }
 

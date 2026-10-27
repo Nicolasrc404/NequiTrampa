@@ -8,14 +8,16 @@ import type { GoalItem } from '../../types/goals';
 export interface Goals04ScreenProps {
   readonly onViewGoal?: () => void;
   readonly onBackToGoals?: () => void;
+  /** Meta confirmada por el backend. */
   readonly goal?: GoalItem;
+  /** `true` solo en modo demostración. */
   readonly demo?: boolean;
 }
 
 export const Goals04Screen: React.FC<Goals04ScreenProps> = ({
   onViewGoal,
   onBackToGoals,
-  goal,
+  goal = DEMO_GOAL_CREATED,
   demo = true,
 }) => {
   return (
@@ -32,10 +34,12 @@ export const Goals04Screen: React.FC<Goals04ScreenProps> = ({
       onPrimary={onViewGoal}
       secondaryLabel="Volver a mis metas"
       onSecondary={onBackToGoals}
-      demoHint={demo ? 'Previsualización DEMO · no se creó ninguna meta' : undefined}
+      demoHint={
+        demo ? 'Previsualización DEMO · no se creó ninguna meta' : undefined
+      }
       backgroundColor={colors.goalsBgSuccess}
     >
-      <GoalSummaryCard goal={goal ?? DEMO_GOAL_CREATED} titleSize={16} padding={20} />
+      <GoalSummaryCard goal={goal} titleSize={16} padding={20} />
     </GoalsStatusScreen>
   );
 };

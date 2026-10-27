@@ -191,8 +191,9 @@ public sealed class AnalyticsService(MovementReader movements, CategoryService c
 }
 
 /// <summary>
-/// Unattributed expense bucket. Returned separately so the UI can render "Sin categoría" without
-/// inventing category names: the movement projection does not emit categoryId yet.
+/// Unattributed expense bucket. Movements without a category (legacy projections or
+/// operations the user never classified) are grouped here so the UI can render
+/// "Sin categoría" without inventing category names.
 /// </summary>
 public static class AnalyticsBuckets
 {

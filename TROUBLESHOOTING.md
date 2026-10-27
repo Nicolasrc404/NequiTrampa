@@ -317,3 +317,30 @@ Mantener el núcleo de sesión sin imports de Expo/React Native (probable en Nod
 **Prevención futura:**
 Las pruebas de contrato deben derivarse de las rutas realmente registradas; si una ruta no existe para un recurso, el aislamiento se comprueba por las operaciones que sí están expuestas.
 
+
+---
+
+## 2026-10-26 — Fase 7: endpoints no conectados y estados simulados engañosos
+
+| Fecha | Capa | Problema | Causa | Solución |
+|---|---|---|---|---|
+| 2026-10-26 | Frontend / navegación | Crear beneficiario, presupuesto, meta o movimiento de efectivo fuera de DEMO navegaba a pantallas de error 500 (`Beneficiaries_06`, `Budgets_12`, `Goals_08`, `Cash_11`) | `openSimulatedSuccess` recibía un «fallback» de error aunque no se había enviado ninguna petición | Se eliminó el fallback: fuera de DEMO se muestra un aviso explícito de función no disponible y no se navega |
+| 2026-10-26 | Frontend / TypeScript | `tsc` rechazaba el mapa de estados de error de analítica (`unauthorized`/`other` no existen en `AppState`) | El mapa se tipó como `Partial<Record<AppState, AppState>>` en vez de un objeto con dos claves de estado | Se tipó explícitamente como `{ unauthorized?: AppState; other?: AppState }` |
+| 2026-10-26 | Frontend / beneficiarios | El listado real se renderizaba vacío mientras cargaba y el error 500 mostraba una referencia `ERR-BEN-500-DEMO` | Faltaba el enrutamiento de estados de lectura y la referencia DEMO era el valor por defecto | Se enrutó carga/vacío/error/401 a `Beneficiaries_03/02/13/11` y la referencia solo se muestra con `traceId` real |
+
+**Prevención futura:**
+Una operación no conectada nunca debe simular éxito ni error de servidor; debe informar que no está disponible. Todo estado de lectura con diseño propio debe enrutarse desde `App.tsx` según `status`/`error.kind`.
+
+---
+
+## 2026-10-26 — Fase 8: escrituras reales y verificación con backend simulado
+
+| Fecha | Capa | Problema | Causa | Solución |
+|---|---|---|---|---|
+| 2026-10-26 | Frontend / pruebas | El bundle web servido durante la verificación no reflejaba los cambios recién guardados en `App.tsx` | El servidor Expo se había iniciado con `CI=1`, modo en el que Metro desactiva la recarga | Se reinició `expo start --web` sin `CI=1` para la verificación visual; el bundle de exportación sí compila el código actual |
+| 2026-10-26 | Frontend / metas | `GoalProgressCard` no compilaba con `View` sin importar tras añadir el manejo de pulsación | La edición agregó `View` al JSX sin actualizar el import de `react-native` | Se añadió `View` al import |
+| 2026-10-26 | Frontend / metas DEMO | Al seleccionar una meta, el formulario de edición mostraba la fecha de la maqueta (`2027-07-31`) en lugar de la fecha de la tarjeta | `DEMO_GOALS` solo tenía `targetDateLabel`, no `targetDate`, y el formulario cae al valor DEMO | Se añadió `targetDate` coherente a cada meta DEMO; los datos reales ya lo reciben del mapper |
+| 2026-10-26 | Frontend / pruebas | Un 422 de presupuesto no se podía simular con `limitCents: 0` porque el servicio lo rechaza antes de enviar | La validación local lanza un error genérico, no un `ApiError` | La prueba simula el 422 en el servidor (`failNextRequest`) para verificar la clasificación de la respuesta |
+
+**Prevención futura:**
+Para verificación visual, no iniciar Metro con `CI=1`. Las pruebas de errores HTTP deben originarse en el servidor simulado cuando la validación local impide construir la solicitud.

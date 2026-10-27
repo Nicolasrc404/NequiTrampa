@@ -11,28 +11,34 @@ import type { GoalItem } from '../../types/goals';
 export interface Goals01ScreenProps {
   readonly onBack?: () => void;
   readonly onCreate?: () => void;
+  readonly onSelectGoal?: (goal: GoalItem) => void;
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** Metas confirmadas por el backend. Si se omite, se usa el DEMO. */
   readonly goals?: readonly GoalItem[];
+  /** `true` solo en modo demostración. */
   readonly demo?: boolean;
   readonly loading?: boolean;
-  readonly onSelectGoal?: (goal: GoalItem) => void;
 }
 
 export const Goals01Screen: React.FC<Goals01ScreenProps> = ({
   onBack,
   onCreate,
+  onSelectGoal,
   onTabPress,
-  goals,
+  goals = DEMO_GOALS,
   demo = true,
   loading = false,
-  onSelectGoal,
 }) => {
   if (loading) {
-    return <LoadingState message="Cargando metas…" hint="Consultando tus metas informativas." />;
+    return (
+      <LoadingState
+        message="Cargando metas…"
+        hint="Consultando tus metas informativas."
+      />
+    );
   }
-  const items = goals ?? DEMO_GOALS;
   return (
     <View style={styles.root}>
       <ScrollView
@@ -54,9 +60,19 @@ export const Goals01Screen: React.FC<Goals01ScreenProps> = ({
         <Text style={styles.subtitle}>Así van tus metas financieras.</Text>
 
         <View style={styles.list}>
-          {items.map((goal) => (
-            <GoalProgressCard key={goal.id} goal={goal} onPress={() => onSelectGoal?.(goal)} />
-          ))}
+          {goals.length === 0 ? (
+            <Text style={styles.emptyText}>
+              Aún no tienes metas. Crea la primera para empezar a ahorrar.
+            </Text>
+          ) : (
+            goals.map((goal) => (
+              <GoalProgressCard
+                key={goal.id}
+                goal={goal}
+                onPress={onSelectGoal}
+              />
+            ))
+          )}
         </View>
 
         <TouchableOpacity
@@ -142,6 +158,13 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: colors.goalsWhite,
+  },
+  emptyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.goalsMuted,
+    textAlign: 'center',
+    paddingVertical: 12,
   },
   demoHint: {
     marginTop: 18,

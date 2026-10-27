@@ -10,31 +10,33 @@ import CashFilterPills from '../../components/cash/CashFilterPills';
 import CashTransactionRow from '../../components/cash/CashTransactionRow';
 import BottomNav from '../../components/common/BottomNav';
 import { DEMO_CASH_HISTORY } from '../../data/demoCash';
-import { CashFilter } from '../../types/cash';
+import { CashFilter, CashTransaction } from '../../types/cash';
 
 export interface Cash12ScreenProps {
   readonly onBack?: () => void;
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
-  readonly recentTransactions?: readonly import('../../types/cash').CashTransaction[];
+  /** Movimientos de efectivo confirmados por el backend. */
+  readonly transactions?: readonly CashTransaction[];
+  /** `true` solo en modo demostración. */
   readonly demo?: boolean;
 }
 
 export const Cash12Screen: React.FC<Cash12ScreenProps> = ({
   onBack,
   onTabPress,
-  recentTransactions,
+  transactions: source = DEMO_CASH_HISTORY,
   demo = true,
 }) => {
   const [filter, setFilter] = useState<CashFilter>('all');
 
   const transactions = useMemo(() => {
     if (filter === 'all') {
-      return recentTransactions ?? DEMO_CASH_HISTORY;
+      return source;
     }
-    return (recentTransactions ?? DEMO_CASH_HISTORY).filter((item) => item.direction === filter);
-  }, [filter, recentTransactions]);
+    return source.filter((item) => item.direction === filter);
+  }, [filter, source]);
 
   return (
     <View style={styles.root}>
@@ -77,9 +79,11 @@ export const Cash12Screen: React.FC<Cash12ScreenProps> = ({
           )}
         </View>
 
-        {demo ? <Text style={styles.demoHint}>
-          Historial DEMO · no representa movimientos reales
-        </Text> : null}
+        <Text style={styles.demoHint}>
+          {demo
+            ? 'Historial DEMO · no representa movimientos reales'
+            : 'Registro manual de efectivo · no es saldo bancario'}
+        </Text>
       </ScrollView>
 
       <BottomNav activeTab="inicio" onTabPress={onTabPress} />

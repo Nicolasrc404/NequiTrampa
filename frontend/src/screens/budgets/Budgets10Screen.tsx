@@ -9,11 +9,17 @@ import TransferStatusScreen from '../../components/transfers/TransferStatusScree
 export interface Budgets10ScreenProps {
   readonly onEditExisting?: () => void;
   readonly onCancel?: () => void;
+  /** Categoría que ya tenía presupuesto para el periodo. */
+  readonly categoryName?: string;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Budgets10Screen: React.FC<Budgets10ScreenProps> = ({
   onEditExisting,
   onCancel,
+  categoryName = 'Mercado',
+  demo = true,
 }) => {
   return (
     <TransferStatusScreen
@@ -24,14 +30,16 @@ export const Budgets10Screen: React.FC<Budgets10ScreenProps> = ({
       badge="409"
       badgeBackground={colors.budgetsLavenderBadge}
       badgeColor={colors.budgetsLavenderBadgeText}
-      title={'Ya tienes un presupuesto\npara Mercado'}
+      title={`Ya tienes un presupuesto\npara ${categoryName}`}
       titleFontSize={22}
       description="Solo puede haber un presupuesto por categoría y mes. Puedes editar el que ya existe."
       primaryLabel="Editar el existente"
       onPrimary={onEditExisting}
       secondaryLabel="Cancelar"
       onSecondary={onCancel}
-      demoHint="Estado DEMO · no se modificó ningún presupuesto"
+      demoHint={
+        demo ? 'Estado DEMO · no se modificó ningún presupuesto' : undefined
+      }
     />
   );
 };

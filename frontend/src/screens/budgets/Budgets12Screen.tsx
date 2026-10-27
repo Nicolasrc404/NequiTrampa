@@ -9,12 +9,22 @@ import TransferStatusScreen from '../../components/transfers/TransferStatusScree
 export interface Budgets12ScreenProps {
   readonly onRetry?: () => void;
   readonly onCancel?: () => void;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
+  /** Referencia de soporte (traceId) cuando exista. */
+  readonly errorReference?: string | null;
 }
 
 export const Budgets12Screen: React.FC<Budgets12ScreenProps> = ({
   onRetry,
   onCancel,
+  demo = true,
+  errorReference,
 }) => {
+  const description = errorReference
+    ? `Tuvimos un problema inesperado. Tus datos siguen aquí. Si vuelve a pasar, comparte la referencia ${errorReference}.`
+    : 'Tuvimos un problema inesperado. Tus datos siguen aquí, intenta guardar de nuevo.';
+
   return (
     <TransferStatusScreen
       icon="alert-triangle"
@@ -26,12 +36,12 @@ export const Budgets12Screen: React.FC<Budgets12ScreenProps> = ({
       badgeColor={colors.budgetsErrorIcon}
       title="No pudimos guardar el presupuesto"
       titleFontSize={24}
-      description="Tuvimos un problema inesperado. Tus datos siguen aquí, intenta guardar de nuevo."
+      description={description}
       primaryLabel="Reintentar"
       onPrimary={onRetry}
       secondaryLabel="Cancelar"
       onSecondary={onCancel}
-      demoHint="Estado DEMO · no se envió ninguna operación"
+      demoHint={demo ? 'Estado DEMO · no se envió ninguna operación' : undefined}
     />
   );
 };

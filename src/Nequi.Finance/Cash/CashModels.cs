@@ -12,7 +12,7 @@ public static class CashCollections
     /// <summary>Declared cash entries. Personal record only: never a bank/ledger movement.</summary>
     public const string Movements = "cash_movements";
 
-    /// <summary>Duplicate protection documents (owner + date + direction + amount + category + note).</summary>
+    /// <summary>Idempotency guard documents (owner + Idempotency-Key).</summary>
     public const string Dedupe = "cash_dedupe";
 
     public const string Income = "income";

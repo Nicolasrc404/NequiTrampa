@@ -4,9 +4,11 @@ import GoalsStatusScreen from '../../components/goals/GoalsStatusScreen';
 
 export interface Goals02ScreenProps {
   readonly onLogin?: () => void;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
-export const Goals02Screen: React.FC<Goals02ScreenProps> = ({ onLogin }) => {
+export const Goals02Screen: React.FC<Goals02ScreenProps> = ({ onLogin, demo = true }) => {
   return (
     <GoalsStatusScreen
       icon="lock"
@@ -18,7 +20,7 @@ export const Goals02Screen: React.FC<Goals02ScreenProps> = ({ onLogin }) => {
       description="Por seguridad cerramos tu sesión. Inicia sesión de nuevo para ver tus metas."
       primaryLabel="Iniciar sesión"
       onPrimary={onLogin}
-      demoHint="Estado DEMO · no se enviaron credenciales"
+      demoHint={demo ? 'Estado DEMO · no se enviaron credenciales' : undefined}
     />
   );
 };

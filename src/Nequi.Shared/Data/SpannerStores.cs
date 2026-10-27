@@ -139,7 +139,8 @@ public sealed class SpannerOutboxStore(SpannerDb db) : IOutboxStore
 
             var occurred = DateTimeOffset.TryParse(Str("occurredAt"), out var o) ? o : new DateTimeOffset(DateTime.SpecifyKind(created, DateTimeKind.Utc));
             evt = new DomainEvent(id, type, Str("operationId") ?? aggregate, Str("clientId") ?? "", occurred,
-                Long("amountCents") ?? 0, Str("currency") ?? "COP", Str("counterpartyClientId"), Str("description"), Long("balanceAfterCents"));
+                Long("amountCents") ?? 0, Str("currency") ?? "COP", Str("counterpartyClientId"), Str("description"),
+                Long("balanceAfterCents"), Str("categoryId"));
             if (evt.IsValid(out error)) return true;
             evt = null;
             return false;

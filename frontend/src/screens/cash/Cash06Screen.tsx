@@ -13,12 +13,15 @@ export interface Cash06ScreenProps {
   readonly onBack?: () => void;
   readonly onSave?: () => void;
   readonly onCancel?: () => void;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Cash06Screen: React.FC<Cash06ScreenProps> = ({
   onBack,
   onSave,
   onCancel,
+  demo = true,
 }) => {
   return (
     <View style={styles.root}>
@@ -64,7 +67,9 @@ export const Cash06Screen: React.FC<Cash06ScreenProps> = ({
         </View>
 
         <Text style={styles.demoHint}>
-          Validación DEMO · el backend conserva la validación definitiva
+          {demo
+            ? 'Validación DEMO · el backend conserva la validación definitiva'
+            : 'Revisa el formulario antes de enviarlo de nuevo'}
         </Text>
       </ScrollView>
 

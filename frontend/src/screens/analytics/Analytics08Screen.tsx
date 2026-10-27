@@ -22,7 +22,9 @@ export interface Analytics08ScreenProps {
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** Tendencias confirmadas por el backend. Si se omite, se usa el DEMO. */
   readonly trends?: AnalyticsTrendData;
+  /** `true` solo en modo demostración. */
   readonly demo?: boolean;
   readonly loading?: boolean;
 }
@@ -33,11 +35,16 @@ export const Analytics08Screen: React.FC<Analytics08ScreenProps> = ({
   onSelectPeriod,
   onTabPress,
   trends,
-  demo = true,
+  demo: _demo = true,
   loading = false,
 }) => {
   if (loading) {
-    return <LoadingState message="Cargando tendencias…" hint="Consultando datos confirmados." />;
+    return (
+      <LoadingState
+        message="Cargando tendencias…"
+        hint="Consultando datos confirmados."
+      />
+    );
   }
   const data = trends ?? DEMO_TREND_DATA;
   return (
@@ -77,7 +84,7 @@ export const Analytics08Screen: React.FC<Analytics08ScreenProps> = ({
 
         {/* Insight Card (Mint Green) */}
         <View style={styles.insightCard}>
-            <Text style={styles.insightTitle}>{data.insightTitle}</Text>
+          <Text style={styles.insightTitle}>{data.insightTitle}</Text>
           <Text style={styles.insightDesc}>
             {data.insightDescription}
           </Text>
@@ -90,7 +97,7 @@ export const Analytics08Screen: React.FC<Analytics08ScreenProps> = ({
               {data.incomeComparisonLabel}
             </Text>
             <Text style={styles.comparisonAmount}>
-            {data.incomeComparisonCurrentFormatted}
+              {data.incomeComparisonCurrentFormatted}
             </Text>
           </View>
           <View style={styles.divider} />
@@ -99,7 +106,7 @@ export const Analytics08Screen: React.FC<Analytics08ScreenProps> = ({
               {data.previousMonthLabel}
             </Text>
             <Text style={styles.comparisonAmount}>
-            {data.previousMonthIncomeFormatted}
+              {data.previousMonthIncomeFormatted}
             </Text>
           </View>
         </View>

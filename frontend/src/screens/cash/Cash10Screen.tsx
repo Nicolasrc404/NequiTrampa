@@ -10,18 +10,27 @@ import {
   DEMO_CASH_EXPENSE_RESULT,
   formatCashAmount,
 } from '../../data/demoCash';
+import { CashResult } from '../../types/cash';
 
 export interface Cash10ScreenProps {
   readonly onViewCash?: () => void;
   readonly onRegisterAnother?: () => void;
+  /** Registro que el backend ya había guardado con la misma clave. */
+  readonly result?: CashResult;
+  /** `true` solo en modo demostración. */
   readonly demo?: boolean;
 }
 
 export const Cash10Screen: React.FC<Cash10ScreenProps> = ({
   onViewCash,
   onRegisterAnother,
+  result,
   demo = true,
 }) => {
+  // En modo real no se conoce el registro existente: se omite la tarjeta en
+  // lugar de mostrar cifras DEMO.
+  const shownResult = result ?? (demo ? DEMO_CASH_EXPENSE_RESULT : null);
+
   return (
     <TransferStatusScreen
       icon="copy"
@@ -31,23 +40,29 @@ export const Cash10Screen: React.FC<Cash10ScreenProps> = ({
       badgeBackground={colors.cashLavender}
       badgeColor={colors.cashLavenderIcon}
       title="Este registro ya existe"
-      description="Ya habías guardado este gasto. No lo duplicamos."
+      description="Ya habíamos guardado este registro. No lo duplicamos."
       primaryLabel="Ver efectivo"
       onPrimary={onViewCash}
       secondaryLabel="Registrar otro"
       onSecondary={onRegisterAnother}
-      demoHint={demo ? 'Previsualización DEMO · no se guardó ningún registro' : undefined}
+      demoHint={
+        demo
+          ? 'Previsualización DEMO · no se guardó ningún registro'
+          : undefined
+      }
     >
-      <CashDetailCard
-        rows={[
-          { label: 'Categoría', value: DEMO_CASH_EXPENSE_RESULT.category },
-          {
-            label: 'Monto',
-            value: formatCashAmount(DEMO_CASH_EXPENSE_RESULT.amountCents),
-          },
-          { label: 'Fecha', value: DEMO_CASH_EXPENSE_RESULT.dateLabel },
-        ]}
-      />
+      {shownResult ? (
+        <CashDetailCard
+          rows={[
+            { label: 'Categoría', value: shownResult.category },
+            {
+              label: 'Monto',
+              value: formatCashAmount(shownResult.amountCents),
+            },
+            { label: 'Fecha', value: shownResult.dateLabel },
+          ]}
+        />
+      ) : null}
     </TransferStatusScreen>
   );
 };

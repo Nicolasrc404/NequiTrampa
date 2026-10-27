@@ -1,5 +1,9 @@
 using System.Net;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
 using Nequi.Shared.Data;
+using Nequi.Shared.Events;
+using Nequi.Workers.Projection;
 
 namespace Nequi.Tests;
 
@@ -125,6 +129,39 @@ public sealed class BudgetsTests : IDisposable
         Assert.Equal(HttpStatusCode.OK, detailGet.StatusCode);
         var expenses = (await Phase4.BodyAsync(detailGet)).GetProperty("expenses");
         Assert.Single(expenses.EnumerateArray());
+    }
+
+    [Fact]
+    public async Task ProjectedCategory_CountsTowardsBudget_WhileLegacyExpenseIsIgnored()
+    {
+        var owner = Phase4.NewClient();
+        using var http = _factory.Client(owner);
+        var categoryId = await CreateCategoryAsync(http);
+        var created = await Phase4.BodyAsync(await http.PostAsync("/v1/budgets", Phase4.Json(new
+        {
+            categoryId,
+            period = "2026-10",
+            limitCents = 100_000,
+        })));
+        var budgetId = created.GetProperty("id").GetString()!;
+
+        var docs = _factory.Services.GetRequiredService<IDocumentStore>();
+        var projection = new ProjectionService(docs, NullLogger<ProjectionService>.Instance);
+        await projection.ApplyAsync(new DomainEvent(
+            "evt-cat", EventTypes.TransferCompleted, "op-evt-cat", owner,
+            new DateTimeOffset(2026, 10, 5, 12, 0, 0, TimeSpan.Zero), -80_000, "COP",
+            CategoryId: categoryId), default);
+        // Legacy event: no category, so it must not consume this budget.
+        await projection.ApplyAsync(new DomainEvent(
+            "evt-legacy", EventTypes.TransferCompleted, "op-evt-legacy", owner,
+            new DateTimeOffset(2026, 10, 6, 12, 0, 0, TimeSpan.Zero), -40_000, "COP"), default);
+
+        var list = await Phase4.BodyAsync(await http.GetAsync("/v1/budgets?period=2026-10"));
+        var budget = list.EnumerateArray().Single(b => b.GetProperty("id").GetString() == budgetId);
+
+        Assert.Equal(80_000, budget.GetProperty("spentCents").GetInt64());
+        Assert.Equal(80, budget.GetProperty("percent").GetInt32());
+        Assert.Equal("warning", budget.GetProperty("health").GetString());
     }
 
     [Fact]

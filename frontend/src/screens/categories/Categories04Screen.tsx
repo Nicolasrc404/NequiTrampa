@@ -124,7 +124,7 @@ export const Categories04Screen: React.FC<Categories04ScreenProps> = ({
           onPrimary={() => onSave?.(name.trim(), color.trim(), type)}
           secondaryLabel="Cancelar"
           onSecondary={onCancel}
-          primaryDisabled={submitting || name.trim().length < 2}
+          primaryDisabled={submitting || isSystem || name.trim().length < 2}
         />
       </View>
     </KeyboardAvoidingView>

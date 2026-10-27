@@ -105,10 +105,14 @@ internal sealed class FlakyDocumentStore(IDocumentStore inner) : IDocumentStore
 {
     public Func<string, string, bool>? FailCreate { get; set; }
 
-    public Task<bool> CreateIfAbsentAsync(string collection, string id, IDictionary<string, object?> data, CancellationToken ct)
+    /// <summary>Runs before a create is forwarded; lets a test hold a write in flight.</summary>
+    public Func<string, string, CancellationToken, Task>? BeforeCreateAsync { get; set; }
+
+    public async Task<bool> CreateIfAbsentAsync(string collection, string id, IDictionary<string, object?> data, CancellationToken ct)
     {
         if (FailCreate?.Invoke(collection, id) == true) throw new IOException("simulated Firestore failure");
-        return inner.CreateIfAbsentAsync(collection, id, data, ct);
+        if (BeforeCreateAsync is not null) await BeforeCreateAsync(collection, id, ct);
+        return await inner.CreateIfAbsentAsync(collection, id, data, ct);
     }
 
     public Task UpsertAsync(string collection, string id, IDictionary<string, object?> data, CancellationToken ct) =>

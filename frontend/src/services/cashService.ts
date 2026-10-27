@@ -10,9 +10,10 @@
 //   - `Idempotency-Key` OBLIGATORIA en POST (filtro del backend).
 //   - El efectivo es un registro personal declarado: NO es saldo bancario y
 //     no genera asientos en el ledger.
-//   - 409 CASH_DUPLICATE: el backend deduplica por fecha + dirección + monto +
-//     categoría + nota. No se bloquea en el cliente un gasto legítimo repetido:
-//     se muestra el conflicto del servidor.
+//   - 409 CASH_DUPLICATE: guardia del store para llamadas concurrentes que
+//     repiten la MISMA Idempotency-Key. Dos gastos idénticos declarados con
+//     claves diferentes son entradas independientes y legítimas; el cliente no
+//     los bloquea por contenido.
 //   - 422 CASH_INSUFFICIENT y 404 CATEGORY_NOT_FOUND se propagan clasificados.
 
 import type { HttpClient } from './http';

@@ -14,25 +14,32 @@ import type { BudgetItem } from '../../types/budgets';
 export interface Budgets01ScreenProps {
   readonly onBack?: () => void;
   readonly onCreate?: () => void;
+  readonly onSelectBudget?: (budget: BudgetItem) => void;
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** Presupuestos confirmados por el backend. Si se omite, se usa el DEMO. */
   readonly budgets?: readonly BudgetItem[];
+  /** Etiqueta del periodo consultado (por ejemplo, «Octubre 2026»). */
+  readonly monthLabel?: string;
+  /** Alias de `monthLabel` usado por pantallas heredadas. */
   readonly periodLabel?: string;
+  /** `true` solo en modo demostración. */
   readonly demo?: boolean;
-  readonly onSelectBudget?: (budget: BudgetItem) => void;
 }
 
 export const Budgets01Screen: React.FC<Budgets01ScreenProps> = ({
   onBack,
   onCreate,
+  onSelectBudget,
   onTabPress,
-  budgets,
+  budgets = DEMO_BUDGETS,
+  monthLabel,
   periodLabel = DEMO_BUDGET_MONTH,
   demo = true,
-  onSelectBudget,
 }) => {
   const items = budgets ?? DEMO_BUDGETS;
+  const monthLabelText = monthLabel ?? periodLabel;
   return (
     <View style={styles.root}>
       <ScrollView
@@ -48,17 +55,23 @@ export const Budgets01Screen: React.FC<Budgets01ScreenProps> = ({
         />
 
         <View style={styles.monthPill}>
-          <Text style={styles.monthText}>{periodLabel}</Text>
+          <Text style={styles.monthText}>{monthLabelText}</Text>
         </View>
 
         <View style={styles.card}>
-          {items.map((budget) => (
-            <BudgetsProgressItem
-              key={budget.id}
-              item={budget}
-              onPress={() => onSelectBudget?.(budget)}
-            />
-          ))}
+          {items.length === 0 ? (
+            <Text style={styles.emptyText}>
+              Aún no tienes presupuestos para este periodo.
+            </Text>
+          ) : (
+            items.map((budget) => (
+              <BudgetsProgressItem
+                key={budget.id}
+                item={budget}
+                onPress={onSelectBudget}
+              />
+            ))
+          )}
         </View>
 
         {demo ? (
@@ -110,6 +123,12 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
+  },
+  emptyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.budgetsMuted,
+    textAlign: 'center',
   },
   demoHint: {
     marginTop: 18,

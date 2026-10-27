@@ -12,12 +12,15 @@ interface Beneficiaries14ScreenProps {
   beneficiary?: BeneficiaryItem;
   onConfirmDelete?: () => void;
   onCancel?: () => void;
+  /** Bloquea el botón mientras el servidor confirma. */
+  submitting?: boolean;
 }
 
 export const Beneficiaries14Screen: React.FC<Beneficiaries14ScreenProps> = ({
   beneficiary = DEMO_BENEFICIARY_TO_DELETE,
   onConfirmDelete,
   onCancel,
+  submitting = false,
 }) => {
   return (
     <View style={styles.root}>
@@ -73,14 +76,18 @@ export const Beneficiaries14Screen: React.FC<Beneficiaries14ScreenProps> = ({
           style={styles.deleteBtn}
           activeOpacity={0.85}
           onPress={onConfirmDelete}
+          disabled={submitting}
           accessibilityLabel={`Confirmar eliminación de ${beneficiary.name}`}
         >
-          <Text style={styles.deleteBtnText}>Sí, eliminar beneficiario</Text>
+          <Text style={styles.deleteBtnText}>
+            {submitting ? 'Eliminando…' : 'Sí, eliminar beneficiario'}
+          </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.cancelBtn}
           activeOpacity={0.7}
           onPress={onCancel}
+          disabled={submitting}
           accessibilityLabel="Cancelar"
         >
           <Text style={styles.cancelBtnText}>Cancelar</Text>

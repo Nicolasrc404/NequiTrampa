@@ -16,6 +16,7 @@ export interface Cash05ScreenProps {
   readonly result?: CashResult;
   readonly onViewCash?: () => void;
   readonly onRegisterAnother?: () => void;
+  /** `true` solo en modo demostración. */
   readonly demo?: boolean;
 }
 
@@ -39,7 +40,11 @@ export const Cash05Screen: React.FC<Cash05ScreenProps> = ({
       onPrimary={onViewCash}
       secondaryLabel="Registrar otro"
       onSecondary={onRegisterAnother}
-      demoHint={demo ? 'Previsualización DEMO · no se descontó efectivo real' : undefined}
+      demoHint={
+        demo
+          ? 'Previsualización DEMO · no se descontó efectivo real'
+          : undefined
+      }
     >
       <CashDetailCard
         rows={[

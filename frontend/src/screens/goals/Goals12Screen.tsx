@@ -5,11 +5,14 @@ import GoalsStatusScreen from '../../components/goals/GoalsStatusScreen';
 export interface Goals12ScreenProps {
   readonly onViewGoals?: () => void;
   readonly onGoHome?: () => void;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Goals12Screen: React.FC<Goals12ScreenProps> = ({
   onViewGoals,
   onGoHome,
+  demo = true,
 }) => {
   return (
     <GoalsStatusScreen
@@ -24,7 +27,7 @@ export const Goals12Screen: React.FC<Goals12ScreenProps> = ({
       onPrimary={onViewGoals}
       secondaryLabel="Volver al inicio"
       onSecondary={onGoHome}
-      demoHint="Estado DEMO · sin conexión al backend"
+      demoHint={demo ? 'Estado DEMO · sin conexión al backend' : undefined}
     />
   );
 };

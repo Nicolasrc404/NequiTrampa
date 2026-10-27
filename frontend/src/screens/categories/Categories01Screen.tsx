@@ -25,8 +25,12 @@ export interface Categories01ScreenProps {
   readonly onBack?: () => void;
   readonly onCreate?: () => void;
   readonly onSelectCategory?: (category: CategoryItem) => void;
+  readonly onTabPress?: (
+    tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
+  ) => void;
   /** Datos reales del backend. Si se omite, se usa el DEMO. */
   readonly categories?: readonly CategoryItem[];
+  /** `true` solo en modo demostración. */
   readonly demo?: boolean;
 }
 
@@ -36,6 +40,7 @@ export const Categories01Screen: React.FC<Categories01ScreenProps> = ({
   onBack,
   onCreate,
   onSelectCategory,
+  onTabPress,
   categories: sourceCategories,
   demo = true,
 }) => {
@@ -116,7 +121,14 @@ export const Categories01Screen: React.FC<Categories01ScreenProps> = ({
         </View>
 
         <View style={styles.listCard}>
-          {categories.map((item, index) => (
+          {categories.length === 0 ? (
+            <Text style={styles.emptyText}>
+              Aún no tienes categorías de{' '}
+              {type === 'gasto' ? 'gastos' : 'ingresos'}. Crea la primera con el
+              botón «Crear».
+            </Text>
+          ) : (
+            categories.map((item, index) => (
             <React.Fragment key={item.id}>
               <Pressable
                 style={({ pressed }) => [
@@ -144,7 +156,8 @@ export const Categories01Screen: React.FC<Categories01ScreenProps> = ({
                 <View style={styles.divider} />
               ) : null}
             </React.Fragment>
-          ))}
+            ))
+          )}
         </View>
 
         {demo ? (
@@ -154,7 +167,7 @@ export const Categories01Screen: React.FC<Categories01ScreenProps> = ({
         ) : null}
       </ScrollView>
 
-      <BottomNav activeTab="inicio" />
+      <BottomNav activeTab="inicio" onTabPress={onTabPress} />
     </View>
   );
 };
@@ -301,6 +314,13 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: colors.categoriesBorder,
+  },
+  emptyText: {
+    fontSize: 14,
+    lineHeight: 21,
+    color: colors.categoriesSubtext,
+    textAlign: 'center',
+    paddingVertical: 12,
   },
   demoHint: {
     marginTop: 16,

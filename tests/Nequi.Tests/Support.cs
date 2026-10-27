@@ -17,6 +17,8 @@ public static class Env
         ["Gcp:ProjectId"] = "test-project",
         ["Data:Backend"] = "memory",
         ["Auth:DemoHeaders"] = "true",
+        // Test host is an expressly authorized environment for simulated payment methods.
+        ["Recharges:AllowSimulatedPaymentMethods"] = "true",
         ["Outbox:Enabled"] = "false",
     };
 
@@ -59,8 +61,15 @@ public static class Env
         return c;
     }
 
-    public static DomainEvent Event(string id, string client, long cents = 5_000_000, string type = EventTypes.RechargeCompleted, string currency = "COP") =>
-        new(id, type, "op-" + id, client, DateTimeOffset.UtcNow, cents, currency, null, "test", 5_000_000);
+    public static DomainEvent Event(
+        string id,
+        string client,
+        long cents = 5_000_000,
+        string type = EventTypes.RechargeCompleted,
+        string currency = "COP",
+        string? categoryId = null,
+        DateTimeOffset? occurredAt = null) =>
+        new(id, type, "op-" + id, client, occurredAt ?? DateTimeOffset.UtcNow, cents, currency, null, "test", 5_000_000, categoryId);
 
     public static StringContent PushBody(DomainEvent e) => new(JsonSerializer.Serialize(new
     {

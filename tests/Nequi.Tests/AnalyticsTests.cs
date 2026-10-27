@@ -1,5 +1,10 @@
 using System.Net;
 using System.Text.Json;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging.Abstractions;
+using Nequi.Shared.Data;
+using Nequi.Shared.Events;
+using Nequi.Workers.Projection;
 
 namespace Nequi.Tests;
 
@@ -82,6 +87,39 @@ public sealed class AnalyticsTests : IDisposable
         Assert.Equal("Mercado", bucket.GetProperty("name").GetString());
         Assert.Equal(200_000, bucket.GetProperty("amountCents").GetInt64());
         Assert.Equal(80, bucket.GetProperty("percent").GetInt32());
+        Assert.Equal(1, bucket.GetProperty("movementCount").GetInt32());
+    }
+
+    [Fact]
+    public async Task ProjectedCategory_FlowsIntoCategoryBuckets_WhileLegacyExpenseStaysUncategorized()
+    {
+        var owner = Phase4.NewClient();
+        using var http = _factory.Client(owner);
+        var category = await Phase4.BodyAsync(
+            await http.PostAsync("/v1/categories", Phase4.Json(new { name = "Mercado", type = "gasto" })));
+        var categoryId = category.GetProperty("id").GetString();
+
+        var docs = _factory.Services.GetRequiredService<IDocumentStore>();
+        var projection = new ProjectionService(docs, NullLogger<ProjectionService>.Instance);
+
+        // Categories travel from the outbox event to the projection. Events written before
+        // categorization existed must keep working as "Sin categoría".
+        await projection.ApplyAsync(new DomainEvent(
+            "evt-cat", EventTypes.TransferCompleted, "op-evt-cat", owner,
+            new DateTimeOffset(2026, 10, 4, 15, 0, 0, TimeSpan.Zero), -200_000, "COP",
+            CategoryId: categoryId), default);
+        await projection.ApplyAsync(new DomainEvent(
+            "evt-legacy", EventTypes.TransferCompleted, "op-evt-legacy", owner,
+            new DateTimeOffset(2026, 10, 5, 15, 0, 0, TimeSpan.Zero), -50_000, "COP"), default);
+
+        var body = await Phase4.BodyAsync(await http.GetAsync("/v1/analytics/categories?period=2026-10"));
+
+        Assert.Equal(250_000, body.GetProperty("totalExpenseCents").GetInt64());
+        Assert.Equal(50_000, body.GetProperty("uncategorizedCents").GetInt64());
+        var bucket = body.GetProperty("categories").EnumerateArray().Single();
+        Assert.Equal(categoryId, bucket.GetProperty("categoryId").GetString());
+        Assert.Equal("Mercado", bucket.GetProperty("name").GetString());
+        Assert.Equal(200_000, bucket.GetProperty("amountCents").GetInt64());
         Assert.Equal(1, bucket.GetProperty("movementCount").GetInt32());
     }
 
