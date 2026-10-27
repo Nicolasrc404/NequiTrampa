@@ -87,3 +87,12 @@ test('update solo permite cambiar limitCents', async () => {
   assert.deepEqual(fake.calls[0].body, { limitCents: 600000 });
   assert.equal(updated.limitCents, 600000);
 });
+
+test('update rechaza límites inválidos antes de llamar al Gateway', async () => {
+  const fake = createFakeHttp(() => BUDGET);
+  const service = createBudgetsService(fake.http);
+
+  await assert.rejects(service.update('bud_01', { limitCents: 0 }), Error);
+  await assert.rejects(service.update('bud_01', { limitCents: 10.5 }), Error);
+  assert.equal(fake.calls.length, 0);
+});

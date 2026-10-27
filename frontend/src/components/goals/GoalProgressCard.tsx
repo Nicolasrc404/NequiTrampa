@@ -1,18 +1,19 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import colors from '../../theme/colors';
 import { GoalItem } from '../../types/goals';
 import { formatGoalAmount } from '../../data/demoGoals';
 
 export interface GoalProgressCardProps {
   readonly goal: GoalItem;
+  readonly onPress?: () => void;
 }
 
-export const GoalProgressCard: React.FC<GoalProgressCardProps> = ({ goal }) => {
+export const GoalProgressCard: React.FC<GoalProgressCardProps> = ({ goal, onPress }) => {
   const progressWidth = `${Math.min(Math.max(goal.percent, 0), 100)}%` as const;
 
   return (
-    <View style={styles.card}>
+    <Pressable style={styles.card} onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : undefined}>
       <View style={styles.headingRow}>
         <Text style={styles.name} numberOfLines={1}>
           {goal.name}
@@ -35,7 +36,7 @@ export const GoalProgressCard: React.FC<GoalProgressCardProps> = ({ goal }) => {
         </Text>
         <Text style={styles.metaText}>{goal.currencyLabel}</Text>
       </View>
-    </View>
+    </Pressable>
   );
 };
 

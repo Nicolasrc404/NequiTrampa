@@ -1,11 +1,12 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import colors from '../../theme/colors';
 import { BudgetItem } from '../../types/budgets';
 import { formatBudgetAmount } from '../../data/demoBudgets';
 
 export interface BudgetsProgressItemProps {
   readonly item: BudgetItem;
+  readonly onPress?: () => void;
 }
 
 const getProgressColor = (item: BudgetItem): string => {
@@ -20,12 +21,13 @@ const getProgressColor = (item: BudgetItem): string => {
 
 export const BudgetsProgressItem: React.FC<BudgetsProgressItemProps> = ({
   item,
+  onPress,
 }) => {
   const progressColor = getProgressColor(item);
   const progressWidth = `${Math.min(Math.max(item.percent, 0), 100)}%` as const;
 
   return (
-    <View style={styles.container}>
+    <Pressable style={styles.container} onPress={onPress} disabled={!onPress} accessibilityRole={onPress ? 'button' : undefined}>
       <View style={styles.topRow}>
         <View style={styles.labels}>
           <Text style={styles.category}>{item.category}</Text>
@@ -47,7 +49,7 @@ export const BudgetsProgressItem: React.FC<BudgetsProgressItemProps> = ({
           ]}
         />
       </View>
-    </View>
+    </Pressable>
   );
 };
 

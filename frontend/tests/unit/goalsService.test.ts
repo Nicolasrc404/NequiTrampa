@@ -75,3 +75,12 @@ test('update permite editar campos incluyendo savedCents declarado', async () =>
   await assert.rejects(createGoalsService(fake2.http).update('goal_01', {}), Error);
   await assert.rejects(createGoalsService(fake2.http).update('goal_01', { savedCents: -1 }), Error);
 });
+
+test('update rechaza fecha y objetivo inválidos antes de llamar al Gateway', async () => {
+  const fake = createFakeHttp(() => GOAL);
+  const service = createGoalsService(fake.http);
+
+  await assert.rejects(service.update('goal_01', { targetCents: 0 }), Error);
+  await assert.rejects(service.update('goal_01', { targetDate: '31-12-2026' }), Error);
+  assert.equal(fake.calls.length, 0);
+});

@@ -16,12 +16,14 @@ export interface Cash05ScreenProps {
   readonly result?: CashResult;
   readonly onViewCash?: () => void;
   readonly onRegisterAnother?: () => void;
+  readonly demo?: boolean;
 }
 
 export const Cash05Screen: React.FC<Cash05ScreenProps> = ({
   result = DEMO_CASH_EXPENSE_RESULT,
   onViewCash,
   onRegisterAnother,
+  demo = true,
 }) => {
   return (
     <TransferStatusScreen
@@ -37,7 +39,7 @@ export const Cash05Screen: React.FC<Cash05ScreenProps> = ({
       onPrimary={onViewCash}
       secondaryLabel="Registrar otro"
       onSecondary={onRegisterAnother}
-      demoHint="Previsualización DEMO · no se descontó efectivo real"
+      demoHint={demo ? 'Previsualización DEMO · no se descontó efectivo real' : undefined}
     >
       <CashDetailCard
         rows={[

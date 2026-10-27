@@ -9,9 +9,11 @@ import AnalyticsHeader from '../../components/analytics/AnalyticsHeader';
 import AnalyticsTabs from '../../components/analytics/AnalyticsTabs';
 import AnalyticsPeriodSelector from '../../components/analytics/AnalyticsPeriodSelector';
 import AnalyticsWeeklyBarChart from '../../components/analytics/AnalyticsWeeklyBarChart';
+import LoadingState from '../../components/common/states/LoadingState';
 import BottomNav from '../../components/common/BottomNav';
 import { DEMO_TREND_DATA } from '../../data/demoAnalytics';
 import { AnalyticsTab } from '../../types/analytics';
+import type { AnalyticsTrendData } from '../../types/analytics';
 
 export interface Analytics08ScreenProps {
   readonly onBack?: () => void;
@@ -20,6 +22,9 @@ export interface Analytics08ScreenProps {
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  readonly trends?: AnalyticsTrendData;
+  readonly demo?: boolean;
+  readonly loading?: boolean;
 }
 
 export const Analytics08Screen: React.FC<Analytics08ScreenProps> = ({
@@ -27,7 +32,14 @@ export const Analytics08Screen: React.FC<Analytics08ScreenProps> = ({
   onSelectTab,
   onSelectPeriod,
   onTabPress,
+  trends,
+  demo = true,
+  loading = false,
 }) => {
+  if (loading) {
+    return <LoadingState message="Cargando tendencias…" hint="Consultando datos confirmados." />;
+  }
+  const data = trends ?? DEMO_TREND_DATA;
   return (
     <View style={styles.root}>
       <ScrollView
@@ -41,7 +53,7 @@ export const Analytics08Screen: React.FC<Analytics08ScreenProps> = ({
 
         <AnalyticsPeriodSelector
           periodLabel="Periodo"
-          periodValue={DEMO_TREND_DATA.period}
+          periodValue={data.period}
           onPress={onSelectPeriod}
         />
 
@@ -55,19 +67,19 @@ export const Analytics08Screen: React.FC<Analytics08ScreenProps> = ({
 
         {/* Comparative Trends Bar Chart */}
         <AnalyticsWeeklyBarChart
-          title={DEMO_TREND_DATA.period}
-          data={DEMO_TREND_DATA.weeklyTrends}
+          title={data.period}
+          data={data.weeklyTrends}
           showYAxis={true}
           incomeColor="#138048"
           expenseColor={colors.analyticsMagentaAlt}
-          currencyLabel={DEMO_TREND_DATA.currency}
+          currencyLabel={data.currency}
         />
 
         {/* Insight Card (Mint Green) */}
         <View style={styles.insightCard}>
-          <Text style={styles.insightTitle}>{DEMO_TREND_DATA.insightTitle}</Text>
+            <Text style={styles.insightTitle}>{data.insightTitle}</Text>
           <Text style={styles.insightDesc}>
-            {DEMO_TREND_DATA.insightDescription}
+            {data.insightDescription}
           </Text>
         </View>
 
@@ -75,25 +87,25 @@ export const Analytics08Screen: React.FC<Analytics08ScreenProps> = ({
         <View style={styles.comparisonCard}>
           <View style={styles.comparisonRow}>
             <Text style={styles.comparisonLabel}>
-              {DEMO_TREND_DATA.incomeComparisonLabel}
+              {data.incomeComparisonLabel}
             </Text>
             <Text style={styles.comparisonAmount}>
-              {DEMO_TREND_DATA.incomeComparisonCurrentFormatted}
+            {data.incomeComparisonCurrentFormatted}
             </Text>
           </View>
           <View style={styles.divider} />
           <View style={styles.comparisonRow}>
             <Text style={styles.comparisonLabel}>
-              {DEMO_TREND_DATA.previousMonthLabel}
+              {data.previousMonthLabel}
             </Text>
             <Text style={styles.comparisonAmount}>
-              {DEMO_TREND_DATA.previousMonthIncomeFormatted}
+            {data.previousMonthIncomeFormatted}
             </Text>
           </View>
         </View>
 
         <Text style={styles.footnote}>
-          Solo consulta · tus saldos no cambian
+          {data.dataNote ?? 'Solo consulta · tus saldos no cambian'}
         </Text>
       </ScrollView>
 

@@ -27,6 +27,7 @@ export interface Categories01ScreenProps {
   readonly onSelectCategory?: (category: CategoryItem) => void;
   /** Datos reales del backend. Si se omite, se usa el DEMO. */
   readonly categories?: readonly CategoryItem[];
+  readonly demo?: boolean;
 }
 
 type CategoryTab = 'gastos' | 'ingresos';
@@ -36,6 +37,7 @@ export const Categories01Screen: React.FC<Categories01ScreenProps> = ({
   onCreate,
   onSelectCategory,
   categories: sourceCategories,
+  demo = true,
 }) => {
   const [activeTab, setActiveTab] = useState<CategoryTab>('gastos');
 
@@ -145,9 +147,11 @@ export const Categories01Screen: React.FC<Categories01ScreenProps> = ({
           ))}
         </View>
 
-        <Text style={styles.demoHint}>
-          Datos DEMO · tipo {type === 'gasto' ? 'gastos' : 'ingresos'}
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Datos DEMO · tipo {type === 'gasto' ? 'gastos' : 'ingresos'}
+          </Text>
+        ) : null}
       </ScrollView>
 
       <BottomNav activeTab="inicio" />

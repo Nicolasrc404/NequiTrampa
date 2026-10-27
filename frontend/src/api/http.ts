@@ -1,4 +1,12 @@
-export const API_URL = (process.env.EXPO_PUBLIC_API_URL ?? 'https://nequi-gateway-7v3gdoy4ra-tl.a.run.app').replace(/\/$/, '');
+import { appConfig } from '../config/appConfig';
+import { createHttpClient } from '../services/http/client';
+import { ApiError as CentralApiError } from '../services/http/ApiError';
+
+/**
+ * Compatibilidad para consumidores antiguos (Backoffice). La URL ya no tiene
+ * fallback de producción: debe provenir explícitamente de Expo.
+ */
+export const API_URL = appConfig.apiBaseUrl ?? '';
 
 export class ApiError extends Error {
   constructor(
@@ -30,38 +38,38 @@ interface RequestOptions {
   body?: unknown;
   query?: Record<string, string | number | undefined>;
   idempotencyKey?: string;
+  signal?: AbortSignal;
+  timeoutMs?: number;
 }
 
 export async function request<T>(path: string, opts: RequestOptions = {}): Promise<T> {
-  const qs = Object.entries(opts.query ?? {})
-    .filter(([, v]) => v !== undefined && v !== '')
-    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v))}`)
-    .join('&');
-  const headers: Record<string, string> = { Accept: 'application/json' };
-  const token = await tokenProvider();
-  if (token) headers.Authorization = `Bearer ${token}`;
-  if (opts.body !== undefined) headers['Content-Type'] = 'application/json';
-  if (opts.idempotencyKey) headers['Idempotency-Key'] = opts.idempotencyKey;
+  if (!API_URL) {
+    throw new ApiError(500, 'La API no está configurada.', 'config_missing');
+  }
 
-  let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}${qs ? `?${qs}` : ''}`, {
-      method: opts.method ?? 'GET',
-      headers,
-      body: opts.body === undefined ? undefined : JSON.stringify(opts.body),
+    const client = createHttpClient({
+      baseUrl: API_URL,
+      timeoutMs: opts.timeoutMs,
+      getAccessToken: tokenProvider,
+      onUnauthorized,
     });
-  } catch {
-    throw new ApiError(503, 'No hay conexión con el servicio.', 'network_error');
+    return await client.request<T>(opts.method ?? 'GET', path, {
+      query: opts.query,
+      body: opts.body,
+      signal: opts.signal,
+      idempotencyKey: opts.idempotencyKey,
+    });
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    if (error instanceof CentralApiError) {
+      throw new ApiError(
+        error.status || (error.kind === 'network' || error.kind === 'timeout' ? 503 : 500),
+        error.toUserMessage().message,
+        error.problem.code ?? error.kind,
+        error.requestId,
+      );
+    }
+    throw new ApiError(500, 'Error inesperado.', 'unexpected');
   }
-
-  if (res.ok) return (res.status === 204 ? undefined : await res.json()) as T;
-
-  let problem: { detail?: string; title?: string; code?: string; requestId?: string } = {};
-  try {
-    problem = await res.json();
-  } catch {
-    // cuerpo no JSON
-  }
-  if (res.status === 401) onUnauthorized();
-  throw new ApiError(res.status, problem.detail ?? problem.title ?? `HTTP ${res.status}`, problem.code, problem.requestId);
 }

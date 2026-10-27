@@ -19,19 +19,27 @@ import {
   DEMO_CASH_INCOME_DRAFT,
   formatCashAmount,
 } from '../../data/demoCash';
+import type { CashFormDraft } from '../../types/cash';
 
 export interface Cash02ScreenProps {
   readonly onBack?: () => void;
-  readonly onSave?: () => void;
+  readonly onSave?: (draft: CashFormDraft) => void;
   readonly onCancel?: () => void;
+  readonly demo?: boolean;
+  readonly submitting?: boolean;
 }
 
 export const Cash02Screen: React.FC<Cash02ScreenProps> = ({
   onBack,
   onSave,
   onCancel,
+  demo = true,
+  submitting = false,
 }) => {
-  const [note, setNote] = useState(DEMO_CASH_INCOME_DRAFT.note);
+  const [amount, setAmount] = useState(demo ? String(DEMO_CASH_INCOME_DRAFT.amountCents / 100) : '');
+  const [note, setNote] = useState(demo ? DEMO_CASH_INCOME_DRAFT.note : '');
+  const amountCents = Math.round(Number(amount.replace(/[^0-9]/g, '')) * 100);
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <KeyboardAvoidingView
@@ -55,12 +63,18 @@ export const Cash02Screen: React.FC<Cash02ScreenProps> = ({
         <View style={styles.amountCard}>
           <Text style={styles.amountLabel}>Monto del ingreso</Text>
           <Text style={styles.amount}>
-            {formatCashAmount(DEMO_CASH_INCOME_DRAFT.amountCents)}
+            {formatCashAmount(amountCents)}
           </Text>
           <Text style={styles.amountNote}>Efectivo que recibiste</Text>
         </View>
 
         <View style={styles.form}>
+          <CashFormField
+            label="Monto (COP)"
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="Ej. 50000"
+          />
           <CashFormField
             label="Categoría"
             value={DEMO_CASH_INCOME_DRAFT.category}
@@ -79,15 +93,15 @@ export const Cash02Screen: React.FC<Cash02ScreenProps> = ({
           />
         </View>
 
-        <Text style={styles.demoHint}>
+        {demo ? <Text style={styles.demoHint}>
           Registro DEMO · no se guardará en el servidor
-        </Text>
+        </Text> : null}
       </ScrollView>
 
       <View style={styles.footer}>
         <CashActionButtons
-          primaryLabel="Guardar ingreso"
-          onPrimary={onSave}
+          primaryLabel={submitting ? 'Guardando…' : 'Guardar ingreso'}
+          onPrimary={() => onSave?.({ direction: 'income', amountCents, note, occurredOn: today, category: '', dateLabel: today })}
           secondaryLabel="Cancelar"
           onSecondary={onCancel}
         />

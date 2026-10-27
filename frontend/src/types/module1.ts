@@ -7,9 +7,13 @@ export type Module1Section =
 
 export type Module1ScreenKey = `${Module1Section}_${number}`;
 
+import type { ApiServices } from '../services/factories';
+
 export interface Module1ScreenProps {
   readonly onNavigate: (key: Module1ScreenKey) => void;
   readonly onHome?: () => void;
+  readonly services?: ApiServices | null;
+  readonly apiEnabled?: boolean;
 }
 
 export interface Module1DemoState {

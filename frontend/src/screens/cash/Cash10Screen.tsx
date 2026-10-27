@@ -14,11 +14,13 @@ import {
 export interface Cash10ScreenProps {
   readonly onViewCash?: () => void;
   readonly onRegisterAnother?: () => void;
+  readonly demo?: boolean;
 }
 
 export const Cash10Screen: React.FC<Cash10ScreenProps> = ({
   onViewCash,
   onRegisterAnother,
+  demo = true,
 }) => {
   return (
     <TransferStatusScreen
@@ -34,7 +36,7 @@ export const Cash10Screen: React.FC<Cash10ScreenProps> = ({
       onPrimary={onViewCash}
       secondaryLabel="Registrar otro"
       onSecondary={onRegisterAnother}
-      demoHint="Previsualización DEMO · no se guardó ningún registro"
+      demoHint={demo ? 'Previsualización DEMO · no se guardó ningún registro' : undefined}
     >
       <CashDetailCard
         rows={[

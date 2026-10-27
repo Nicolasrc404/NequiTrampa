@@ -2,7 +2,7 @@
 // Budgets_05 — Editar presupuesto
 // Fuente visual: Stitch screen cfc2f2da5cf74539ace456c098e71143
 // ============================================================
-import React from 'react';
+import React, { useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import colors from '../../theme/colors';
 import BudgetsHeader from '../../components/budgets/BudgetsHeader';
@@ -13,12 +13,16 @@ import {
   DEMO_BUDGET_EDIT_DRAFT,
   formatBudgetAmount,
 } from '../../data/demoBudgets';
+import type { BudgetItem } from '../../types/budgets';
 
 export interface Budgets05ScreenProps {
   readonly onBack?: () => void;
-  readonly onSave?: () => void;
+  readonly onSave?: (limitCents: number) => void;
   readonly onDelete?: () => void;
   readonly onCancel?: () => void;
+  readonly budget?: BudgetItem;
+  readonly demo?: boolean;
+  readonly submitting?: boolean;
 }
 
 export const Budgets05Screen: React.FC<Budgets05ScreenProps> = ({
@@ -26,8 +30,15 @@ export const Budgets05Screen: React.FC<Budgets05ScreenProps> = ({
   onSave,
   onDelete,
   onCancel,
+  budget,
+  demo = true,
+  submitting = false,
 }) => {
-  const previousLimitCents = DEMO_BUDGET_EDIT_DRAFT.previousLimitCents;
+  const previousLimitCents = budget?.limitCents ?? DEMO_BUDGET_EDIT_DRAFT.previousLimitCents;
+  const [limit, setLimit] = useState(
+    demo ? String(DEMO_BUDGET_EDIT_DRAFT.limitCents / 100) : String((budget?.limitCents ?? 0) / 100),
+  );
+  const limitCents = Math.round(Number(limit.replace(/[^0-9]/g, '')) * 100);
 
   return (
     <View style={styles.root}>
@@ -40,14 +51,14 @@ export const Budgets05Screen: React.FC<Budgets05ScreenProps> = ({
           title="Editar presupuesto"
           onBack={onBack}
           titleSize={21}
-          rightLabel="Eliminar"
+          rightLabel={onDelete ? 'Eliminar' : undefined}
           onRight={onDelete}
         />
 
         <View style={styles.summary}>
           <BudgetsSummaryCard
             label="Límite mensual"
-            amount={formatBudgetAmount(DEMO_BUDGET_EDIT_DRAFT.limitCents)}
+            amount={formatBudgetAmount(limitCents)}
             meta={
               previousLimitCents === undefined
                 ? 'Límite actualizado'
@@ -60,23 +71,29 @@ export const Budgets05Screen: React.FC<Budgets05ScreenProps> = ({
         <View style={styles.form}>
           <BudgetFormField
             label="Categoría"
-            value={DEMO_BUDGET_EDIT_DRAFT.category}
+            value={budget?.category ?? DEMO_BUDGET_EDIT_DRAFT.category}
           />
           <BudgetFormField
             label="Periodo"
-            value={DEMO_BUDGET_EDIT_DRAFT.period}
+            value={budget?.period ?? DEMO_BUDGET_EDIT_DRAFT.period}
+          />
+          <BudgetFormField
+            label="Límite mensual (COP)"
+            value={limit}
+            editable={!demo}
+            onChangeText={setLimit}
           />
         </View>
 
-        <Text style={styles.demoHint}>
+        {demo ? <Text style={styles.demoHint}>
           Edición DEMO · no modifica presupuestos reales
-        </Text>
+        </Text> : null}
       </ScrollView>
 
       <View style={styles.footer}>
         <BudgetsActionButtons
-          primaryLabel="Guardar cambios"
-          onPrimary={onSave}
+          primaryLabel={submitting ? 'Guardando…' : 'Guardar cambios'}
+          onPrimary={() => onSave?.(limitCents)}
           secondaryLabel="Cancelar"
           onSecondary={onCancel}
         />

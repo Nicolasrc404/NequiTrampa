@@ -38,6 +38,8 @@ import {
   createAnalyticsService,
   type AnalyticsService,
 } from './analyticsService';
+import { createConfigurationService, type ConfigurationService } from './configurationService';
+import { createProjectionStatusService, type ProjectionStatusService } from './projectionStatusService';
 
 export interface ApiServices {
   readonly wallet: WalletService;
@@ -52,6 +54,8 @@ export interface ApiServices {
   readonly budgets: BudgetsService;
   readonly goals: GoalsService;
   readonly analytics: AnalyticsService;
+  readonly configuration: ConfigurationService;
+  readonly projectionStatus: ProjectionStatusService;
 }
 
 export function createApiServices(http: HttpClient): ApiServices {
@@ -68,5 +72,7 @@ export function createApiServices(http: HttpClient): ApiServices {
     budgets: createBudgetsService(http),
     goals: createGoalsService(http),
     analytics: createAnalyticsService(http),
+    configuration: createConfigurationService(http),
+    projectionStatus: createProjectionStatusService(http),
   };
 }

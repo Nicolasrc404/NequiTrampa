@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { fetchRoles, hasSession, subscribeSession } from '../api/auth';
+import { fetchRoles, hasSession, restoreSession, subscribeSession } from '../api/auth';
 import { ApiError } from '../api/http';
 import { BoRoute } from '../types/backoffice';
 import { NavContext } from './nav';
@@ -75,9 +75,8 @@ export default function BackofficeApp() {
   const [rolesError, setRolesError] = useState<ApiError | null>(null);
   const [attempt, setAttempt] = useState(0);
 
-  useEffect(
-    () =>
-      subscribeSession(() => {
+  useEffect(() => {
+    const unsubscribe = subscribeSession(() => {
         const on = hasSession();
         setSignedIn(on);
         if (on) setWasSignedIn(true);
@@ -85,9 +84,10 @@ export default function BackofficeApp() {
           setRoles(null);
           setStack([HOME]);
         }
-      }),
-    [],
-  );
+      });
+    void restoreSession();
+    return unsubscribe;
+  }, []);
 
   useEffect(() => {
     if (!signedIn) return;

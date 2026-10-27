@@ -4,6 +4,7 @@ import assert from 'node:assert/strict';
 import {
   ServiceContractError,
 } from '../../src/services/contract';
+import { ApiError } from '../../src/services/http/ApiError';
 import { createWalletService } from '../../src/services/walletService';
 import { createFakeHttp } from './support/fakeHttp';
 
@@ -107,5 +108,17 @@ test('createWalletService exige una URL base válida', () => {
   const fake = createFakeHttp();
   assert.throws(() =>
     createWalletService({ ...fake.http, baseUrl: 'no-es-url' }),
+  );
+});
+
+test('getBalance conserva un 401 para que SessionManager invalide la sesión', async () => {
+  const unauthorized = ApiError.fromResponse(401, JSON.stringify({ title: 'Unauthorized' }));
+  const fake = createFakeHttp(() => {
+    throw unauthorized;
+  });
+
+  await assert.rejects(
+    createWalletService(fake.http).getBalance(),
+    (error: unknown) => error === unauthorized && (error as ApiError).requiresLogin,
   );
 });

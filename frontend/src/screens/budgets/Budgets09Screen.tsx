@@ -9,16 +9,23 @@ import {
   DEMO_BUDGET_CREATE_DRAFT,
   formatBudgetAmount,
 } from '../../data/demoBudgets';
+import type { BudgetItem } from '../../types/budgets';
 
 export interface Budgets09ScreenProps {
   readonly onViewBudgets?: () => void;
   readonly onCreateAnother?: () => void;
+  readonly budget?: BudgetItem;
+  readonly demo?: boolean;
 }
 
 export const Budgets09Screen: React.FC<Budgets09ScreenProps> = ({
   onViewBudgets,
   onCreateAnother,
+  budget,
+  demo = true,
 }) => {
+  const limitCents = budget?.limitCents ?? DEMO_BUDGET_CREATE_DRAFT.limitCents;
+  const category = budget?.category ?? DEMO_BUDGET_CREATE_DRAFT.category;
   return (
     <TransferStatusScreen
       icon="check"
@@ -29,12 +36,12 @@ export const Budgets09Screen: React.FC<Budgets09ScreenProps> = ({
       badgeBackground={colors.budgetsSuccessBadgeBg}
       badgeColor={colors.budgetsSuccessBadgeText}
       title="Presupuesto creado"
-      description={`Te avisaremos cuando llegues al 80% de ${formatBudgetAmount(DEMO_BUDGET_CREATE_DRAFT.limitCents)} en ${DEMO_BUDGET_CREATE_DRAFT.category}.`}
+      description={`Te avisaremos cuando llegues al 80% de ${formatBudgetAmount(limitCents)} en ${category}.`}
       primaryLabel="Ver presupuestos"
       onPrimary={onViewBudgets}
       secondaryLabel="Crear otro"
       onSecondary={onCreateAnother}
-      demoHint="Previsualización DEMO · no se guardó ningún presupuesto"
+      demoHint={demo ? 'Previsualización DEMO · no se guardó ningún presupuesto' : undefined}
     />
   );
 };

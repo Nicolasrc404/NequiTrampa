@@ -20,19 +20,29 @@ import {
   DEMO_CASH_EXPENSE_DRAFT,
   formatCashAmount,
 } from '../../data/demoCash';
+import type { CashFormDraft } from '../../types/cash';
 
 export interface Cash03ScreenProps {
   readonly onBack?: () => void;
-  readonly onSave?: () => void;
+  readonly onSave?: (draft: CashFormDraft) => void;
   readonly onCancel?: () => void;
+  readonly demo?: boolean;
+  readonly submitting?: boolean;
+  readonly availableCents?: number;
 }
 
 export const Cash03Screen: React.FC<Cash03ScreenProps> = ({
   onBack,
   onSave,
   onCancel,
+  demo = true,
+  submitting = false,
+  availableCents = DEMO_CASH_AVAILABLE_CENTS,
 }) => {
-  const [note, setNote] = useState(DEMO_CASH_EXPENSE_DRAFT.note);
+  const [amount, setAmount] = useState(demo ? String(DEMO_CASH_EXPENSE_DRAFT.amountCents / 100) : '');
+  const [note, setNote] = useState(demo ? DEMO_CASH_EXPENSE_DRAFT.note : '');
+  const amountCents = Math.round(Number(amount.replace(/[^0-9]/g, '')) * 100);
+  const today = new Date().toISOString().slice(0, 10);
 
   return (
     <KeyboardAvoidingView
@@ -56,14 +66,21 @@ export const Cash03Screen: React.FC<Cash03ScreenProps> = ({
         <View style={styles.amountCard}>
           <Text style={styles.amountLabel}>Monto del gasto</Text>
           <Text style={styles.amount}>
-            {formatCashAmount(DEMO_CASH_EXPENSE_DRAFT.amountCents)}
+            {formatCashAmount(amountCents)}
           </Text>
           <Text style={styles.amountNote}>
-            Disponible en efectivo: {formatCashAmount(DEMO_CASH_AVAILABLE_CENTS)}
+            Disponible en efectivo: {formatCashAmount(availableCents)}
           </Text>
         </View>
 
         <View style={styles.form}>
+          <CashFormField
+            label="Monto (COP)"
+            value={amount}
+            onChangeText={setAmount}
+            placeholder="Ej. 25000"
+            height={58}
+          />
           <CashFormField
             label="Categoría"
             value={DEMO_CASH_EXPENSE_DRAFT.category}
@@ -85,15 +102,15 @@ export const Cash03Screen: React.FC<Cash03ScreenProps> = ({
           />
         </View>
 
-        <Text style={styles.demoHint}>
+        {demo ? <Text style={styles.demoHint}>
           Registro DEMO · no se descontará efectivo real
-        </Text>
+        </Text> : null}
       </ScrollView>
 
       <View style={styles.footer}>
         <CashActionButtons
-          primaryLabel="Guardar gasto"
-          onPrimary={onSave}
+          primaryLabel={submitting ? 'Guardando…' : 'Guardar gasto'}
+          onPrimary={() => onSave?.({ direction: 'expense', amountCents, note, occurredOn: today, category: '', dateLabel: today })}
           secondaryLabel="Cancelar"
           onSecondary={onCancel}
           height={60}

@@ -1,80 +1,56 @@
-import { ApiError, configureHttp, request } from './http';
+// Compatibilidad de Auth para Backoffice.
+// La fuente única de sesión es services/session/sessionManager: refresh token
+// en SecureStore (nativo), ID token en memoria y roles derivados del JWT.
 
-// Clave web pública de Identity Platform (no es un secreto); se inyecta en build.
-const WEB_API_KEY = process.env.EXPO_PUBLIC_IDENTITY_API_KEY ?? '';
+import { requireApiClient } from '../services/api';
+import { sessionManager } from '../services/session/platform';
+import type { SessionSnapshot } from '../services/session/types';
+import { ApiError } from './http';
 
-interface Session {
-  idToken: string;
-  refreshToken: string;
-  expiresAt: number;
-  email: string;
+export function subscribeSession(listener: () => void): () => void {
+  return sessionManager.subscribe(() => listener());
 }
 
-// Solo en memoria: no se persisten tokens en el dispositivo.
-let session: Session | null = null;
-let listeners: Array<() => void> = [];
+export function hasSession(): boolean {
+  return sessionManager.getSnapshot().status === 'authenticated';
+}
 
-export const subscribeSession = (fn: () => void) => {
-  listeners.push(fn);
-  return () => {
-    listeners = listeners.filter((l) => l !== fn);
-  };
-};
-const notify = () => listeners.forEach((l) => l());
-export const hasSession = () => session !== null;
-export const sessionEmail = () => session?.email ?? '';
+/** El token no expone el correo en la vista pública de la sesión. */
+export function sessionEmail(): string {
+  return '';
+}
 
-function store(email: string, idToken: string, refreshToken: string, expiresIn: string) {
-  session = { email, idToken, refreshToken, expiresAt: Date.now() + (Number(expiresIn) - 60) * 1000 };
+export async function restoreSession(): Promise<SessionSnapshot> {
+  return sessionManager.restore();
 }
 
 export async function signIn(email: string, password: string): Promise<void> {
-  if (!WEB_API_KEY) throw new ApiError(500, 'Falta EXPO_PUBLIC_IDENTITY_API_KEY.', 'config_missing');
-  let res: Response;
   try {
-    res = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${WEB_API_KEY}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password, returnSecureToken: true }),
-    });
-  } catch {
-    throw new ApiError(503, 'No hay conexión con el servicio.', 'network_error');
+    await sessionManager.signIn(email, password);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    const message = error instanceof Error ? error.message : 'No pudimos iniciar sesión.';
+    throw new ApiError(401, message, 'authentication_error');
   }
-  if (!res.ok) throw new ApiError(401, 'Correo o contraseña inválidos.', 'invalid_credentials');
-  const b = await res.json();
-  store(email, b.idToken, b.refreshToken, b.expiresIn);
-  notify();
 }
 
-async function refresh(): Promise<void> {
-  if (!session) return;
-  const res = await fetch(`https://securetoken.googleapis.com/v1/token?key=${WEB_API_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body: `grant_type=refresh_token&refresh_token=${encodeURIComponent(session.refreshToken)}`,
-  });
-  if (!res.ok) {
-    signOut();
-    return;
-  }
-  const b = await res.json();
-  store(session.email, b.id_token, b.refresh_token, b.expires_in);
+export function signOut(): Promise<void> {
+  return sessionManager.signOut();
 }
-
-export function signOut() {
-  session = null;
-  notify();
-}
-
-configureHttp({
-  getToken: async () => {
-    if (session && Date.now() >= session.expiresAt) await refresh();
-    return session?.idToken ?? null;
-  },
-  onUnauthorized: signOut,
-});
 
 export async function fetchRoles(): Promise<string[]> {
-  const r = await request<{ roles?: string[] }>('/v1/me/access');
-  return r.roles ?? [];
+  try {
+    const response = await requireApiClient().get<unknown>('/v1/me/access');
+    if (response === null || typeof response !== 'object' || Array.isArray(response)) {
+      throw new Error('Respuesta de acceso inválida.');
+    }
+    const roles = (response as { roles?: unknown }).roles;
+    if (!Array.isArray(roles) || roles.some((role) => typeof role !== 'string')) {
+      throw new Error('Respuesta de roles inválida.');
+    }
+    return roles;
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(500, 'No pudimos consultar tus permisos.', 'access_error');
+  }
 }
