@@ -3,15 +3,22 @@ import colors from '../../theme/colors';
 import GoalsStatusScreen from '../../components/goals/GoalsStatusScreen';
 import GoalSummaryCard from '../../components/goals/GoalSummaryCard';
 import { DEMO_GOAL_CREATED } from '../../data/demoGoals';
+import type { GoalItem } from '../../types/goals';
 
 export interface Goals04ScreenProps {
   readonly onViewGoal?: () => void;
   readonly onBackToGoals?: () => void;
+  /** Meta confirmada por el backend. */
+  readonly goal?: GoalItem;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Goals04Screen: React.FC<Goals04ScreenProps> = ({
   onViewGoal,
   onBackToGoals,
+  goal = DEMO_GOAL_CREATED,
+  demo = true,
 }) => {
   return (
     <GoalsStatusScreen
@@ -27,10 +34,12 @@ export const Goals04Screen: React.FC<Goals04ScreenProps> = ({
       onPrimary={onViewGoal}
       secondaryLabel="Volver a mis metas"
       onSecondary={onBackToGoals}
-      demoHint="Previsualización DEMO · no se creó ninguna meta"
+      demoHint={
+        demo ? 'Previsualización DEMO · no se creó ninguna meta' : undefined
+      }
       backgroundColor={colors.goalsBgSuccess}
     >
-      <GoalSummaryCard goal={DEMO_GOAL_CREATED} titleSize={16} padding={20} />
+      <GoalSummaryCard goal={goal} titleSize={16} padding={20} />
     </GoalsStatusScreen>
   );
 };

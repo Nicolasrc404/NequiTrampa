@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.Configuration;
 using Nequi.Wallet.DTOs;
 using Nequi.Wallet.Exceptions;
 using Nequi.Wallet.Services;
@@ -251,8 +252,7 @@ public sealed class WalletIntegrationTests : IDisposable
 
     // 5. Receipt de transferencia: un CLIENTE diferente al propietario intenta consultar -> HTTP 403
     [Fact]
-    public async Task TransferReceipt_OtherClient_Returns403()
-    {
+    public async Task TransferReceipt_OtherClient_Returns403()    {
         var ownerClient = _factory.CreateClient().As("owner-client");
         var otherClient = _factory.CreateClient().As("other-client");
         var key = Guid.NewGuid().ToString();
@@ -275,5 +275,66 @@ public sealed class WalletIntegrationTests : IDisposable
         Assert.Equal(HttpStatusCode.Forbidden, receiptResponse.StatusCode);
         var problem = await receiptResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("FORBIDDEN", problem.GetProperty("code").GetString());
+    }
+}
+
+public sealed class RechargePolicyTests
+{
+    private static WebApplicationFactory<Nequi.Wallet.WalletMarker> Wallet(bool allowSimulated) =>
+        new WebApplicationFactory<Nequi.Wallet.WalletMarker>().WithWebHostBuilder(b =>
+        {
+            foreach (var (k, v) in Env.Config)
+                b.UseSetting(k, v);
+            b.UseSetting("Recharges:AllowSimulatedPaymentMethods", allowSimulated ? "true" : "false");
+        });
+
+    private static HttpRequestMessage Recharge(string paymentMethod, string idempotencyKey) =>
+        new(HttpMethod.Post, "/v1/recharges")
+        {
+            Content = JsonContent.Create(new CreateRechargeRequestDto(50_000m, paymentMethod, "COP")),
+            Headers = { { "Idempotency-Key", idempotencyKey } },
+        };
+
+    [Fact]
+    public async Task SimulatedMethod_IsAccepted_WhenEnvironmentExplicitlyAllowsIt()
+    {
+        using var factory = Wallet(allowSimulated: true);
+        var client = factory.CreateClient().As("policy-allowed");
+
+        var response = await client.SendAsync(Recharge("SIMULATED_PSE", Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task SimulatedMethod_IsRejectedByDefault_WithExplicitProblemCode()
+    {
+        using var factory = Wallet(allowSimulated: false);
+        var client = factory.CreateClient().As("policy-denied");
+
+        var response = await client.SendAsync(Recharge("SIMULATED_PSE", Guid.NewGuid().ToString()));
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        var problem = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("SIMULATED_METHOD_NOT_ALLOWED", problem.GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public void Policy_DeniesSimulatedByDefault_AndAllowsRealMethods()
+    {
+        var denyAll = new RechargePolicy(new ConfigurationBuilder().Build());
+        Assert.False(denyAll.AllowSimulatedPaymentMethods);
+        Assert.False(denyAll.IsPaymentMethodAllowed("SIMULATED_PSE"));
+        Assert.False(denyAll.IsPaymentMethodAllowed(null));
+        Assert.False(denyAll.IsPaymentMethodAllowed(""));
+        Assert.True(denyAll.IsPaymentMethodAllowed("PSE"));
+
+        var allow = new RechargePolicy(new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Recharges:AllowSimulatedPaymentMethods"] = "true",
+            })
+            .Build());
+        Assert.True(allow.IsPaymentMethodAllowed("SIMULATED_CARD"));
     }
 }

@@ -5,19 +5,28 @@ import colors from '../../theme/colors';
 import GoalProgressCard from '../../components/goals/GoalProgressCard';
 import BottomNav from '../../components/common/BottomNav';
 import { DEMO_GOALS } from '../../data/demoGoals';
+import type { GoalItem } from '../../types/goals';
 
 export interface Goals01ScreenProps {
   readonly onBack?: () => void;
   readonly onCreate?: () => void;
+  readonly onSelectGoal?: (goal: GoalItem) => void;
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** Metas confirmadas por el backend. Si se omite, se usa el DEMO. */
+  readonly goals?: readonly GoalItem[];
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Goals01Screen: React.FC<Goals01ScreenProps> = ({
   onBack,
   onCreate,
+  onSelectGoal,
   onTabPress,
+  goals = DEMO_GOALS,
+  demo = true,
 }) => {
   return (
     <View style={styles.root}>
@@ -40,9 +49,19 @@ export const Goals01Screen: React.FC<Goals01ScreenProps> = ({
         <Text style={styles.subtitle}>Así van tus metas financieras.</Text>
 
         <View style={styles.list}>
-          {DEMO_GOALS.map((goal) => (
-            <GoalProgressCard key={goal.id} goal={goal} />
-          ))}
+          {goals.length === 0 ? (
+            <Text style={styles.emptyText}>
+              Aún no tienes metas. Crea la primera para empezar a ahorrar.
+            </Text>
+          ) : (
+            goals.map((goal) => (
+              <GoalProgressCard
+                key={goal.id}
+                goal={goal}
+                onPress={onSelectGoal}
+              />
+            ))
+          )}
         </View>
 
         <TouchableOpacity
@@ -55,9 +74,11 @@ export const Goals01Screen: React.FC<Goals01ScreenProps> = ({
           <Text style={styles.createText}>Crear meta</Text>
         </TouchableOpacity>
 
-        <Text style={styles.demoHint}>
-          Metas DEMO · no representan tu cuenta real
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Metas DEMO · no representan tu cuenta real
+          </Text>
+        ) : null}
       </ScrollView>
 
       <BottomNav activeTab="inicio" onTabPress={onTabPress} />
@@ -126,6 +147,13 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
     color: colors.goalsWhite,
+  },
+  emptyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.goalsMuted,
+    textAlign: 'center',
+    paddingVertical: 12,
   },
   demoHint: {
     marginTop: 18,

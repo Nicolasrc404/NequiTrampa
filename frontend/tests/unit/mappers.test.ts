@@ -20,6 +20,12 @@ import {
   mapRechargeResult,
   mapRechargeStatus,
 } from '../../src/services/mappers/rechargeMapper';
+import {
+  categoryInitial,
+  mapCategories,
+  mapCategory,
+} from '../../src/services/mappers/categoryMapper';
+import type { CategoryDto } from '../../src/services/categoriesService';
 
 const MOVEMENT: MovementDto = {
   eventId: 'evt_01',
@@ -113,8 +119,37 @@ test('mapMovement usa la etiqueta de tipo cuando no hay descripción', () => {
   assert.equal(noType?.categoryLabel, 'Movimiento');
 });
 
-test('mapMovement distingue estados pendientes, fallidos y desconocidos', () => {
-  assert.equal(mapMovement({ ...MOVEMENT, status: 'PENDING' })?.status, 'Pendiente');
+test('mapMovement traduce los tipos de evento reales del backend', () => {
+  const sent = mapMovement({
+    ...MOVEMENT,
+    type: 'TRANSFER_COMPLETED',
+    amountCents: -250000,
+    description: null,
+  });
+  assert.equal(sent?.type, 'TRANSFER_SENT');
+  assert.equal(sent?.title, 'Transferencia enviada');
+  assert.equal(sent?.categoryLabel, 'Transferencia enviada');
+
+  const received = mapMovement({
+    ...MOVEMENT,
+    type: 'TRANSFER_COMPLETED',
+    amountCents: 250000,
+    description: null,
+  });
+  assert.equal(received?.type, 'TRANSFER_RECEIVED');
+  assert.equal(received?.title, 'Transferencia recibida');
+
+  const recharge = mapMovement({
+    ...MOVEMENT,
+    type: 'RECHARGE_COMPLETED',
+    amountCents: 150000,
+    description: null,
+  });
+  assert.equal(recharge?.type, 'RECHARGE');
+  assert.equal(recharge?.title, 'Recarga');
+});
+
+test('mapMovement distingue estados pendientes, fallidos y desconocidos', () => {  assert.equal(mapMovement({ ...MOVEMENT, status: 'PENDING' })?.status, 'Pendiente');
   assert.equal(mapMovement({ ...MOVEMENT, status: 'FAILED' })?.status, 'Fallida');
   assert.equal(mapMovement({ ...MOVEMENT, status: 'ALIEN' })?.status, 'Desconocido');
   assert.equal(mapMovement({ ...MOVEMENT, status: null })?.status, 'Desconocido');
@@ -191,4 +226,52 @@ test('mapRechargeResult usa el saldo confirmado o null si la consulta falló', (
 
   const withoutBalance = mapRechargeResult(RECHARGE, null);
   assert.equal(withoutBalance.balanceAfterCents, null);
+});
+
+const CATEGORY: CategoryDto = {
+  id: 'cat_01',
+  name: 'Mercado',
+  type: 'gasto',
+  isSystem: false,
+  active: true,
+  movementsCount: 3,
+  totalAmountCents: 125000,
+  currency: 'COP',
+  createdAt: '2026-10-01T10:00:00Z',
+  updatedAt: '2026-10-08T10:00:00Z',
+};
+
+test('mapCategory conserva el monto autoritativo y la letra inicial', () => {
+  const item = mapCategory(CATEGORY);
+  assert.equal(item.id, 'cat_01');
+  assert.equal(item.type, 'gasto');
+  assert.equal(item.movementsCount, 3);
+  assert.equal(item.initialLetter, 'M');
+  assert.equal(item.isSystem, false);
+});
+
+test('mapCategory distingue las categorías del sistema', () => {
+  const system = mapCategory({ ...CATEGORY, id: 'cat_sys', isSystem: true });
+  assert.equal(system.isSystem, true);
+  assert.equal(mapCategory({ ...CATEGORY, isSystem: false }).isSystem, false);
+});
+
+test('mapCategory no inventa monto cuando la suma es cero', () => {
+  const empty = mapCategory({ ...CATEGORY, movementsCount: 0, totalAmountCents: 0 });
+  assert.equal(empty.movementsCount, 0);
+  assert.match(empty.formattedAmount, /\$\s?0/);
+});
+
+test('categoryInitial tolera nombres vacíos sin lanzar', () => {
+  assert.equal(categoryInitial('  mercado'), 'M');
+  assert.equal(categoryInitial(''), '?');
+  assert.equal(categoryInitial('   '), '?');
+});
+
+test('mapCategories respeta el orden entregado por el backend', () => {
+  const items = mapCategories([
+    CATEGORY,
+    { ...CATEGORY, id: 'cat_02', name: 'Transporte' },
+  ]);
+  assert.deepEqual(items.map((item) => item.id), ['cat_01', 'cat_02']);
 });

@@ -1,4 +1,6 @@
 using System.Net;
+using Nequi.Finance.Goals;
+using Nequi.Shared.Data;
 
 namespace Nequi.Tests;
 
@@ -120,6 +122,38 @@ public sealed class GoalsTests : IDisposable
             .ToList();
 
         Assert.Equal(new[] { HttpStatusCode.Created, HttpStatusCode.Conflict }, statuses);
+    }
+
+    [Fact]
+    public async Task Create_WhileAnotherRequestIsWriting_DoesNotStealNameReservation()
+    {
+        var inner = new InMemoryDocumentStore();
+        var writing = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var store = new FlakyDocumentStore(inner)
+        {
+            BeforeCreateAsync = async (collection, _, _) =>
+            {
+                if (collection != GoalCollections.Goals) return;
+                writing.TrySetResult();
+                await release.Task;
+            },
+        };
+        var service = new GoalService(store);
+        var owner = Phase4.NewClient();
+        var request = new CreateGoalRequest("Viaje a Cartagena", 30_000_000, "2027-12-31");
+
+        var first = service.CreateAsync(owner, request, CancellationToken.None);
+        await writing.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        var second = await service.CreateAsync(owner, request, CancellationToken.None);
+        Assert.Equal(GoalCreateOutcome.Duplicate, second.Outcome);
+
+        release.TrySetResult();
+        Assert.Equal(GoalCreateOutcome.Created, (await first).Outcome);
+
+        var goals = await service.ListAsync(owner, CancellationToken.None);
+        Assert.Single(goals, g => g.Name == "Viaje a Cartagena");
     }
 
     [Fact]

@@ -10,27 +10,33 @@ import CashFilterPills from '../../components/cash/CashFilterPills';
 import CashTransactionRow from '../../components/cash/CashTransactionRow';
 import BottomNav from '../../components/common/BottomNav';
 import { DEMO_CASH_HISTORY } from '../../data/demoCash';
-import { CashFilter } from '../../types/cash';
+import { CashFilter, CashTransaction } from '../../types/cash';
 
 export interface Cash12ScreenProps {
   readonly onBack?: () => void;
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** Movimientos de efectivo confirmados por el backend. */
+  readonly transactions?: readonly CashTransaction[];
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Cash12Screen: React.FC<Cash12ScreenProps> = ({
   onBack,
   onTabPress,
+  transactions: source = DEMO_CASH_HISTORY,
+  demo = true,
 }) => {
   const [filter, setFilter] = useState<CashFilter>('all');
 
   const transactions = useMemo(() => {
     if (filter === 'all') {
-      return DEMO_CASH_HISTORY;
+      return source;
     }
-    return DEMO_CASH_HISTORY.filter((item) => item.direction === filter);
-  }, [filter]);
+    return source.filter((item) => item.direction === filter);
+  }, [filter, source]);
 
   return (
     <View style={styles.root}>
@@ -74,7 +80,9 @@ export const Cash12Screen: React.FC<Cash12ScreenProps> = ({
         </View>
 
         <Text style={styles.demoHint}>
-          Historial DEMO · no representa movimientos reales
+          {demo
+            ? 'Historial DEMO · no representa movimientos reales'
+            : 'Registro manual de efectivo · no es saldo bancario'}
         </Text>
       </ScrollView>
 

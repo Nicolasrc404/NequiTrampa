@@ -9,8 +9,11 @@ import colors from '../../theme/colors';
 interface Beneficiaries13ScreenProps {
   onRetry?: () => void;
   onBack?: () => void;
-  /** Identificador de la solicitud fallida (traceId del servidor). */
-  errorReference?: string;
+  /**
+   * Identificador de la solicitud fallida (traceId del servidor).
+   * `null` u omitido oculta la referencia porque no existe dato real.
+   */
+  errorReference?: string | null;
 }
 
 export const Beneficiaries13Screen: React.FC<Beneficiaries13ScreenProps> = ({
@@ -50,11 +53,13 @@ export const Beneficiaries13Screen: React.FC<Beneficiaries13ScreenProps> = ({
           equipo ya fue notificado. Por favor intenta más tarde.
         </Text>
 
-        {/* Error ref card */}
-        <View style={styles.refCard}>
-          <Text style={styles.refLabel}>Referencia del error</Text>
-          <Text style={styles.refValue}>{errorReference}</Text>
-        </View>
+        {/* Error ref card — solo con referencia real del servidor */}
+        {errorReference ? (
+          <View style={styles.refCard}>
+            <Text style={styles.refLabel}>Referencia del error</Text>
+            <Text style={styles.refValue}>{errorReference}</Text>
+          </View>
+        ) : null}
       </View>
 
       {/* Actions */}

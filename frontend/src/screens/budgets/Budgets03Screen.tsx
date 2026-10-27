@@ -15,11 +15,17 @@ export interface Budgets03ScreenProps {
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** Periodo en curso, por ejemplo «Octubre 2026». */
+  readonly monthLabel?: string;
+  /** `true` solo en modo demostración: oculta los textos DEMO en modo real. */
+  readonly demo?: boolean;
 }
 
 export const Budgets03Screen: React.FC<Budgets03ScreenProps> = ({
   onBack,
   onTabPress,
+  monthLabel = DEMO_BUDGET_MONTH,
+  demo = true,
 }) => {
   return (
     <View style={styles.root}>
@@ -31,14 +37,16 @@ export const Budgets03Screen: React.FC<Budgets03ScreenProps> = ({
         <BudgetsHeader title="Presupuestos" onBack={onBack} titleSize={24} />
 
         <View style={styles.monthPill}>
-          <Text style={styles.monthText}>{DEMO_BUDGET_MONTH}</Text>
+          <Text style={styles.monthText}>{monthLabel}</Text>
         </View>
 
         <BudgetsSkeletonCard />
 
-        <Text style={styles.demoHint}>
-          Estado de carga DEMO · sin conexión al backend
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Estado de carga DEMO · sin conexión al backend
+          </Text>
+        ) : null}
       </ScrollView>
 
       <BottomNav activeTab="inicio" onTabPress={onTabPress} />

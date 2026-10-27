@@ -9,12 +9,22 @@ import TransferStatusScreen from '../../components/transfers/TransferStatusScree
 export interface Cash11ScreenProps {
   readonly onRetry?: () => void;
   readonly onCancel?: () => void;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
+  /** Referencia de soporte (traceId) cuando exista. */
+  readonly errorReference?: string | null;
 }
 
 export const Cash11Screen: React.FC<Cash11ScreenProps> = ({
   onRetry,
   onCancel,
+  demo = true,
+  errorReference,
 }) => {
+  const description = errorReference
+    ? `Ocurrió un problema en nuestros servidores. Si vuelve a pasar, comparte la referencia ${errorReference}.`
+    : 'Ocurrió un problema en nuestros servidores. Intenta de nuevo en unos segundos.';
+
   return (
     <TransferStatusScreen
       icon="alert-triangle"
@@ -24,12 +34,12 @@ export const Cash11Screen: React.FC<Cash11ScreenProps> = ({
       badgeBackground={colors.cashErrorBadgeSoft}
       badgeColor={colors.cashErrorBadgeSoftText}
       title="No pudimos guardar el registro"
-      description="Ocurrió un problema en nuestros servidores. Intenta de nuevo en unos segundos."
+      description={description}
       primaryLabel="Reintentar"
       onPrimary={onRetry}
       secondaryLabel="Cancelar"
       onSecondary={onCancel}
-      demoHint="Estado DEMO · no se envió ninguna operación"
+      demoHint={demo ? 'Estado DEMO · no se envió ninguna operación' : undefined}
     />
   );
 };

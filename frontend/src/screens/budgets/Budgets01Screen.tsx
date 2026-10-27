@@ -9,19 +9,31 @@ import BudgetsHeader from '../../components/budgets/BudgetsHeader';
 import BudgetsProgressItem from '../../components/budgets/BudgetsProgressItem';
 import BottomNav from '../../components/common/BottomNav';
 import { DEMO_BUDGETS, DEMO_BUDGET_MONTH } from '../../data/demoBudgets';
+import type { BudgetItem } from '../../types/budgets';
 
 export interface Budgets01ScreenProps {
   readonly onBack?: () => void;
   readonly onCreate?: () => void;
+  readonly onSelectBudget?: (budget: BudgetItem) => void;
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** Presupuestos confirmados por el backend. Si se omite, se usa el DEMO. */
+  readonly budgets?: readonly BudgetItem[];
+  /** Etiqueta del periodo consultado (por ejemplo, «Octubre 2026»). */
+  readonly monthLabel?: string;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Budgets01Screen: React.FC<Budgets01ScreenProps> = ({
   onBack,
   onCreate,
+  onSelectBudget,
   onTabPress,
+  budgets = DEMO_BUDGETS,
+  monthLabel = DEMO_BUDGET_MONTH,
+  demo = true,
 }) => {
   return (
     <View style={styles.root}>
@@ -38,18 +50,30 @@ export const Budgets01Screen: React.FC<Budgets01ScreenProps> = ({
         />
 
         <View style={styles.monthPill}>
-          <Text style={styles.monthText}>{DEMO_BUDGET_MONTH}</Text>
+          <Text style={styles.monthText}>{monthLabel}</Text>
         </View>
 
         <View style={styles.card}>
-          {DEMO_BUDGETS.map((budget) => (
-            <BudgetsProgressItem key={budget.id} item={budget} />
-          ))}
+          {budgets.length === 0 ? (
+            <Text style={styles.emptyText}>
+              Aún no tienes presupuestos para este periodo.
+            </Text>
+          ) : (
+            budgets.map((budget) => (
+              <BudgetsProgressItem
+                key={budget.id}
+                item={budget}
+                onPress={onSelectBudget}
+              />
+            ))
+          )}
         </View>
 
-        <Text style={styles.demoHint}>
-          Presupuestos DEMO · no representan tu cuenta real
-        </Text>
+        {demo ? (
+          <Text style={styles.demoHint}>
+            Presupuestos DEMO · no representan tu cuenta real
+          </Text>
+        ) : null}
       </ScrollView>
 
       <BottomNav activeTab="inicio" onTabPress={onTabPress} />
@@ -94,6 +118,12 @@ const styles = StyleSheet.create({
     shadowRadius: 10,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
+  },
+  emptyText: {
+    fontSize: 14,
+    lineHeight: 20,
+    color: colors.budgetsMuted,
+    textAlign: 'center',
   },
   demoHint: {
     marginTop: 18,

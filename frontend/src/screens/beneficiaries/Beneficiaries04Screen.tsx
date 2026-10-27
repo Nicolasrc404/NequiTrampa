@@ -20,15 +20,20 @@ interface Beneficiaries04ScreenProps {
   onSubmit?: (code: string, alias: string) => void;
   /** Bloquea el botón mientras el servidor confirma. */
   submitting?: boolean;
+  /** Borrador conservado tras un rechazo del servidor. */
+  initialCode?: string;
+  initialAlias?: string;
 }
 
 export const Beneficiaries04Screen: React.FC<Beneficiaries04ScreenProps> = ({
   onBack,
   onSubmit,
   submitting = false,
+  initialCode,
+  initialAlias,
 }) => {
-  const [code, setCode] = useState('');
-  const [alias, setAlias] = useState('');
+  const [code, setCode] = useState(initialCode ?? '');
+  const [alias, setAlias] = useState(initialAlias ?? '');
 
   const canSubmit = code.trim().length >= 4 && !submitting;
 

@@ -26,8 +26,17 @@ public sealed class CashService(ICashStore store, CategoryService categories)
     }
 
     public async Task<(CashCreateOutcome Outcome, CashMovementDto? Movement, CashBalanceDto Balance)>
-        CreateAsync(string owner, CreateCashMovementRequest request, CancellationToken ct)
+        CreateAsync(
+            string owner,
+            CreateCashMovementRequest request,
+            string idempotencyKey,
+            CancellationToken ct)
     {
+        // The HTTP layer already rejects missing keys (IdempotencyActionFilter). This guard
+        // keeps direct callers from silently writing an entry that cannot be replayed safely.
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+            throw new ArgumentException("Idempotency-Key is required.", nameof(idempotencyKey));
+
         var occurredOn = request.OccurredOn ?? CashTime.TodayKey();
         if (!CashTime.TryParseDate(occurredOn, out var date))
             return (CashCreateOutcome.InvalidDate, null, await BuildBalanceAsync(owner, ct));
@@ -47,10 +56,12 @@ public sealed class CashService(ICashStore store, CategoryService categories)
         }
 
         var note = StableKeys.NormalizeName(request.Note, 140);
-        var dedupeKey = StableKeys.Of(
-            "cash", owner, occurredOn, request.Direction,
-            request.AmountCents.ToString(System.Globalization.CultureInfo.InvariantCulture),
-            request.CategoryId ?? "", note ?? "");
+
+        // Identity of the intention, not of the content: two identical entries declared with
+        // different Idempotency-Key values are legitimate independent entries. Repeating the
+        // same key replays at the HTTP idempotency filter; the store keeps a second guard for
+        // concurrent calls that bypass that filter.
+        var dedupeKey = StableKeys.Of("cash", owner, idempotencyKey.Trim());
 
         var draft = new CashMovementDraft(
             Guid.NewGuid().ToString(),

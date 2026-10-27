@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
 import colors from '../../theme/colors';
 
 export interface BudgetFormFieldProps {
@@ -8,6 +8,11 @@ export interface BudgetFormFieldProps {
   readonly placeholder?: string;
   readonly error?: boolean;
   readonly helper?: string;
+  readonly onChangeText?: (text: string) => void;
+  readonly readOnly?: boolean;
+  readonly keyboardType?: TextInputProps['keyboardType'];
+  readonly autoCapitalize?: TextInputProps['autoCapitalize'];
+  readonly maxLength?: number;
 }
 
 export const BudgetFormField: React.FC<BudgetFormFieldProps> = ({
@@ -16,20 +21,39 @@ export const BudgetFormField: React.FC<BudgetFormFieldProps> = ({
   placeholder,
   error = false,
   helper,
+  onChangeText,
+  readOnly = true,
+  keyboardType,
+  autoCapitalize,
+  maxLength,
 }) => {
   return (
     <View style={styles.group}>
       <Text style={styles.label}>{label}</Text>
       <View style={[styles.field, error ? styles.fieldError : null]}>
-        <Text
-          style={[
-            styles.value,
-            !value ? styles.placeholder : null,
-            error && !value ? styles.errorValue : null,
-          ]}
-        >
-          {value || placeholder}
-        </Text>
+        {readOnly ? (
+          <Text
+            style={[
+              styles.value,
+              !value ? styles.placeholder : null,
+              error && !value ? styles.errorValue : null,
+            ]}
+          >
+            {value || placeholder}
+          </Text>
+        ) : (
+          <TextInput
+            style={styles.input}
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            placeholderTextColor={colors.budgetsMutedAlt}
+            keyboardType={keyboardType}
+            autoCapitalize={autoCapitalize}
+            maxLength={maxLength}
+            accessibilityLabel={label}
+          />
+        )}
       </View>
       {helper ? (
         <Text style={[styles.helper, error ? styles.helperError : null]}>
@@ -67,6 +91,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '500',
     color: colors.budgetsTitle,
+  },
+  input: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: colors.budgetsTitle,
+    paddingVertical: 0,
   },
   placeholder: {
     fontWeight: '400',

@@ -11,7 +11,7 @@ import AnalyticsPeriodSelector from '../../components/analytics/AnalyticsPeriodS
 import AnalyticsWeeklyBarChart from '../../components/analytics/AnalyticsWeeklyBarChart';
 import BottomNav from '../../components/common/BottomNav';
 import { DEMO_SUMMARY_DATA } from '../../data/demoAnalytics';
-import { AnalyticsTab } from '../../types/analytics';
+import { AnalyticsSummaryData, AnalyticsTab } from '../../types/analytics';
 
 export interface Analytics01ScreenProps {
   readonly onBack?: () => void;
@@ -20,6 +20,8 @@ export interface Analytics01ScreenProps {
   readonly onTabPress?: (
     tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil',
   ) => void;
+  /** Resumen confirmado por el backend. Si se omite, se usa el DEMO. */
+  readonly summary?: AnalyticsSummaryData;
 }
 
 export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
@@ -27,7 +29,9 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
   onSelectTab,
   onSelectPeriod,
   onTabPress,
+  summary,
 }) => {
+  const data = summary ?? DEMO_SUMMARY_DATA;
   return (
     <View style={styles.root}>
       <ScrollView
@@ -44,7 +48,7 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
 
         <AnalyticsPeriodSelector
           periodLabel="Periodo"
-          periodValue={DEMO_SUMMARY_DATA.period}
+          periodValue={data.period}
           onPress={onSelectPeriod}
         />
 
@@ -52,7 +56,7 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
         <View style={styles.headingSection}>
           <Text style={styles.headingTitle}>Resumen financiero</Text>
           <Text style={styles.headingSubtitle}>
-            Tu comportamiento en septiembre · {DEMO_SUMMARY_DATA.currency}
+            Tu comportamiento en el periodo · {data.currency}
           </Text>
         </View>
 
@@ -60,12 +64,12 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
         <View style={styles.heroCard}>
           <Text style={styles.heroLabel}>Diferencia del periodo</Text>
           <Text style={styles.heroAmount}>
-            {DEMO_SUMMARY_DATA.differenceFormatted}
+            {data.differenceFormatted}
           </Text>
-          <Text style={styles.heroNote}>{DEMO_SUMMARY_DATA.differenceNote}</Text>
+          <Text style={styles.heroNote}>{data.differenceNote}</Text>
           <View style={styles.heroPill}>
             <Text style={styles.heroPillText}>
-              {DEMO_SUMMARY_DATA.statusPillText}
+              {data.statusPillText}
             </Text>
           </View>
         </View>
@@ -75,13 +79,13 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
           <View style={styles.gridCard}>
             <Text style={styles.gridLabel}>Ingresos</Text>
             <Text style={styles.gridAmount}>
-              {DEMO_SUMMARY_DATA.totalIncomeFormatted}
+              {data.totalIncomeFormatted}
             </Text>
           </View>
           <View style={styles.gridCard}>
             <Text style={styles.gridLabel}>Gastos</Text>
             <Text style={styles.gridAmount}>
-              {DEMO_SUMMARY_DATA.totalExpenseFormatted}
+              {data.totalExpenseFormatted}
             </Text>
           </View>
         </View>
@@ -89,7 +93,7 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
         {/* Monthly Movement Chart */}
         <AnalyticsWeeklyBarChart
           title="Así se movió tu mes"
-          data={DEMO_SUMMARY_DATA.weeklyMovements}
+          data={data.weeklyMovements}
           incomeColor={colors.analyticsTeal}
           expenseColor={colors.analyticsMagenta}
         />
@@ -99,11 +103,11 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
           <View>
             <Text style={styles.topExpenseLabel}>Tu gasto principal</Text>
             <Text style={styles.topExpenseCategory}>
-              {DEMO_SUMMARY_DATA.topExpenseCategory}
+              {data.topExpenseCategory}
             </Text>
           </View>
           <Text style={styles.topExpenseAmount}>
-            {DEMO_SUMMARY_DATA.topExpenseFormatted}
+            {data.topExpenseFormatted}
           </Text>
         </View>
 

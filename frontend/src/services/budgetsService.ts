@@ -9,10 +9,9 @@
 //
 // NO existe DELETE: los presupuestos no se eliminan por API.
 //
-// Límite de datos conocido: `financial_movements` no proyecta `categoryId`, así
-// que `spentCents` puede ser 0 aunque existan gastos. El mapper expone esa
-// ambigüedad y la UI la presenta como dato no disponible, nunca como consumo
-// confirmado de $0.
+// `financial_movements` proyecta `categoryId`, por lo que `spentCents` refleja
+// el consumo real de la categoría y un valor 0 significa que no hubo gastos, no
+// que el dato falte.
 
 import type { HttpClient } from './http';
 import {

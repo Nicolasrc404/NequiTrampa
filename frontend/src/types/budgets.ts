@@ -30,12 +30,6 @@ export interface BudgetItem {
   readonly limitCents: number;
   readonly percent: number;
   readonly health: BudgetHealth;
-  /**
-   * `false` cuando el backend devolvió 0 pero la proyección de movimientos aún
-   * no permite distinguir "sin gastos" de "gastos no clasificados". La UI debe
-   * mostrar consumo no disponible, no $0 confirmado.
-   */
-  readonly spentDataAvailable?: boolean;
 }
 
 export interface BudgetExpense {
@@ -56,8 +50,6 @@ export interface BudgetDetail {
   readonly daysRemaining: number;
   readonly dailySuggestedCents: number;
   readonly expenses: readonly BudgetExpense[];
-  /** `false` cuando el consumo no puede confirmarse por falta de `categoryId`. */
-  readonly spentDataAvailable?: boolean;
 }
 
 export interface BudgetDraft {

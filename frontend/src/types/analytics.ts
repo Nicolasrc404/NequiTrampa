@@ -50,7 +50,7 @@ export interface AnalyticsSummaryData {
   topExpenseAmount: number;
   topExpenseFormatted: string; // "$800.000 · 40%"
   weeklyMovements: WeeklyBarData[];
-  /** Advertencia cuando el desglose por categoría es parcial. */
+  /** Advertencia cuando hay gastos sin categoría asignada. */
   dataNote?: string;
 }
 
@@ -62,7 +62,7 @@ export interface AnalyticsCategoryData {
   categories: CategoryExpenseItem[];
   /** Monto agrupado por el backend en "Sin categoría". */
   uncategorizedFormatted?: string;
-  /** Advertencia cuando el desglose por categoría es parcial. */
+  /** Advertencia cuando hay gastos sin categoría asignada. */
   dataNote?: string;
 }
 

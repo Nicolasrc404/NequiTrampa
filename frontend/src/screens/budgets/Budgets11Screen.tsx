@@ -14,12 +14,15 @@ export interface Budgets11ScreenProps {
   readonly onBack?: () => void;
   readonly onSubmit?: () => void;
   readonly onCancel?: () => void;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Budgets11Screen: React.FC<Budgets11ScreenProps> = ({
   onBack,
   onSubmit,
   onCancel,
+  demo = true,
 }) => {
   return (
     <View style={styles.root}>
@@ -59,7 +62,9 @@ export const Budgets11Screen: React.FC<Budgets11ScreenProps> = ({
         </View>
 
         <Text style={styles.demoHint}>
-          Validación DEMO · el backend conserva la validación definitiva
+          {demo
+            ? 'Validación DEMO · el backend conserva la validación definitiva'
+            : 'Revisa el formulario antes de enviarlo de nuevo'}
         </Text>
       </ScrollView>
 

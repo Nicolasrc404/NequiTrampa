@@ -150,6 +150,13 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
       ? null
       : (await resolveToken(options.getAccessToken)) ?? null;
 
+    // La cancelación puede ocurrir mientras se resuelve/renueva el token:
+    // sin esta comprobación la señal ya abortada se perdería porque el
+    // listener se registra después y `abort` no se repite.
+    if (requestOptions.signal?.aborted) {
+      throw ApiError.fromTransport('aborted');
+    }
+
     const headers = composeHeaders(options.defaultHeaders, requestOptions, accessToken);
 
     const controller = new AbortController();

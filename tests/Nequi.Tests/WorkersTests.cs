@@ -69,6 +69,27 @@ public class WorkersTests : IDisposable
     }
 
     [Fact]
+    public async Task Projection_preserves_categoryId_and_legacy_events_without_it()
+    {
+        var c = _f.CreateClient();
+        var categorized = Env.Event("evt-cat", "alice", -120_000, EventTypes.TransferCompleted, categoryId: "cat-mercado");
+        var legacy = Env.Event("evt-legacy", "alice", 300_000, EventTypes.RechargeCompleted);
+
+        Assert.Equal(HttpStatusCode.NoContent, (await c.PostAsync("/internal/pubsub/projection", Env.PushBody(categorized))).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await c.PostAsync("/internal/pubsub/projection", Env.PushBody(legacy))).StatusCode);
+
+        var items = (await _f.CreateClient().As("alice").GetFromJsonAsync<JsonElement>("/v1/projections/movements"))
+            .GetProperty("items").EnumerateArray().ToList();
+
+        Assert.Equal(2, items.Count);
+        var cat = items.Single(i => i.GetProperty("eventId").GetString() == "evt-cat");
+        Assert.Equal("cat-mercado", cat.GetProperty("categoryId").GetString());
+
+        var old = items.Single(i => i.GetProperty("eventId").GetString() == "evt-legacy");
+        Assert.False(old.TryGetProperty("categoryId", out _)); // legacy payloads keep their original shape
+    }
+
+    [Fact]
     public async Task Malformed_or_non_COP_events_are_acked_but_not_projected()
     {
         var c = _f.CreateClient();

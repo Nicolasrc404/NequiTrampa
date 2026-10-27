@@ -21,6 +21,7 @@ export function mapCategory(dto: CategoryDto): CategoryItem {
     movementsCount: dto.movementsCount,
     formattedAmount: formatCopCents(dto.totalAmountCents),
     initialLetter: categoryInitial(dto.name),
+    isSystem: dto.isSystem,
   };
 }
 

@@ -4,9 +4,21 @@ import GoalsStatusScreen from '../../components/goals/GoalsStatusScreen';
 
 export interface Goals13ScreenProps {
   readonly onRetry?: () => void;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
+  /** Referencia de soporte (traceId) cuando exista. */
+  readonly errorReference?: string | null;
 }
 
-export const Goals13Screen: React.FC<Goals13ScreenProps> = ({ onRetry }) => {
+export const Goals13Screen: React.FC<Goals13ScreenProps> = ({
+  onRetry,
+  demo = true,
+  errorReference,
+}) => {
+  const description = errorReference
+    ? `La información anterior de tu meta sigue guardada. Si vuelve a pasar, comparte la referencia ${errorReference}.`
+    : 'La información anterior de tu meta sigue guardada. Es un problema de nuestro lado. Intenta de nuevo en unos minutos.';
+
   return (
     <GoalsStatusScreen
       icon="wifi"
@@ -16,10 +28,10 @@ export const Goals13Screen: React.FC<Goals13ScreenProps> = ({ onRetry }) => {
       iconSize={32}
       title="No pudimos guardar los cambios"
       titleSize={24}
-      description="La información anterior de tu meta sigue guardada. Es un problema de nuestro lado. Intenta de nuevo en unos minutos."
+      description={description}
       primaryLabel="Intentar nuevamente"
       onPrimary={onRetry}
-      demoHint="Estado DEMO · sin conexión al backend"
+      demoHint={demo ? 'Estado DEMO · sin conexión al backend' : undefined}
     />
   );
 };

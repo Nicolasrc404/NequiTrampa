@@ -1,5 +1,11 @@
 import React from 'react';
-import { StyleSheet, Text, TextInput, View } from 'react-native';
+import {
+  StyleSheet,
+  Text,
+  TextInput,
+  TextInputProps,
+  View,
+} from 'react-native';
 import colors from '../../theme/colors';
 
 export interface CashFormFieldProps {
@@ -11,6 +17,9 @@ export interface CashFormFieldProps {
   readonly error?: boolean;
   readonly helper?: string;
   readonly height?: number;
+  readonly keyboardType?: TextInputProps['keyboardType'];
+  readonly autoCapitalize?: TextInputProps['autoCapitalize'];
+  readonly maxLength?: number;
 }
 
 export const CashFormField: React.FC<CashFormFieldProps> = ({
@@ -22,6 +31,9 @@ export const CashFormField: React.FC<CashFormFieldProps> = ({
   error = false,
   helper,
   height = 54,
+  keyboardType,
+  autoCapitalize,
+  maxLength,
 }) => {
   return (
     <View style={styles.group}>
@@ -45,13 +57,16 @@ export const CashFormField: React.FC<CashFormFieldProps> = ({
           </Text>
         </View>
       ) : (
-        <View style={[styles.field, { height }]}>
+        <View style={[styles.field, { height }, error ? styles.fieldError : null]}>
           <TextInput
             style={styles.input}
             value={value}
             onChangeText={onChangeText}
             placeholder={placeholder}
             placeholderTextColor={colors.cashInputPlaceholder}
+            keyboardType={keyboardType}
+            autoCapitalize={autoCapitalize}
+            maxLength={maxLength}
             accessibilityLabel={label}
           />
         </View>

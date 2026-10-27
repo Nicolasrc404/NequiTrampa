@@ -203,7 +203,17 @@ public sealed class CategoryService(IDocumentStore docs, MovementReader movement
                 StringComparer.Ordinal);
     }
 
-    /// <summary>Reserves the (owner,type,normalized-name) key. Cleans stale reservations left by a failed write.</summary>
+    /// <summary>
+    /// Reserves the (owner,type,normalized-name) key. A failed key reservation means another
+    /// request either already created the category or is still writing it.
+    /// </summary>
+    /// <remarks>
+    /// Do not reclaim an existing reservation inline. Between reserving the key and writing the
+    /// category the owner's document does not exist yet, so a concurrent request cannot tell a
+    /// fresh reservation from an abandoned one and would delete the winner's key, allowing two
+    /// categories with the same name. The catch block compensates in-process failures; a key
+    /// leaked by a hard process crash must be reclaimed by explicit operational cleanup.
+    /// </remarks>
     private async Task<bool> TryReserveKeyAsync(
         string owner, string type, string nameKey, string keyId, string categoryId, CancellationToken ct)
     {
@@ -216,17 +226,6 @@ public sealed class CategoryService(IDocumentStore docs, MovementReader movement
             ["createdAt"] = DateTimeOffset.UtcNow.ToString("O", CultureInfo.InvariantCulture),
         };
 
-        if (await docs.CreateIfAbsentAsync(CategoryCollections.Keys, keyId, payload, ct)) return true;
-
-        var existing = await docs.GetAsync(CategoryCollections.Keys, keyId, ct);
-        var existingCategoryId = existing is null ? null : CategoryDocument.Str(existing, "categoryId");
-        if (existingCategoryId is null) return false; // key exists but is unreadable: treat as taken
-
-        var category = await docs.GetAsync(CategoryCollections.Categories, existingCategoryId, ct);
-        if (category is not null) return false; // real duplicate
-
-        // Stale reservation (category write failed): remove and retry once.
-        await docs.DeleteAsync(CategoryCollections.Keys, keyId, ct);
         return await docs.CreateIfAbsentAsync(CategoryCollections.Keys, keyId, payload, ct);
     }
 

@@ -1,11 +1,13 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import colors from '../../theme/colors';
 import { BudgetItem } from '../../types/budgets';
 import { formatBudgetAmount } from '../../data/demoBudgets';
 
 export interface BudgetsProgressItemProps {
   readonly item: BudgetItem;
+  /** Abre el presupuesto seleccionado. Sin handler el ítem es informativo. */
+  readonly onPress?: (item: BudgetItem) => void;
 }
 
 const getProgressColor = (item: BudgetItem): string => {
@@ -20,12 +22,20 @@ const getProgressColor = (item: BudgetItem): string => {
 
 export const BudgetsProgressItem: React.FC<BudgetsProgressItemProps> = ({
   item,
+  onPress,
 }) => {
   const progressColor = getProgressColor(item);
   const progressWidth = `${Math.min(Math.max(item.percent, 0), 100)}%` as const;
 
   return (
-    <View style={styles.container}>
+    <TouchableOpacity
+      style={styles.container}
+      activeOpacity={onPress ? 0.8 : 1}
+      disabled={!onPress}
+      onPress={onPress ? () => onPress(item) : undefined}
+      accessibilityRole={onPress ? 'button' : undefined}
+      accessibilityLabel={onPress ? `Editar presupuesto de ${item.category}` : undefined}
+    >
       <View style={styles.topRow}>
         <View style={styles.labels}>
           <Text style={styles.category}>{item.category}</Text>
@@ -47,7 +57,7 @@ export const BudgetsProgressItem: React.FC<BudgetsProgressItemProps> = ({
           ]}
         />
       </View>
-    </View>
+    </TouchableOpacity>
   );
 };
 

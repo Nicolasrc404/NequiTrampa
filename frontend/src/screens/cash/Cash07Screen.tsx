@@ -14,11 +14,20 @@ import {
 export interface Cash07ScreenProps {
   readonly onFixAmount?: () => void;
   readonly onRegisterIncome?: () => void;
+  /** Monto rechazado por el backend, en centavos. */
+  readonly attemptedCents?: number;
+  /** Efectivo disponible confirmado por el backend, en centavos. */
+  readonly availableCents?: number;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
 export const Cash07Screen: React.FC<Cash07ScreenProps> = ({
   onFixAmount,
   onRegisterIncome,
+  attemptedCents = DEMO_CASH_EXCEEDED_CENTS,
+  availableCents = DEMO_CASH_AVAILABLE_CENTS,
+  demo = true,
 }) => {
   return (
     <TransferStatusScreen
@@ -29,12 +38,16 @@ export const Cash07Screen: React.FC<Cash07ScreenProps> = ({
       badgeBackground={colors.cashErrorBadgeBg}
       badgeColor={colors.cashErrorBadgeText}
       title="El gasto supera tu efectivo"
-      description={`Tu gasto de ${formatCashAmount(DEMO_CASH_EXCEEDED_CENTS)} supera tu efectivo disponible de ${formatCashAmount(DEMO_CASH_AVAILABLE_CENTS)}.`}
+      description={`Tu gasto de ${formatCashAmount(attemptedCents)} supera tu efectivo disponible de ${formatCashAmount(availableCents)}.`}
       primaryLabel="Corregir monto"
       onPrimary={onFixAmount}
       secondaryLabel="Registrar ingreso"
       onSecondary={onRegisterIncome}
-      demoHint="Validación DEMO · el backend conserva la validación definitiva"
+      demoHint={
+        demo
+          ? 'Validación DEMO · el backend conserva la validación definitiva'
+          : undefined
+      }
     />
   );
 };

@@ -3,8 +3,8 @@
 // ============================================================
 // Solo se agregan movimientos CONFIRMADOS. Los porcentajes de las barras son
 // relativos al máximo del periodo (para altura visual), no porcentajes
-// financieros. `uncategorizedCents` se expone como limitación de datos porque
-// la proyección actual de `financial_movements` no incluye `categoryId`.
+// financieros. `uncategorizedCents` agrupa movimientos sin categoría (por
+// ejemplo, eventos anteriores a la categorización).
 
 import type {
   AnalyticsCategoriesDto,
@@ -31,7 +31,7 @@ const CATEGORY_COLORS = [
 ] as const;
 
 export const UNCATEGORIZED_DATA_NOTE =
-  'El desglose por categoría es parcial: la proyección actual de movimientos no incluye la categoría, así que parte de los gastos se agrupa en «Sin categoría».';
+  'Parte de los gastos del periodo no tiene categoría asignada y se agrupa en «Sin categoría».';
 
 function signedCop(cents: number): string {
   const label = formatCopCents(Math.abs(cents));

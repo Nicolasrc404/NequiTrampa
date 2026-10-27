@@ -4,6 +4,7 @@ using Nequi.Shared.Idempotency;
 using Nequi.Shared.Security;
 using Nequi.Wallet.DTOs;
 using Nequi.Wallet.Interfaces;
+using Nequi.Wallet.Services;
 
 namespace Nequi.Wallet.Controllers;
 
@@ -17,7 +18,10 @@ namespace Nequi.Wallet.Controllers;
 [Route("v1/recharges")]
 [Authorize(Policy = Policies.Client)]
 [Produces("application/json")]
-public sealed class RechargesController(IRechargeService rechargeService, ILogger<RechargesController> logger) : ControllerBase
+public sealed class RechargesController(
+    IRechargeService rechargeService,
+    RechargePolicy policy,
+    ILogger<RechargesController> logger) : ControllerBase
 {
     /// <summary>
     /// Crea y procesa una recarga simulada de saldo digital.
@@ -31,6 +35,7 @@ public sealed class RechargesController(IRechargeService rechargeService, ILogge
     /// <response code="201">Recarga simulada completada exitosamente (MOCK).</response>
     /// <response code="400">Solicitud inválida o falta Idempotency-Key.</response>
     /// <response code="401">No autenticado o token inválido.</response>
+    /// <response code="403">Método de pago simulado no autorizado en este entorno.</response>
     /// <response code="409">Conflicto de idempotencia por reintento con cuerpo modificado.</response>
     /// <response code="422">Regla de negocio no superada (monto fuera de rango).</response>
     /// <response code="429">Límite de solicitudes excedido.</response>
@@ -39,6 +44,7 @@ public sealed class RechargesController(IRechargeService rechargeService, ILogge
     [ProducesResponseType(typeof(RechargeResponseDto), StatusCodes.Status201Created)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status422UnprocessableEntity)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status429TooManyRequests)]
@@ -59,6 +65,21 @@ public sealed class RechargesController(IRechargeService rechargeService, ILogge
 
         var user = CurrentUser.From(User);
         if (user is null) return Unauthorized();
+
+        if (!policy.IsPaymentMethodAllowed(request.PaymentMethod))
+        {
+            logger.LogWarning(
+                "Recarga simulada rechazada: método no autorizado en este entorno. user={User} method={Method}",
+                user.Uid, request.PaymentMethod);
+            return StatusCode(StatusCodes.Status403Forbidden, new ProblemDetails
+            {
+                Status = StatusCodes.Status403Forbidden,
+                Title = "Método de pago simulado no autorizado",
+                Detail = "Este entorno no tiene habilitados los métodos de pago simulados.",
+                Type = "https://errors.nequitrampa.internal/simulated_method_not_allowed",
+                Extensions = { ["code"] = "SIMULATED_METHOD_NOT_ALLOWED" }
+            });
+        }
 
         logger.LogInformation(
             "Iniciando recarga simulada cliente {ClientId} por {Amount} COP vía {Method}",

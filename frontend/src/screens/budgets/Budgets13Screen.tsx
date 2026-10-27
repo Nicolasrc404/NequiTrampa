@@ -8,9 +8,11 @@ import TransferStatusScreen from '../../components/transfers/TransferStatusScree
 
 export interface Budgets13ScreenProps {
   readonly onLogin?: () => void;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
 }
 
-export const Budgets13Screen: React.FC<Budgets13ScreenProps> = ({ onLogin }) => {
+export const Budgets13Screen: React.FC<Budgets13ScreenProps> = ({ onLogin, demo = true }) => {
   return (
     <TransferStatusScreen
       icon="lock"
@@ -25,7 +27,7 @@ export const Budgets13Screen: React.FC<Budgets13ScreenProps> = ({ onLogin }) => 
       description="Por seguridad cerramos tu sesión. Inicia sesión de nuevo para continuar con tus presupuestos."
       primaryLabel="Iniciar sesión"
       onPrimary={onLogin}
-      demoHint="Estado DEMO · no se enviaron credenciales"
+      demoHint={demo ? 'Estado DEMO · no se enviaron credenciales' : undefined}
     />
   );
 };

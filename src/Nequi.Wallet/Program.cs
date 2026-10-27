@@ -74,6 +74,9 @@ builder.Services.AddControllers(options =>
 
 // 3. Inyección de Dependencias — Servicios de Dominio Wallet
 builder.Services.AddSingleton<BeneficiaryService>();
+// Deny-by-default gate for simulated payment methods (SIMULATED_PSE, SIMULATED_CARD,
+// SIMULATED_CORRESPONSAL). Only deployments that explicitly opt in accept them.
+builder.Services.AddSingleton<RechargePolicy>();
 var isGcp = string.Equals(builder.Configuration["Data:Backend"], "gcp", StringComparison.OrdinalIgnoreCase);
 if (isGcp)
 {

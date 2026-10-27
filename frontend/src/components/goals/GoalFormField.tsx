@@ -1,10 +1,11 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
 import colors from '../../theme/colors';
 
 export interface GoalFormFieldProps {
   readonly label: string;
   readonly value: string;
+  readonly placeholder?: string;
   readonly error?: boolean;
   readonly helper?: string;
   readonly helperError?: boolean;
@@ -14,11 +15,17 @@ export interface GoalFormFieldProps {
   readonly errorBorderColor?: string;
   readonly helperColor?: string;
   readonly labelColor?: string;
+  readonly onChangeText?: (text: string) => void;
+  readonly readOnly?: boolean;
+  readonly keyboardType?: TextInputProps['keyboardType'];
+  readonly autoCapitalize?: TextInputProps['autoCapitalize'];
+  readonly maxLength?: number;
 }
 
 export const GoalFormField: React.FC<GoalFormFieldProps> = ({
   label,
   value,
+  placeholder,
   error = false,
   helper,
   helperError = false,
@@ -28,6 +35,11 @@ export const GoalFormField: React.FC<GoalFormFieldProps> = ({
   errorBorderColor = colors.goalsError,
   helperColor,
   labelColor = colors.goalsMuted,
+  onChangeText,
+  readOnly = true,
+  keyboardType,
+  autoCapitalize,
+  maxLength,
 }) => {
   return (
     <View style={styles.group}>
@@ -43,7 +55,21 @@ export const GoalFormField: React.FC<GoalFormFieldProps> = ({
             : null,
         ]}
       >
-        <Text style={styles.value}>{value}</Text>
+        {readOnly ? (
+          <Text style={styles.value}>{value || placeholder}</Text>
+        ) : (
+          <TextInput
+            style={styles.input}
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            placeholderTextColor={colors.goalsMuted}
+            keyboardType={keyboardType}
+            autoCapitalize={autoCapitalize}
+            maxLength={maxLength}
+            accessibilityLabel={label}
+          />
+        )}
       </View>
       {helper ? (
         <Text
@@ -86,6 +112,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '400',
     color: colors.goalsDark,
+  },
+  input: {
+    fontSize: 16,
+    fontWeight: '400',
+    color: colors.goalsDark,
+    paddingVertical: 0,
   },
   helper: {
     paddingLeft: 2,
