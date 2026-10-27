@@ -18,29 +18,10 @@ import {
   ServiceContractError,
 } from './contract';
 import { normalizeBaseUrl } from '../utils/url';
+import type { WalletBalanceDto, WalletDto } from '../types/wallet';
 
-export interface WalletDto {
-  readonly walletId: string;
-  readonly clientId: string;
-  readonly phoneNumber: string;
-  readonly status: 'ACTIVE' | 'BLOCKED' | 'SUSPENDED' | string;
-  readonly currency: 'COP';
-  readonly createdAt: string | null;
-  readonly updatedAt: string | null;
-}
-
-export interface WalletBalanceDto {
-  readonly walletId: string;
-  readonly clientId: string;
-  /** Saldo decimal del backend (solo presentación). */
-  readonly availableBalance: number;
-  /** Saldo en centavos: única representación usada para operar. */
-  readonly availableBalanceCents: number;
-  readonly currency: 'COP';
-  readonly asOfTimestamp: string | null;
-  /** `MOCK_IN_MEMORY`, `SPANNER`, etc. No es un indicador de confianza por sí solo. */
-  readonly sourceAuthority: string;
-}
+// Compatibilidad para consumidores que aún importan tipos desde el servicio.
+export type { WalletBalanceDto, WalletDto } from '../types/wallet';
 
 export interface WalletService {
   getWallet(options?: { readonly signal?: AbortSignal }): Promise<WalletDto>;

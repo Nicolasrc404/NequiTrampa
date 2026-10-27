@@ -9,9 +9,11 @@ import AnalyticsHeader from '../../components/analytics/AnalyticsHeader';
 import AnalyticsTabs from '../../components/analytics/AnalyticsTabs';
 import AnalyticsPeriodSelector from '../../components/analytics/AnalyticsPeriodSelector';
 import AnalyticsWeeklyBarChart from '../../components/analytics/AnalyticsWeeklyBarChart';
+import LoadingState from '../../components/common/states/LoadingState';
 import BottomNav from '../../components/common/BottomNav';
 import { DEMO_SUMMARY_DATA } from '../../data/demoAnalytics';
-import { AnalyticsSummaryData, AnalyticsTab } from '../../types/analytics';
+import { AnalyticsTab } from '../../types/analytics';
+import type { AnalyticsSummaryData } from '../../types/analytics';
 
 export interface Analytics01ScreenProps {
   readonly onBack?: () => void;
@@ -22,6 +24,9 @@ export interface Analytics01ScreenProps {
   ) => void;
   /** Resumen confirmado por el backend. Si se omite, se usa el DEMO. */
   readonly summary?: AnalyticsSummaryData;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
+  readonly loading?: boolean;
 }
 
 export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
@@ -30,7 +35,17 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
   onSelectPeriod,
   onTabPress,
   summary,
+  demo: _demo = true,
+  loading = false,
 }) => {
+  if (loading) {
+    return (
+      <LoadingState
+        message="Cargando resumen…"
+        hint="Consultando datos confirmados."
+      />
+    );
+  }
   const data = summary ?? DEMO_SUMMARY_DATA;
   return (
     <View style={styles.root}>
@@ -112,7 +127,7 @@ export const Analytics01Screen: React.FC<Analytics01ScreenProps> = ({
         </View>
 
         <Text style={styles.footnote}>
-          Solo consulta · tus saldos no cambian
+          {data.dataNote ?? 'Solo consulta · tus saldos no cambian'}
         </Text>
       </ScrollView>
 

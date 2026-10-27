@@ -9,6 +9,7 @@ import TransfersHeader from '../../components/transfers/TransfersHeader';
 import CashTransactionRow from '../../components/cash/CashTransactionRow';
 import CashActionButtons from '../../components/cash/CashActionButtons';
 import BottomNav from '../../components/common/BottomNav';
+import LoadingState from '../../components/common/states/LoadingState';
 import {
   DEMO_CASH_AVAILABLE_CENTS,
   DEMO_CASH_RECENT,
@@ -30,6 +31,7 @@ export interface Cash01ScreenProps {
   readonly recentTransactions?: readonly CashTransaction[];
   /** `true` solo en modo demostración: oculta los textos DEMO en modo real. */
   readonly demo?: boolean;
+  readonly loading?: boolean;
 }
 
 export const Cash01Screen: React.FC<Cash01ScreenProps> = ({
@@ -41,7 +43,11 @@ export const Cash01Screen: React.FC<Cash01ScreenProps> = ({
   availableCents = DEMO_CASH_AVAILABLE_CENTS,
   recentTransactions = DEMO_CASH_RECENT,
   demo = true,
+  loading = false,
 }) => {
+  if (loading) {
+    return <LoadingState message="Cargando efectivo…" hint="Consultando tu registro personal." />;
+  }
   return (
     <View style={styles.root}>
       <ScrollView

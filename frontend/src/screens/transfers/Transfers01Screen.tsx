@@ -2,7 +2,7 @@
 // Transfers_01 — Enviar dinero
 // Fuente visual: Stitch screen 5ba4d88fc8fa4219b5b9d9b2542d276b
 // ============================================================
-import React from 'react';
+import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Platform,
@@ -22,6 +22,7 @@ import {
   formatCopFromCents,
 } from '../../data/demoTransfers';
 import { TransferRecipient } from '../../types/transfers';
+import { parseCopInput } from '../../utils/money';
 
 export interface Transfers01ScreenProps {
   readonly recipient: TransferRecipient;
@@ -31,6 +32,9 @@ export interface Transfers01ScreenProps {
   readonly onBack?: () => void;
   readonly onSelectRecipient?: () => void;
   readonly onContinue?: () => void;
+  readonly realMode?: boolean;
+  readonly availableBalanceCents?: number | null;
+  readonly onAmountChange?: (amountCents: number) => void;
 }
 
 export const Transfers01Screen: React.FC<Transfers01ScreenProps> = ({
@@ -41,7 +45,12 @@ export const Transfers01Screen: React.FC<Transfers01ScreenProps> = ({
   onBack,
   onSelectRecipient,
   onContinue,
+  realMode = false,
+  availableBalanceCents = null,
+  onAmountChange,
 }) => {
+  const [amountText, setAmountText] = useState(realMode ? '' : formatCopFromCents(amountCents));
+  const amountValid = amountCents >= 100 && (availableBalanceCents === null || amountCents <= availableBalanceCents);
   return (
     <KeyboardAvoidingView
       style={styles.root}
@@ -57,11 +66,21 @@ export const Transfers01Screen: React.FC<Transfers01ScreenProps> = ({
 
         <View style={styles.amountCard}>
           <Text style={styles.amountQuestion}>¿Cuánto quieres enviar?</Text>
-          <Text style={styles.amountValue}>
-            {formatCopFromCents(amountCents)}
-          </Text>
+          {realMode ? <TextInput
+            style={styles.amountInput}
+            value={amountText}
+            onChangeText={(text) => {
+              setAmountText(text);
+              const parsed = parseCopInput(text);
+              if (parsed !== null) onAmountChange?.(parsed);
+            }}
+            placeholder="$ 0"
+            placeholderTextColor={colors.grayPlaceholder}
+            keyboardType="decimal-pad"
+            accessibilityLabel="Monto de la transferencia"
+          /> : <Text style={styles.amountValue}>{formatCopFromCents(amountCents)}</Text>}
           <Text style={styles.amountMeta}>
-            Disponible {formatCopFromCents(DEMO_TRANSFER_BALANCE_CENTS)} ·
+            Disponible {realMode ? (typeof availableBalanceCents === 'number' ? formatCopFromCents(availableBalanceCents) : 'consultando…') : formatCopFromCents(DEMO_TRANSFER_BALANCE_CENTS)} ·
             Límite por operación {formatCopFromCents(DEMO_TRANSFER_LIMIT_CENTS)}
           </Text>
         </View>
@@ -76,7 +95,7 @@ export const Transfers01Screen: React.FC<Transfers01ScreenProps> = ({
               accessibilityRole="button"
               accessibilityLabel={`Destinatario ${recipient.name}, ${recipient.code}`}
             >
-              <Text style={styles.fieldValue}>
+          <Text style={styles.fieldValue}>
                 {recipient.name} · {recipient.code}
               </Text>
             </TouchableOpacity>
@@ -99,14 +118,15 @@ export const Transfers01Screen: React.FC<Transfers01ScreenProps> = ({
         </View>
 
         <Text style={styles.demoHint}>
-          Vista DEMO · no se enviará dinero ni se llamará al backend
+          {realMode ? 'Modo real · requiere confirmación del servidor' : 'Vista DEMO · no se enviará dinero ni se llamará al backend'}
         </Text>
       </ScrollView>
 
       <View style={styles.footer}>
         <TransferActionButtons
-          primaryLabel="Continuar"
+          primaryLabel={realMode ? 'Revisar transferencia' : 'Continuar'}
           onPrimary={onContinue}
+          disabled={realMode && (!amountValid || recipient.code.trim().length === 0)}
         />
       </View>
     </KeyboardAvoidingView>
@@ -151,6 +171,17 @@ const styles = StyleSheet.create({
     color: colors.transfersDark,
     letterSpacing: -1,
     marginBottom: 8,
+  },
+  amountInput: {
+    minWidth: 180,
+    fontSize: 38,
+    lineHeight: 46,
+    fontWeight: '700',
+    color: colors.transfersDark,
+    textAlign: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: colors.transfersInputBorder,
+    paddingVertical: 0,
   },
   amountMeta: {
     maxWidth: 290,

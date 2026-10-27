@@ -9,9 +9,11 @@ import AnalyticsHeader from '../../components/analytics/AnalyticsHeader';
 import AnalyticsTabs from '../../components/analytics/AnalyticsTabs';
 import AnalyticsPeriodSelector from '../../components/analytics/AnalyticsPeriodSelector';
 import AnalyticsWeeklyBarChart from '../../components/analytics/AnalyticsWeeklyBarChart';
+import LoadingState from '../../components/common/states/LoadingState';
 import BottomNav from '../../components/common/BottomNav';
 import { DEMO_TREND_DATA } from '../../data/demoAnalytics';
-import { AnalyticsTab, AnalyticsTrendData } from '../../types/analytics';
+import { AnalyticsTab } from '../../types/analytics';
+import type { AnalyticsTrendData } from '../../types/analytics';
 
 export interface Analytics08ScreenProps {
   readonly onBack?: () => void;
@@ -22,6 +24,9 @@ export interface Analytics08ScreenProps {
   ) => void;
   /** Tendencias confirmadas por el backend. Si se omite, se usa el DEMO. */
   readonly trends?: AnalyticsTrendData;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
+  readonly loading?: boolean;
 }
 
 export const Analytics08Screen: React.FC<Analytics08ScreenProps> = ({
@@ -30,7 +35,17 @@ export const Analytics08Screen: React.FC<Analytics08ScreenProps> = ({
   onSelectPeriod,
   onTabPress,
   trends,
+  demo: _demo = true,
+  loading = false,
 }) => {
+  if (loading) {
+    return (
+      <LoadingState
+        message="Cargando tendencias…"
+        hint="Consultando datos confirmados."
+      />
+    );
+  }
   const data = trends ?? DEMO_TREND_DATA;
   return (
     <View style={styles.root}>
@@ -97,7 +112,7 @@ export const Analytics08Screen: React.FC<Analytics08ScreenProps> = ({
         </View>
 
         <Text style={styles.footnote}>
-          Solo consulta · tus saldos no cambian
+          {data.dataNote ?? 'Solo consulta · tus saldos no cambian'}
         </Text>
       </ScrollView>
 

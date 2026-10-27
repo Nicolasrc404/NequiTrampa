@@ -9,7 +9,10 @@ export interface BudgetFormFieldProps {
   readonly error?: boolean;
   readonly helper?: string;
   readonly onChangeText?: (text: string) => void;
+  /** Marca el campo como solo lectura. Se mantiene por compatibilidad. */
   readonly readOnly?: boolean;
+  /** Alternativa a `readOnly`; tiene prioridad cuando se especifica. */
+  readonly editable?: boolean;
   readonly keyboardType?: TextInputProps['keyboardType'];
   readonly autoCapitalize?: TextInputProps['autoCapitalize'];
   readonly maxLength?: number;
@@ -22,16 +25,31 @@ export const BudgetFormField: React.FC<BudgetFormFieldProps> = ({
   error = false,
   helper,
   onChangeText,
-  readOnly = true,
+  readOnly,
+  editable,
   keyboardType,
   autoCapitalize,
   maxLength,
 }) => {
+  const isEditable = editable ?? !(readOnly ?? true);
+
   return (
     <View style={styles.group}>
       <Text style={styles.label}>{label}</Text>
       <View style={[styles.field, error ? styles.fieldError : null]}>
-        {readOnly ? (
+        {isEditable ? (
+          <TextInput
+            style={styles.input}
+            value={value}
+            onChangeText={onChangeText}
+            placeholder={placeholder}
+            placeholderTextColor={colors.budgetsMutedAlt}
+            keyboardType={keyboardType ?? 'numeric'}
+            autoCapitalize={autoCapitalize}
+            maxLength={maxLength}
+            accessibilityLabel={label}
+          />
+        ) : (
           <Text
             style={[
               styles.value,
@@ -41,18 +59,6 @@ export const BudgetFormField: React.FC<BudgetFormFieldProps> = ({
           >
             {value || placeholder}
           </Text>
-        ) : (
-          <TextInput
-            style={styles.input}
-            value={value}
-            onChangeText={onChangeText}
-            placeholder={placeholder}
-            placeholderTextColor={colors.budgetsMutedAlt}
-            keyboardType={keyboardType}
-            autoCapitalize={autoCapitalize}
-            maxLength={maxLength}
-            accessibilityLabel={label}
-          />
         )}
       </View>
       {helper ? (

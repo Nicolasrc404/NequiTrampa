@@ -55,6 +55,25 @@ Docs: https://docs.expo.dev/eas/index.md
 
 ## Rules
 
+### INSPECCIONAR Y REUTILIZAR ANTES DE IMPLEMENTAR
+
+Antes de implementar cualquier funcionalidad, el agente debe revisar las
+implementaciones existentes, las carpetas del proyecto y los patrones
+arquitectónicos aplicables. Debe reutilizar y extender la estructura actual
+siempre que sea posible. Solo puede crear carpetas, servicios, hooks,
+componentes o abstracciones nuevos cuando haya verificado que no existe una
+alternativa adecuada. Está prohibido introducir estructuras paralelas o
+duplicadas sin justificación técnica.
+
+La separación arquitectónica oficial es:
+
+- Hooks React: `frontend/src/hooks/`.
+- Interfaces, tipos, enums y contratos de datos: `frontend/src/types/`.
+- Acceso HTTP al Gateway: `frontend/src/services/`.
+- Presentación e interacción visual: `frontend/src/screens/`.
+
+No deben crearse `frontend/types/` ni estructuras paralelas.
+
 - If `ios/` and `android/` directories do not exist, they are generated (Continuous Native Generation). Never create or edit them by hand — configure native behavior in `app.json` and config plugins.
 - Expo Go only includes its bundled native modules. After adding a library with native code, the app needs a development build: `npx expo run:ios|android` locally, or `eas build --profile development`.
 - Prefer recommended Expo modules over third-party libraries, and check your available skills before adding dependencies. Docs: https://docs.expo.dev/versions/latest/index.md

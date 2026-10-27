@@ -1,5 +1,12 @@
 import React from 'react';
-import { StyleSheet, Text, TextInput, TextInputProps, View } from 'react-native';
+import {
+  KeyboardTypeOptions,
+  StyleSheet,
+  Text,
+  TextInput,
+  TextInputProps,
+  View,
+} from 'react-native';
 import colors from '../../theme/colors';
 
 export interface GoalFormFieldProps {
@@ -16,8 +23,11 @@ export interface GoalFormFieldProps {
   readonly helperColor?: string;
   readonly labelColor?: string;
   readonly onChangeText?: (text: string) => void;
+  /** Marca el campo como solo lectura. Se mantiene por compatibilidad. */
   readonly readOnly?: boolean;
-  readonly keyboardType?: TextInputProps['keyboardType'];
+  /** Alternativa a `readOnly`; tiene prioridad cuando se especifica. */
+  readonly editable?: boolean;
+  readonly keyboardType?: TextInputProps['keyboardType'] | KeyboardTypeOptions;
   readonly autoCapitalize?: TextInputProps['autoCapitalize'];
   readonly maxLength?: number;
 }
@@ -36,11 +46,14 @@ export const GoalFormField: React.FC<GoalFormFieldProps> = ({
   helperColor,
   labelColor = colors.goalsMuted,
   onChangeText,
-  readOnly = true,
-  keyboardType,
+  readOnly,
+  editable,
+  keyboardType = 'default',
   autoCapitalize,
   maxLength,
 }) => {
+  const isEditable = editable ?? !(readOnly ?? true);
+
   return (
     <View style={styles.group}>
       <Text style={[styles.label, { fontSize: labelSize, color: labelColor }]}>
@@ -55,9 +68,7 @@ export const GoalFormField: React.FC<GoalFormFieldProps> = ({
             : null,
         ]}
       >
-        {readOnly ? (
-          <Text style={styles.value}>{value || placeholder}</Text>
-        ) : (
+        {isEditable ? (
           <TextInput
             style={styles.input}
             value={value}
@@ -69,6 +80,8 @@ export const GoalFormField: React.FC<GoalFormFieldProps> = ({
             maxLength={maxLength}
             accessibilityLabel={label}
           />
+        ) : (
+          <Text style={styles.value}>{value || placeholder}</Text>
         )}
       </View>
       {helper ? (

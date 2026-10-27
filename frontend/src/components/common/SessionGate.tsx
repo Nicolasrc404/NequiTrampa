@@ -1,6 +1,8 @@
-import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useState } from 'react';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import colors from '../../theme/colors';
+import { sessionManager } from '../../services/session/platform';
+import { asAuthError } from '../../services/session/errors';
 
 export type SessionGateReason = 'signed-out' | 'unavailable' | 'configuration';
 
@@ -55,6 +57,26 @@ export const SessionGate: React.FC<SessionGateProps> = ({
   testID = 'session-gate',
 }) => {
   const copy = copyFor(reason);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+
+  const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
+
+  const submit = async () => {
+    if (!canSubmit) return;
+    setSubmitting(true);
+    setAuthMessage(null);
+    try {
+      await sessionManager.signIn(email.trim(), password);
+      setPassword('');
+    } catch (error) {
+      setAuthMessage(asAuthError(error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   return (
     <View style={styles.container} testID={testID}>
@@ -65,7 +87,51 @@ export const SessionGate: React.FC<SessionGateProps> = ({
         <Text style={styles.title}>{copy.title}</Text>
         <Text style={styles.body}>{copy.body}</Text>
 
-        {copy.action && onRetry ? (
+        {reason === 'signed-out' ? (
+          <View style={styles.form}>
+            <TextInput
+              accessibilityLabel="Correo electrónico"
+              autoCapitalize="none"
+              autoComplete="email"
+              keyboardType="email-address"
+              placeholder="Correo electrónico"
+              placeholderTextColor={colors.graySub}
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              editable={!submitting}
+            />
+            <TextInput
+              accessibilityLabel="Contraseña"
+              autoCapitalize="none"
+              autoComplete="password"
+              placeholder="Contraseña"
+              placeholderTextColor={colors.graySub}
+              secureTextEntry
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              editable={!submitting}
+              onSubmitEditing={submit}
+            />
+            {authMessage ? <Text style={styles.error}>{authMessage}</Text> : null}
+            <Pressable
+              accessibilityRole="button"
+              accessibilityLabel="Iniciar sesión"
+              disabled={!canSubmit}
+              onPress={submit}
+              style={({ pressed }) => [
+                styles.action,
+                !canSubmit ? styles.actionDisabled : null,
+                pressed ? styles.actionPressed : null,
+              ]}
+            >
+              {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.actionText}>Iniciar sesión</Text>}
+            </Pressable>
+          </View>
+        ) : null}
+
+        {reason !== 'signed-out' && copy.action && onRetry ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={copy.action}
@@ -139,10 +205,32 @@ const styles = StyleSheet.create({
   actionPressed: {
     backgroundColor: colors.magentaHover,
   },
+  actionDisabled: {
+    opacity: 0.5,
+  },
   actionText: {
     fontSize: 15,
     fontWeight: '700',
     color: colors.white,
+  },
+  form: {
+    gap: 10,
+    marginTop: 4,
+  },
+  input: {
+    minHeight: 50,
+    borderWidth: 1,
+    borderColor: colors.grayBorder,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    color: colors.navy,
+    backgroundColor: colors.white,
+    fontSize: 15,
+  },
+  error: {
+    color: colors.status401LockStroke,
+    fontSize: 13,
+    lineHeight: 19,
   },
 });
 

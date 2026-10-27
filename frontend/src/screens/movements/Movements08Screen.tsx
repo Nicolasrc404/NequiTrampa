@@ -4,13 +4,16 @@ import { Feather } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import Header from '../../components/common/Header';
 import BottomNav from '../../components/common/BottomNav';
+import ErrorState from '../../components/common/states/ErrorState';
 
 interface Movements08ScreenProps {
   onRetryPress?: () => void;
+  error?: unknown;
 }
 
 export const Movements08Screen: React.FC<Movements08ScreenProps> = ({
   onRetryPress,
+  error,
 }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -18,8 +21,8 @@ export const Movements08Screen: React.FC<Movements08ScreenProps> = ({
         {/* Header */}
         <Header title="Movimientos" showFilter={false} />
 
-        {/* 503 Error State Content */}
-        <View style={styles.content}>
+        {/* Error State Content */}
+        {error ? <ErrorState error={error} onRetry={onRetryPress} /> : <View style={styles.content}>
           <View style={styles.iconCircle}>
             <Feather name="wifi-off" size={36} color={colors.status503BadgeText} />
           </View>
@@ -32,7 +35,7 @@ export const Movements08Screen: React.FC<Movements08ScreenProps> = ({
           <Text style={styles.description}>
             El servicio no está disponible por ahora. Tu saldo y tu dinero no se afectan.
           </Text>
-        </View>
+        </View>}
 
         {/* Retry Button */}
         <View style={styles.actionContainer}>

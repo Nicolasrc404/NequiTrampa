@@ -4,6 +4,7 @@ import { Feather } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import GoalProgressCard from '../../components/goals/GoalProgressCard';
 import BottomNav from '../../components/common/BottomNav';
+import LoadingState from '../../components/common/states/LoadingState';
 import { DEMO_GOALS } from '../../data/demoGoals';
 import type { GoalItem } from '../../types/goals';
 
@@ -18,6 +19,7 @@ export interface Goals01ScreenProps {
   readonly goals?: readonly GoalItem[];
   /** `true` solo en modo demostración. */
   readonly demo?: boolean;
+  readonly loading?: boolean;
 }
 
 export const Goals01Screen: React.FC<Goals01ScreenProps> = ({
@@ -27,7 +29,16 @@ export const Goals01Screen: React.FC<Goals01ScreenProps> = ({
   onTabPress,
   goals = DEMO_GOALS,
   demo = true,
+  loading = false,
 }) => {
+  if (loading) {
+    return (
+      <LoadingState
+        message="Cargando metas…"
+        hint="Consultando tus metas informativas."
+      />
+    );
+  }
   return (
     <View style={styles.root}>
       <ScrollView

@@ -17,15 +17,17 @@ import {
   useAnalytics,
   useBeneficiaries,
   useBudgets,
+  useBudgetDetail,
   useCashRegister,
   useCategories,
   useGoals,
+  useGoalDetail,
   useMovements,
   useRecharges,
   useTransferReceipt,
   useTransfers,
-  useWalletBalance,
 } from './src/hooks/useApiData';
+import { useWalletBalance } from './src/hooks/useWallet';
 import { FinancialOperation } from './src/services/financialOperation';
 import { classifyOperationFailure } from './src/services/operationFailure';
 import { asApiError } from './src/services/http';
@@ -284,8 +286,15 @@ function MainApp() {
   const [selectedCategory, setSelectedCategory] = useState<CategoryItem>(
     DEMO_CATEGORY_TO_EDIT,
   );
-  const [transferDraft, setTransferDraft] =
-    useState<TransferDraft>(DEMO_TRANSFER_DRAFT);
+  const [transferDraft, setTransferDraft] = useState<TransferDraft>(() =>
+    demoEnabled
+      ? DEMO_TRANSFER_DRAFT
+      : {
+          recipient: { id: '', name: '', code: '', initialLetter: '?' },
+          amountCents: 0,
+          message: '',
+        },
+  );
   const [selectedTransfer, setSelectedTransfer] =
     useState<TransferItem>(DEMO_TRANSFER_DETAIL);
   const [rechargeDraft, setRechargeDraft] =
@@ -398,6 +407,16 @@ function MainApp() {
   const budgets = useBudgets(services, realReady);
   const goals = useGoals(services, realReady);
   const analytics = useAnalytics(services, realReady);
+  const budgetDetail = useBudgetDetail(
+    services,
+    realReady && currentState === 'Budgets_06',
+    selectedBudget?.id ?? null,
+  );
+  const goalDetail = useGoalDetail(
+    services,
+    realReady && currentState === 'Goals_10',
+    selectedGoal?.id ?? null,
+  );
 
   const reloadBalance = balance.reload;
   const reloadMovements = movements.reload;
@@ -484,6 +503,8 @@ function MainApp() {
   const [rechargeResult, setRechargeResult] = useState<RechargeResult | null>(
     null,
   );
+  const [budgetUpdating, setBudgetUpdating] = useState(false);
+  const [goalUpdating, setGoalUpdating] = useState(false);
 
   // Última pantalla visible: permite descartar respuestas que llegan después
   // de que el usuario abandonó el formulario que inició la operación.
@@ -528,6 +549,69 @@ function MainApp() {
 
   const handleTransferRecipient = (recipient: TransferRecipient) => {
     setTransferDraft((current) => ({ ...current, recipient }));
+  };
+
+  const handleCategoryDraft = async (
+    name: string,
+    _color: string,
+    type: CategoryItem['type'],
+  ) => {
+    if (demoEnabled) {
+      const safeName = name || 'Mercado';
+      setSelectedCategory({
+        id: `sim-cat-${Date.now()}`,
+        name: safeName,
+        type,
+        movementsCount: 0,
+        formattedAmount: '$ 0',
+        initialLetter: safeName.charAt(0).toUpperCase(),
+      });
+      openSimulatedSuccess('Categories_05');
+      return;
+    }
+    if (!services || !realReady || categorySubmitting) return;
+    setCategorySubmitting(true);
+    try {
+      const created = await services.categories.create({ name, type });
+      setSelectedCategory(mapCategory(created));
+      categories.reload();
+      setCurrentState('Categories_05');
+    } catch (error) {
+      const failure = classifyOperationFailure(error);
+      if (failure === 'conflict') setCurrentState('Categories_06');
+      else if (failure === 'validation') setCurrentState('Categories_07');
+      else if (failure === 'session') setCurrentState('Beneficiaries_11');
+      else Alert.alert('No se pudo guardar', 'No se modificó ninguna categoría.');
+    } finally {
+      setCategorySubmitting(false);
+    }
+  };
+
+  const handleCategoryUpdate = async (
+    name: string,
+    _color: string,
+    type: CategoryItem['type'],
+  ) => {
+    if (demoEnabled) {
+      setSelectedCategory((current) => ({ ...current, name, type }));
+      setCurrentState('Categories_01');
+      return;
+    }
+    if (!services || !realReady || categorySubmitting) return;
+    setCategorySubmitting(true);
+    try {
+      const updated = await services.categories.update(selectedCategory.id, { name, type });
+      setSelectedCategory(mapCategory(updated));
+      categories.reload();
+      setCurrentState('Categories_01');
+    } catch (error) {
+      const failure = classifyOperationFailure(error);
+      if (failure === 'conflict' || failure === 'validation') setCurrentState('Categories_07');
+      else if (failure === 'session') setCurrentState('Beneficiaries_11');
+      else Alert.alert('No se pudo editar', 'No se modificó la categoría.');
+    } finally {
+      setCategorySubmitting(false);
+    }
   };
 
   /**
@@ -1021,23 +1105,6 @@ function MainApp() {
     } finally {
       setRechargeSubmitting(false);
     }
-  };
-
-  const handleCategoryDraft = (
-    name: string,
-    _color: string,
-    type: CategoryItem['type'],
-  ) => {
-    const safeName = name || 'Mercado';
-    setSelectedCategory({
-      id: `sim-cat-${Date.now()}`,
-      name: safeName,
-      type,
-      movementsCount: 0,
-      formattedAmount: '$ 0',
-      initialLetter: safeName.charAt(0).toUpperCase(),
-    });
-    openSimulatedSuccess('Categories_05');
   };
 
   /**
@@ -1922,6 +1989,8 @@ function MainApp() {
             onSelectMovement={handleSelectMovement}
             movements={demoEnabled ? undefined : movements.items}
             sectionTitle={demoEnabled ? 'Hoy' : 'Movimientos recientes'}
+            onRefresh={demoEnabled ? undefined : reloadMovements}
+            realMode={!demoEnabled}
           />
         )}
         {currentState === 'Movements_02' && (
@@ -1958,6 +2027,7 @@ function MainApp() {
         {currentState === 'Movements_08' && (
           <Movements08Screen
             onRetryPress={() => setCurrentState('Movements_01')}
+            error={movements.error}
           />
         )}
 
@@ -2210,6 +2280,11 @@ function MainApp() {
             onBack={() => setCurrentState('Transfers_15')}
             onSelectRecipient={() => setCurrentState('Transfers_02')}
             onContinue={() => setCurrentState('Transfers_02')}
+            realMode={!demoEnabled}
+            availableBalanceCents={demoEnabled ? null : balance.data?.availableBalanceCents ?? null}
+            onAmountChange={(amountCents) =>
+              setTransferDraft((current) => ({ ...current, amountCents }))
+            }
           />
         )}
         {currentState === 'Transfers_02' && (
@@ -2221,6 +2296,8 @@ function MainApp() {
               handleTransferRecipient(recipient);
               setCurrentState('Transfers_03');
             }}
+            recipients={demoEnabled ? undefined : beneficiaries.data ?? []}
+            realMode={!demoEnabled}
           />
         )}
         {currentState === 'Transfers_03' && (
@@ -2784,6 +2861,9 @@ function MainApp() {
             onBack={() => setCurrentState('Budgets_01')}
             onEdit={() => setCurrentState('Budgets_05')}
             onRegisterExpense={() => setCurrentState('Cash_03')}
+            budget={demoEnabled ? undefined : budgetDetail.data ?? undefined}
+            loading={!demoEnabled && (budgetDetail.status === 'loading' || budgetDetail.status === 'idle')}
+            demo={demoEnabled}
           />
         )}
         {currentState === 'Budgets_07' && (
@@ -3198,6 +3278,8 @@ function MainApp() {
             screenKey={currentState as Module1ScreenKey}
             onNavigate={(key) => setCurrentState(key)}
             onHome={() => setCurrentState('Movements_01')}
+            services={services}
+            apiEnabled={realReady}
           />
         ) : null}
           </View>

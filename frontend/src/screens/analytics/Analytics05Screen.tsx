@@ -9,9 +9,11 @@ import AnalyticsHeader from '../../components/analytics/AnalyticsHeader';
 import AnalyticsTabs from '../../components/analytics/AnalyticsTabs';
 import AnalyticsPeriodSelector from '../../components/analytics/AnalyticsPeriodSelector';
 import AnalyticsDonutChart from '../../components/analytics/AnalyticsDonutChart';
+import LoadingState from '../../components/common/states/LoadingState';
 import BottomNav from '../../components/common/BottomNav';
 import { DEMO_CATEGORY_DATA } from '../../data/demoAnalytics';
-import { AnalyticsCategoryData, AnalyticsTab } from '../../types/analytics';
+import { AnalyticsTab } from '../../types/analytics';
+import type { AnalyticsCategoryData } from '../../types/analytics';
 
 export interface Analytics05ScreenProps {
   readonly onBack?: () => void;
@@ -22,6 +24,9 @@ export interface Analytics05ScreenProps {
   ) => void;
   /** Desglose confirmado por el backend. Si se omite, se usa el DEMO. */
   readonly categories?: AnalyticsCategoryData;
+  /** `true` solo en modo demostración. */
+  readonly demo?: boolean;
+  readonly loading?: boolean;
 }
 
 export const Analytics05Screen: React.FC<Analytics05ScreenProps> = ({
@@ -30,7 +35,17 @@ export const Analytics05Screen: React.FC<Analytics05ScreenProps> = ({
   onSelectPeriod,
   onTabPress,
   categories: sourceCategories,
+  demo: _demo = true,
+  loading = false,
 }) => {
+  if (loading) {
+    return (
+      <LoadingState
+        message="Cargando categorías…"
+        hint="Consultando gastos confirmados."
+      />
+    );
+  }
   const data = sourceCategories ?? DEMO_CATEGORY_DATA;
   return (
     <View style={styles.root}>
@@ -90,7 +105,7 @@ export const Analytics05Screen: React.FC<Analytics05ScreenProps> = ({
         </View>
 
         <Text style={styles.footnote}>
-          Solo consulta · tus saldos no cambian
+          {data.dataNote ?? 'Solo consulta · tus saldos no cambian'}
         </Text>
       </ScrollView>
 

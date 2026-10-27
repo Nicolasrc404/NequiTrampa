@@ -4,6 +4,7 @@ import colors from '../../theme/colors';
 import GoalsHeader from '../../components/goals/GoalsHeader';
 import GoalFormField from '../../components/goals/GoalFormField';
 import GoalsActionButtons from '../../components/goals/GoalsActionButtons';
+import LoadingState from '../../components/common/states/LoadingState';
 import {
   DEMO_GOAL_EDIT_DRAFT,
   formatGoalAmount,
@@ -33,6 +34,7 @@ export interface Goals10ScreenProps {
   readonly initialAmountText?: string;
   /** Fecha inicial en formato `AAAA-MM-DD`. */
   readonly initialDate?: string;
+  readonly loading?: boolean;
 }
 
 export const Goals10Screen: React.FC<Goals10ScreenProps> = ({
@@ -45,6 +47,7 @@ export const Goals10Screen: React.FC<Goals10ScreenProps> = ({
   initialName,
   initialAmountText,
   initialDate,
+  loading = false,
 }) => {
   const [name, setName] = useState(
     initialName ??
@@ -66,6 +69,15 @@ export const Goals10Screen: React.FC<Goals10ScreenProps> = ({
   );
   // El DEMO reproduce el estado de validación original de Stitch.
   const [touched, setTouched] = useState(demo);
+
+  if (loading) {
+    return (
+      <LoadingState
+        message="Cargando meta…"
+        hint="Consultando el progreso confirmado."
+      />
+    );
+  }
 
   const trimmedName = name.trim().replace(/\s+/g, ' ');
   const nameValid =

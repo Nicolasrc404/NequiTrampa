@@ -29,6 +29,12 @@ Limitaciones:
 
 - Las 8 capturas PNG originales no tienen HTML asociado (`htmlCode: {}`).
 - El proyecto complementario `projects/4783775599735716799` (Categorías) devuelve `PERMISSION_DENIED`; no se usó.
+
+## Proyectos Stitch disponibles
+
+- **Principal (en uso):** `projects/7595452808345490745` — NequiTrampa Movements Screens Replicas
+- **Módulo 1:** `projects/1004678761300449208` — Modulo 1
+- **Complementario (sin acceso):** `projects/4783775599735716799` — NequiTrampa Categories Module (PERMISSION_DENIED)
 - No existe `frontend/UX_MAPPING.md` en el repositorio.
 - Las capturas no se muestrearon pixel a pixel; los valores exactos provienen del HTML/CSS.
 - Varias pantallas declaran paletas ligeramente distintas entre sí. No se debe asumir que esas variaciones son intencionales.

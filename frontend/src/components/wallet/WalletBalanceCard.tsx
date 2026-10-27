@@ -1,11 +1,14 @@
 import React from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import colors from '../../theme/colors';
+import { formatCopCents } from '../../utils/money';
 
-export default function WalletBalanceCard({ onDetail, onOptions }: { readonly onDetail: () => void; readonly onOptions: () => void }) {
+export default function WalletBalanceCard({ onDetail, onOptions, onRefresh, balanceCents, isDemo = true }: { readonly onDetail: () => void; readonly onOptions: () => void; readonly onRefresh?: () => void; readonly balanceCents?: number; readonly isDemo?: boolean }) {
+  const hasRealBalance = !isDemo && balanceCents !== undefined;
+  const realUnavailable = !isDemo && balanceCents === undefined;
   return <View style={styles.card}>
-    <Text style={styles.label}>SALDO DEMO</Text><Text style={styles.balance}>$ 1.250.000</Text><Text style={styles.hint}>COP · no corresponde a dinero real</Text>
-    <View style={styles.actions}><Pressable onPress={onDetail} style={styles.button}><Text style={styles.buttonText}>Ver detalle</Text></Pressable><Pressable onPress={onOptions} style={styles.button}><Text style={styles.buttonText}>Opciones</Text></Pressable></View>
+    <Text style={styles.label}>{hasRealBalance ? 'SALDO DISPONIBLE' : realUnavailable ? 'SALDO NO DISPONIBLE' : 'SALDO DEMO'}</Text><Text style={styles.balance}>{hasRealBalance ? formatCopCents(balanceCents) : realUnavailable ? '—' : '$ 1.250.000'}</Text><Text style={styles.hint}>{hasRealBalance ? 'COP · confirmado por el backend' : realUnavailable ? 'No se mostrará un saldo hasta confirmarlo con el backend' : 'COP · no corresponde a dinero real'}</Text>
+    <View style={styles.actions}><Pressable onPress={onDetail} style={styles.button}><Text style={styles.buttonText}>Ver detalle</Text></Pressable><Pressable onPress={onOptions} style={styles.button}><Text style={styles.buttonText}>Opciones</Text></Pressable>{!isDemo && onRefresh ? <Pressable onPress={onRefresh} style={styles.button}><Text style={styles.buttonText}>Actualizar</Text></Pressable> : null}</View>
   </View>;
 }
 

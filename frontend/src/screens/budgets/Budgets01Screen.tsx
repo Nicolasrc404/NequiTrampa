@@ -22,6 +22,8 @@ export interface Budgets01ScreenProps {
   readonly budgets?: readonly BudgetItem[];
   /** Etiqueta del periodo consultado (por ejemplo, «Octubre 2026»). */
   readonly monthLabel?: string;
+  /** Alias de `monthLabel` usado por pantallas heredadas. */
+  readonly periodLabel?: string;
   /** `true` solo en modo demostración. */
   readonly demo?: boolean;
 }
@@ -32,9 +34,12 @@ export const Budgets01Screen: React.FC<Budgets01ScreenProps> = ({
   onSelectBudget,
   onTabPress,
   budgets = DEMO_BUDGETS,
-  monthLabel = DEMO_BUDGET_MONTH,
+  monthLabel,
+  periodLabel = DEMO_BUDGET_MONTH,
   demo = true,
 }) => {
+  const items = budgets ?? DEMO_BUDGETS;
+  const monthLabelText = monthLabel ?? periodLabel;
   return (
     <View style={styles.root}>
       <ScrollView
@@ -50,16 +55,16 @@ export const Budgets01Screen: React.FC<Budgets01ScreenProps> = ({
         />
 
         <View style={styles.monthPill}>
-          <Text style={styles.monthText}>{monthLabel}</Text>
+          <Text style={styles.monthText}>{monthLabelText}</Text>
         </View>
 
         <View style={styles.card}>
-          {budgets.length === 0 ? (
+          {items.length === 0 ? (
             <Text style={styles.emptyText}>
               Aún no tienes presupuestos para este periodo.
             </Text>
           ) : (
-            budgets.map((budget) => (
+            items.map((budget) => (
               <BudgetsProgressItem
                 key={budget.id}
                 item={budget}

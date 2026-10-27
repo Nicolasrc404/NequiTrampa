@@ -5,14 +5,9 @@
 // decide estados de pantalla: eso permanece en App.tsx.
 
 import type { ApiServices } from '../services/factories';
-import type {
-  WalletBalanceDto,
-  WalletDto,
-} from '../services/walletService';
 import type { MovementItem } from '../types/movements';
 import type { TransferItem } from '../types/transfers';
 import type { RechargeItem } from '../types/recharges';
-import type { ProfileDto } from '../services/profileService';
 import type {
   AssistantChatDto,
   AssistantSummaryDto,
@@ -54,28 +49,6 @@ import { useApiResource, type ApiResource } from './useApiResource';
 /** `true` solo cuando hay servicios y la sesión está lista. */
 function canLoad(services: ApiServices | null, enabled: boolean): boolean {
   return enabled && services !== null;
-}
-
-export function useWallet(
-  services: ApiServices | null,
-  enabled: boolean,
-): ApiResource<WalletDto> {
-  const active = canLoad(services, enabled);
-  return useApiResource(
-    active ? (signal) => services!.wallet.getWallet({ signal }) : null,
-    [active, services],
-  );
-}
-
-export function useWalletBalance(
-  services: ApiServices | null,
-  enabled: boolean,
-): ApiResource<WalletBalanceDto> {
-  const active = canLoad(services, enabled);
-  return useApiResource(
-    active ? (signal) => services!.wallet.getBalance({ signal }) : null,
-    [active, services],
-  );
 }
 
 export interface MovementsResource {
@@ -167,17 +140,6 @@ export function useRecharges(
           return mapRecharges(items);
         }
       : null,
-    [active, services],
-  );
-}
-
-export function useProfile(
-  services: ApiServices | null,
-  enabled: boolean,
-): ApiResource<ProfileDto> {
-  const active = canLoad(services, enabled);
-  return useApiResource(
-    active ? (signal) => services!.profile.get({ signal }) : null,
     [active, services],
   );
 }
