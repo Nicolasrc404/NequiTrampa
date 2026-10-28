@@ -1,3 +1,4 @@
+using System.Globalization;
 using Nequi.Finance.Categories;
 using Nequi.Finance.Common;
 
@@ -18,11 +19,32 @@ public sealed class CashService(ICashStore store, CategoryService categories)
     public Task<CashBalanceDto> GetBalanceAsync(string owner, CancellationToken ct) =>
         BuildBalanceAsync(owner, ct);
 
-    public async Task<IReadOnlyList<CashMovementDto>> ListMovementsAsync(
-        string owner, int? limit, CancellationToken ct)
+    /// <summary>
+    /// Keyset-paginated history. <paramref name="afterOccurredOn"/>/<paramref name="afterCreatedAt"/>/
+    /// <paramref name="afterId"/> must all be <c>null</c> (first page) or all set (the previous
+    /// page's last item). Returns one more item than requested internally to detect whether a
+    /// next page exists; <c>NextCursor</c> is <c>null</c> once the history is exhausted.
+    /// </summary>
+    public async Task<(IReadOnlyList<CashMovementDto> Items, string? NextCursor)> ListMovementsAsync(
+        string owner, int? limit,
+        string? afterOccurredOn, string? afterCreatedAt, string? afterId,
+        CancellationToken ct)
     {
         var take = Math.Clamp(limit ?? DefaultMovementLimit, 1, MaxMovementLimit);
-        return await store.ReadMovementsAsync(owner, take, ct);
+        var rows = await store.ReadMovementsAsync(owner, take + 1, afterOccurredOn, afterCreatedAt, afterId, ct);
+
+        var hasMore = rows.Count > take;
+        var items = hasMore ? rows.Take(take).ToList() : rows;
+
+        string? nextCursor = null;
+        if (hasMore && items.Count > 0)
+        {
+            var last = items[^1];
+            nextCursor = KeysetCursor.Encode(
+                last.OccurredOn, last.CreatedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture), last.Id);
+        }
+
+        return (items, nextCursor);
     }
 
     public async Task<(CashCreateOutcome Outcome, CashMovementDto? Movement, CashBalanceDto Balance)>

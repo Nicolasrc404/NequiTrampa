@@ -1,3 +1,4 @@
+using System.Globalization;
 using Nequi.Finance.Common;
 
 namespace Nequi.Finance.Cash;
@@ -11,7 +12,14 @@ public interface ICashStore
 {
     Task<CashAccountSnapshot> ReadAccountAsync(string owner, CancellationToken ct);
 
-    Task<IReadOnlyList<CashMovementDto>> ReadMovementsAsync(string owner, int limit, CancellationToken ct);
+    /// <summary>
+    /// Keyset-paginated history ordered by (occurredOn, createdAt, id), all descending.
+    /// Pass every <c>after*</c> value as <c>null</c> to fetch the first page.
+    /// </summary>
+    Task<IReadOnlyList<CashMovementDto>> ReadMovementsAsync(
+        string owner, int limit,
+        string? afterOccurredOn, string? afterCreatedAt, string? afterId,
+        CancellationToken ct);
 
     Task<CashAppendResult> AppendAsync(string owner, CashMovementDraft draft, CancellationToken ct);
 }
@@ -48,18 +56,39 @@ public sealed class InMemoryCashStore : ICashStore
         }
     }
 
-    public Task<IReadOnlyList<CashMovementDto>> ReadMovementsAsync(string owner, int limit, CancellationToken ct)
+    public Task<IReadOnlyList<CashMovementDto>> ReadMovementsAsync(
+        string owner, int limit,
+        string? afterOccurredOn, string? afterCreatedAt, string? afterId,
+        CancellationToken ct)
     {
         lock (_gate)
         {
             if (!_movements.TryGetValue(owner, out var list)) return Task.FromResult<IReadOnlyList<CashMovementDto>>([]);
-            return Task.FromResult<IReadOnlyList<CashMovementDto>>(
-                list.OrderByDescending(m => m.OccurredOn, StringComparer.Ordinal)
-                    .ThenByDescending(m => m.CreatedAt)
-                    .Take(limit)
-                    .ToList());
+
+            var ordered = list
+                .OrderByDescending(m => m.OccurredOn, StringComparer.Ordinal)
+                .ThenByDescending(m => CreatedAtKey(m), StringComparer.Ordinal)
+                .ThenByDescending(m => m.Id, StringComparer.Ordinal)
+                .AsEnumerable();
+
+            if (afterOccurredOn != null)
+            {
+                ordered = ordered.SkipWhile(m =>
+                {
+                    var cmp = string.CompareOrdinal(m.OccurredOn, afterOccurredOn);
+                    if (cmp != 0) return cmp > 0;
+                    cmp = string.CompareOrdinal(CreatedAtKey(m), afterCreatedAt);
+                    if (cmp != 0) return cmp > 0;
+                    return string.CompareOrdinal(m.Id, afterId) >= 0;
+                });
+            }
+
+            return Task.FromResult<IReadOnlyList<CashMovementDto>>(ordered.Take(limit).ToList());
         }
     }
+
+    private static string CreatedAtKey(CashMovementDto m) =>
+        m.CreatedAt.ToUniversalTime().ToString("O", CultureInfo.InvariantCulture);
 
     public async Task<CashAppendResult> AppendAsync(string owner, CashMovementDraft draft, CancellationToken ct)
     {
@@ -132,14 +161,22 @@ public sealed class FirestoreCashStore(Google.Cloud.Firestore.FirestoreDb db) : 
     }
 
     public async Task<IReadOnlyList<CashMovementDto>> ReadMovementsAsync(
-        string owner, int limit, CancellationToken ct)
+        string owner, int limit,
+        string? afterOccurredOn, string? afterCreatedAt, string? afterId,
+        CancellationToken ct)
     {
+        // Requires a composite index on (clientId ASC, occurredOn DESC, createdAt DESC, id DESC).
         var capped = Math.Clamp(limit, 1, MaxMovements);
-        var snap = await db.Collection(CashCollections.Movements)
+        Google.Cloud.Firestore.Query query = db.Collection(CashCollections.Movements)
             .WhereEqualTo("clientId", owner)
             .OrderByDescending("occurredOn")
-            .Limit(capped)
-            .GetSnapshotAsync(ct);
+            .OrderByDescending("createdAt")
+            .OrderByDescending("id");
+
+        if (afterOccurredOn != null)
+            query = query.StartAfter(afterOccurredOn, afterCreatedAt, afterId);
+
+        var snap = await query.Limit(capped).GetSnapshotAsync(ct);
 
         var result = new List<CashMovementDto>(snap.Documents.Count);
         foreach (var document in snap.Documents)

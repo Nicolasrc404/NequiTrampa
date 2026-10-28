@@ -109,7 +109,7 @@ var origins = (cfg["Cors:AllowedOrigins"] ?? "http://localhost:3000,http://local
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .WithOrigins(origins)
     .AllowAnyHeader().AllowAnyMethod()
-    .WithExposedHeaders("Idempotent-Replayed", "X-Request-Id", "Retry-After")
+    .WithExposedHeaders("Idempotent-Replayed", "X-Request-Id", "Retry-After", "X-Next-Cursor")
     .SetPreflightMaxAge(TimeSpan.FromHours(1))));
 
 builder.Services.AddRateLimiter(o =>

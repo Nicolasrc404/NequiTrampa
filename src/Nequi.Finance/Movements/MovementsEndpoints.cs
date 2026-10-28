@@ -1,3 +1,4 @@
+using Nequi.Finance.Common;
 using Nequi.Shared.Data;
 using Nequi.Shared.Http;
 using Nequi.Shared.Security;
@@ -82,22 +83,15 @@ public static class MovementsEndpoints
     private const string EventIdField = "eventId";
     private const int DefaultLimit = 50;
     private const int MaxLimit = 200;
-
-    /// <summary>Opaque keyset cursor over (occurredAt, eventId), both descending.</summary>
     private static string EncodeCursor(string occurredAt, string eventId) =>
-        Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{occurredAt}{eventId}"));
+        KeysetCursor.Encode(occurredAt, eventId);
 
     private static bool TryDecodeCursor(string cursor, out string occurredAt, out string eventId)
     {
         occurredAt = ""; eventId = "";
-        try
-        {
-            var parts = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(cursor)).Split('');
-            if (parts.Length != 2 || parts[0].Length == 0 || parts[1].Length == 0) return false;
-            occurredAt = parts[0]; eventId = parts[1];
-            return true;
-        }
-        catch (FormatException) { return false; }
+        if (!KeysetCursor.TryDecode(cursor, 2, out var parts)) return false;
+        occurredAt = parts[0]; eventId = parts[1];
+        return true;
     }
 
     // Roles that may query movements for any clientId (investigation / backoffice).

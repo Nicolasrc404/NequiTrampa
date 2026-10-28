@@ -32,18 +32,37 @@ public sealed class CashController(
         return Ok(await service.GetBalanceAsync(owner, ct));
     }
 
-    /// <summary>Historial de registros de efectivo, del más reciente al más antiguo.</summary>
+    /// <summary>
+    /// Historial de registros de efectivo, del más reciente al más antiguo. El cuerpo sigue
+    /// siendo un array plano (compatibilidad); cuando hay más páginas, la respuesta incluye el
+    /// header <c>X-Next-Cursor</c> para pedir la siguiente con <c>?cursor=</c>.
+    /// </summary>
     [HttpGet("movements")]
     [ProducesResponseType(typeof(IReadOnlyList<CashMovementDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status403Forbidden)]
-    public async Task<IActionResult> Movements([FromQuery] int? limit, CancellationToken ct)
+    public async Task<IActionResult> Movements([FromQuery] int? limit, [FromQuery] string? cursor, CancellationToken ct)
     {
         var owner = await FinanceOwner.ResolveAsync(User, identities, ct);
         if (owner is null)
             return this.ProblemJson(403, "Forbidden", "No linked client context for this identity.", "client_context_unresolved");
 
-        return Ok(await service.ListMovementsAsync(owner, limit, ct));
+        string? afterOccurredOn = null, afterCreatedAt = null, afterId = null;
+        if (!string.IsNullOrEmpty(cursor))
+        {
+            if (!KeysetCursor.TryDecode(cursor, 3, out var parts))
+                return this.ProblemJson(400, "Bad Request", "Invalid cursor.", "invalid_cursor");
+            afterOccurredOn = parts[0]; afterCreatedAt = parts[1]; afterId = parts[2];
+        }
+
+        var (items, nextCursor) = await service.ListMovementsAsync(
+            owner, limit, afterOccurredOn, afterCreatedAt, afterId, ct);
+
+        if (nextCursor is not null)
+            Response.Headers["X-Next-Cursor"] = nextCursor;
+
+        return Ok(items);
     }
 
     /// <summary>

@@ -246,6 +246,81 @@ public sealed class CashTests : IDisposable
         Assert.Equal(2, account.MovementCount);
     }
 
+    [Fact]
+    public async Task Movements_Empty_NoNextCursorHeader()
+    {
+        using var http = _factory.Client(Phase4.NewClient());
+
+        var response = await http.GetAsync("/v1/cash/movements");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.False(response.Headers.Contains("X-Next-Cursor"));
+    }
+
+    [Fact]
+    public async Task Movements_MultiplePages_CursorHeaderCoversAllRowsExactlyOnceInOrder()
+    {
+        using var http = _factory.Client(Phase4.NewClient());
+
+        // 5 income entries, newest occurredOn first once sorted: day-5 .. day-1.
+        for (var i = 1; i <= 5; i++)
+            await RegisterAsync(http, Entry("income", 1_000 * i, occurredOn: $"2026-01-0{i}"));
+
+        var seenOccurredOn = new List<string>();
+        var seenIds = new List<string>();
+        string? cursor = null;
+        for (var page = 0; page < 10; page++)
+        {
+            var url = cursor is null ? "/v1/cash/movements?limit=2" : $"/v1/cash/movements?limit=2&cursor={Uri.EscapeDataString(cursor)}";
+            var response = await http.GetAsync(url);
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+            var body = await Phase4.BodyAsync(response);
+            foreach (var m in body.EnumerateArray())
+            {
+                seenIds.Add(m.GetProperty("id").GetString()!);
+                seenOccurredOn.Add(m.GetProperty("occurredOn").GetString()!);
+            }
+
+            cursor = response.Headers.TryGetValues("X-Next-Cursor", out var values) ? values.First() : null;
+            if (cursor is null) break;
+        }
+
+        Assert.Equal(5, seenIds.Distinct().Count());
+        Assert.Equal(["2026-01-05", "2026-01-04", "2026-01-03", "2026-01-02", "2026-01-01"], seenOccurredOn);
+    }
+
+    [Fact]
+    public async Task Movements_SameOccurredOn_PaginatesWithoutSkippingOrDuplicating()
+    {
+        using var http = _factory.Client(Phase4.NewClient());
+
+        await RegisterAsync(http, Entry("income", 1_000, occurredOn: "2026-02-01"));
+        await RegisterAsync(http, Entry("income", 2_000, occurredOn: "2026-02-01"));
+
+        var first = await http.GetAsync("/v1/cash/movements?limit=1");
+        var firstId = (await Phase4.BodyAsync(first))[0].GetProperty("id").GetString();
+        var cursor = first.Headers.TryGetValues("X-Next-Cursor", out var v1) ? v1.First() : null;
+        Assert.NotNull(cursor);
+
+        var second = await http.GetAsync($"/v1/cash/movements?limit=1&cursor={Uri.EscapeDataString(cursor!)}");
+        var secondId = (await Phase4.BodyAsync(second))[0].GetProperty("id").GetString();
+
+        Assert.NotEqual(firstId, secondId);
+        Assert.False(second.Headers.Contains("X-Next-Cursor"));
+    }
+
+    [Fact]
+    public async Task Movements_InvalidCursor_Returns400()
+    {
+        using var http = _factory.Client(Phase4.NewClient());
+
+        var response = await http.GetAsync("/v1/cash/movements?cursor=not-valid-base64!!");
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("invalid_cursor", await Phase4.ProblemCodeAsync(response));
+    }
+
     private static CashMovementDraft Draft(string id, string direction, long amount, string dedupe) =>
         new(id, direction, amount, null, null, null, "2026-10-05", dedupe, DateTimeOffset.UtcNow);
 }
