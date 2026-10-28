@@ -95,17 +95,24 @@ transacción se aborta completamente (**Rollback**), garantizando que jamás
 existan asientos contables huérfanos.
 
 La idempotencia HTTP se gestiona **fuera** de esa transacción con
-`IdempotencyActionFilter` sobre `idempotency_records`: `BeginAsync` reserva
-`IN_PROGRESS`, el movimiento financiero se confirma en su propia transacción y
-después `CompleteAsync` marca `COMPLETED` en otra transacción. El conflicto de
-clave/hash se detecta en `BeginAsync`. Como `CompleteAsync` **no comparte
-transacción** con el movimiento, si este ya hizo commit y `CompleteAsync` falla,
-el catch puede ejecutar `AbandonAsync` y eliminar el registro `IN_PROGRESS`:
-existe una **ventana de commit gap** en la que un retry con la misma
-`Idempotency-Key` podría volver a ejecutar el movimiento. El replay idéntico y
-el conflicto de payload están validados por Bruno, pero no hay garantía atómica
-end-to-end entre el efecto financiero y el `COMPLETED` del registro de
+`IdempotencyActionFilter`/`IdempotencyFilter` sobre `idempotency_records`:
+`BeginAsync` reserva `IN_PROGRESS`, el movimiento financiero se confirma en su
+propia transacción y después `CompleteAsync` marca `COMPLETED` en otra
+transacción. El conflicto de clave/hash se detecta en `BeginAsync`. Como
+`CompleteAsync` **no comparte transacción** con el movimiento, no hay garantía
+atómica end-to-end entre el efecto financiero y el `COMPLETED` del registro de
 idempotencia; su cierre atómico queda pendiente.
+
+Lo que sí está cerrado: una vez el handler devuelve un resultado no-5xx (el
+movimiento ya hizo commit), el filtro **nunca** llama a `AbandonAsync`, ni
+siquiera si `CompleteAsync` falla. Antes lo hacía (un `catch` genérico
+envolvía también la llamada a `CompleteAsync`), lo que borraba el registro
+`IN_PROGRESS` después de un efecto financiero ya aplicado y permitía que un
+retry con la misma `Idempotency-Key` volviera a ejecutar el movimiento. Ahora,
+si `CompleteAsync` falla, el registro se queda en `IN_PROGRESS`: un retry
+recibe 409 (bloqueado) en vez de duplicar el efecto. Ese registro huérfano
+requiere hoy limpieza/reconciliación manual contra el ledger — no hay todavía
+un job automático que lo resuelva.
 
 #### C. Inmutabilidad y Correcciones Compensatorias
 De acuerdo con las reglas de negocio congeladas:

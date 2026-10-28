@@ -27,6 +27,19 @@ public interface IDocumentStore
     /// <summary>Lists the newest documents of a collection ordered by <paramref name="orderByField"/> descending (single-field order: no composite index needed).</summary>
     Task<IReadOnlyList<IDictionary<string, object?>>> ListAsync(string collection, string orderByField, int limit, CancellationToken ct);
 
+    /// <summary>
+    /// Keyset-paginated variant of <see cref="QueryOrderedAsync"/>: same filter/order, but accepts the
+    /// (<paramref name="orderByField"/>, <paramref name="tieBreakerField"/>) values of the last item of the
+    /// previous page and returns only documents strictly after that position. Pass both cursor values as
+    /// <c>null</c> to fetch the first page. <paramref name="tieBreakerField"/> must be unique per document
+    /// (e.g. an event id) so rows sharing the same <paramref name="orderByField"/> value are never skipped
+    /// or duplicated across pages.
+    /// </summary>
+    Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedPageAsync(
+        string collection, string field, object value,
+        string orderByField, string tieBreakerField, int limit,
+        string? afterOrderValue, string? afterTieValue, CancellationToken ct);
+
     Task PingAsync(CancellationToken ct);
 }
 
@@ -69,6 +82,33 @@ public sealed class InMemoryDocumentStore : IDocumentStore
         Task.FromResult<IReadOnlyList<IDictionary<string, object?>>>(Col(collection).Values
             .OrderByDescending(d => d.TryGetValue(orderByField, out var v) ? v?.ToString() : null)
             .Take(limit).Select(Copy).ToList());
+
+    public Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedPageAsync(
+        string collection, string field, object value,
+        string orderByField, string tieBreakerField, int limit,
+        string? afterOrderValue, string? afterTieValue, CancellationToken ct)
+    {
+        var ordered = Col(collection).Values
+            .Where(d => d.TryGetValue(field, out var v) && Equals(v, value))
+            .Select(d => (Doc: d,
+                Order: d.TryGetValue(orderByField, out var o) ? o?.ToString() : null,
+                Tie: d.TryGetValue(tieBreakerField, out var t) ? t?.ToString() : null))
+            .OrderByDescending(x => x.Order, StringComparer.Ordinal)
+            .ThenByDescending(x => x.Tie, StringComparer.Ordinal)
+            .AsEnumerable();
+
+        if (afterOrderValue != null)
+        {
+            ordered = ordered.SkipWhile(x =>
+            {
+                var cmp = string.CompareOrdinal(x.Order, afterOrderValue);
+                return cmp > 0 || (cmp == 0 && string.CompareOrdinal(x.Tie, afterTieValue) >= 0);
+            });
+        }
+
+        return Task.FromResult<IReadOnlyList<IDictionary<string, object?>>>(
+            ordered.Take(limit).Select(x => Copy(x.Doc)).ToList());
+    }
 
     public Task PingAsync(CancellationToken ct) => Task.CompletedTask;
 }
@@ -130,6 +170,26 @@ public sealed class FirestoreDocumentStore(FirestoreDb db) : IDocumentStore
     public async Task<IReadOnlyList<IDictionary<string, object?>>> ListAsync(string collection, string orderByField, int limit, CancellationToken ct)
     {
         var snap = await db.Collection(collection).OrderByDescending(orderByField).Limit(limit).GetSnapshotAsync(ct);
+        return snap.Documents
+            .Select(d => (IDictionary<string, object?>)d.ToDictionary().ToDictionary(kv => kv.Key, kv => (object?)kv.Value))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedPageAsync(
+        string collection, string field, object value,
+        string orderByField, string tieBreakerField, int limit,
+        string? afterOrderValue, string? afterTieValue, CancellationToken ct)
+    {
+        // Requires a composite index on (field ASC, orderByField DESC, tieBreakerField DESC) in Firestore.
+        Query query = db.Collection(collection)
+            .WhereEqualTo(field, value)
+            .OrderByDescending(orderByField)
+            .OrderByDescending(tieBreakerField);
+
+        if (afterOrderValue != null && afterTieValue != null)
+            query = query.StartAfter(afterOrderValue, afterTieValue);
+
+        var snap = await query.Limit(limit).GetSnapshotAsync(ct);
         return snap.Documents
             .Select(d => (IDictionary<string, object?>)d.ToDictionary().ToDictionary(kv => kv.Key, kv => (object?)kv.Value))
             .ToList();

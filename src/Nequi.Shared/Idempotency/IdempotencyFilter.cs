@@ -49,23 +49,37 @@ public sealed class IdempotencyFilter : IEndpointFilter
                 return Results.Content(record!.ResponseBody ?? "", record.ContentType ?? "application/json", Encoding.UTF8, record.StatusCode);
         }
 
+        object? result;
         try
         {
-            var result = await next(ctx);
-            var status = (result as IStatusCodeHttpResult)?.StatusCode ?? 200;
-            string? body = null;
-            if (result is IValueHttpResult { Value: not null } v)
-                body = JsonSerializer.Serialize(v.Value, JsonSerializerOptions.Web);
-            // Only cache definitive outcomes; a 5xx must stay retryable with the same key.
-            if (status >= 500) await store.AbandonAsync(uid, scope, key, CancellationToken.None);
-            else await store.CompleteAsync(uid, scope, key, status, body, "application/json", CancellationToken.None);
-            return result;
+            result = await next(ctx);
         }
         catch
         {
+            // next() threw before producing a result: nothing was committed, so the
+            // key is safe to free for a retry.
             await store.AbandonAsync(uid, scope, key, CancellationToken.None);
             throw;
         }
+
+        var status = (result as IStatusCodeHttpResult)?.StatusCode ?? 200;
+        if (status >= 500)
+        {
+            // A 5xx must stay retryable with the same key.
+            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            return result;
+        }
+
+        // The endpoint already ran and succeeded (status < 500): any financial effect
+        // is already committed. AbandonAsync must never run from here on — deleting the
+        // IN_PROGRESS record now would let a retry with the same key re-execute an
+        // already-applied movement. If CompleteAsync itself fails, the record stays
+        // IN_PROGRESS so a retry is rejected with 409 instead of silently duplicating it.
+        string? body = null;
+        if (result is IValueHttpResult { Value: not null } v)
+            body = JsonSerializer.Serialize(v.Value, JsonSerializerOptions.Web);
+        await store.CompleteAsync(uid, scope, key, status, body, "application/json", CancellationToken.None);
+        return result;
     }
 }
 

@@ -8,6 +8,7 @@
 import { appConfig } from '../config/appConfig';
 import { createHttpClient, type HttpClient } from './http';
 import { sessionManager } from './session/platform';
+import { configureHttp } from '../api/http';
 
 export const apiClient: HttpClient | null = appConfig.apiBaseUrl
   ? createHttpClient({
@@ -19,6 +20,16 @@ export const apiClient: HttpClient | null = appConfig.apiBaseUrl
       },
     })
   : null;
+
+// api/http.ts es un adaptador heredado que siguen usando Backoffice y
+// servicios antiguos; sin esto su tokenProvider se queda en `null` y esas
+// peticiones viajan sin Authorization.
+configureHttp({
+  getToken: () => sessionManager.getAccessToken(),
+  onUnauthorized: () => {
+    void sessionManager.handleUnauthorized();
+  },
+});
 
 /** Falla explícitamente si no hay `EXPO_PUBLIC_API_URL` configurada. */
 export function requireApiClient(): HttpClient {

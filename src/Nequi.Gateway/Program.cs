@@ -63,6 +63,18 @@ var oidcCache = new ConcurrentDictionary<string, OidcToken>();
 var useIdentityTokens = cfg.GetValue("Gateway:IdentityTokens", true);
 GoogleCredential? adc = null;
 
+async Task<string> GetIdentityTokenAsync(string audience)
+{
+    adc ??= await GoogleCredential.GetApplicationDefaultAsync();
+    var oidc = oidcCache.GetValueOrDefault(audience);
+    if (oidc is null)
+    {
+        oidc = await adc.GetOidcTokenAsync(OidcTokenOptions.FromTargetAudience(audience));
+        oidcCache[audience] = oidc;
+    }
+    return await oidc.GetAccessTokenAsync();
+}
+
 builder.Services.AddReverseProxy()
     .LoadFromMemory(routes.ToList(), clusters)
     .AddTransforms(ctx =>
@@ -84,18 +96,13 @@ builder.Services.AddReverseProxy()
             }
 
             if (useIdentityTokens)
-            {
-                adc ??= await GoogleCredential.GetApplicationDefaultAsync();
-                var oidc = oidcCache.GetValueOrDefault(audience);
-                if (oidc is null)
-                {
-                    oidc = await adc.GetOidcTokenAsync(OidcTokenOptions.FromTargetAudience(audience));
-                    oidcCache[audience] = oidc;
-                }
-                headers.TryAddWithoutValidation("X-Serverless-Authorization", $"Bearer {await oidc.GetAccessTokenAsync()}");
-            }
+                headers.TryAddWithoutValidation("X-Serverless-Authorization", $"Bearer {await GetIdentityTokenAsync(audience)}");
         });
     });
+
+// Cliente dedicado a los probes de /health/ready: timeout corto para que un
+// upstream caido no cuelgue la respuesta de readiness del propio gateway.
+builder.Services.AddHttpClient("gateway-health", c => c.Timeout = TimeSpan.FromSeconds(3));
 
 var origins = (cfg["Cors:AllowedOrigins"] ?? "http://localhost:3000,http://localhost:4200,http://localhost:5173")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -130,7 +137,34 @@ app.Use(async (ctx, next) =>
 
 app.MapGet("/", () => Results.Ok(new { service = "nequi-gateway", status = "ok", routes = map.SelectMany(m => m.Paths).Order() }));
 app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy" }));
-app.MapGet("/health/ready", () => Results.Ok(new { status = "Healthy", upstreams = services.Keys.Order() }));
+app.MapGet("/health/ready", async (IHttpClientFactory httpFactory) =>
+{
+    var client = httpFactory.CreateClient("gateway-health");
+    var checks = new ConcurrentDictionary<string, string>();
+
+    await Task.WhenAll(services.Select(async kv =>
+    {
+        var (name, baseUrl) = kv;
+        try
+        {
+            using var req = new HttpRequestMessage(HttpMethod.Get, baseUrl!.TrimEnd('/') + "/health/live");
+            if (useIdentityTokens)
+                req.Headers.TryAddWithoutValidation("Authorization", $"Bearer {await GetIdentityTokenAsync(baseUrl.TrimEnd('/'))}");
+
+            using var resp = await client.SendAsync(req);
+            checks[name] = resp.IsSuccessStatusCode ? "Healthy" : "Unhealthy";
+        }
+        catch
+        {
+            checks[name] = "Unhealthy";
+        }
+    }));
+
+    var healthy = checks.Values.All(v => v == "Healthy");
+    return Results.Json(
+        new { status = healthy ? "Healthy" : "Unhealthy", upstreams = services.Keys.Order(), checks },
+        statusCode: healthy ? StatusCodes.Status200OK : StatusCodes.Status503ServiceUnavailable);
+});
 app.MapReverseProxy();
 app.Run();
 

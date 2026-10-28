@@ -1,6 +1,7 @@
 import { appConfig } from '../config/appConfig';
 import { createHttpClient } from '../services/http/client';
 import { ApiError as CentralApiError } from '../services/http/ApiError';
+import { generateIdempotencyKey } from '../utils/idempotency';
 
 /**
  * Compatibilidad para consumidores antiguos (Backoffice). La URL ya no tiene
@@ -28,10 +29,7 @@ export function configureHttp(opts: { getToken: TokenProvider; onUnauthorized: (
   onUnauthorized = opts.onUnauthorized;
 }
 
-export function newIdempotencyKey(): string {
-  const hex = () => Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
-  return `${hex()}${hex()}-${hex()}-4${hex().slice(1)}-a${hex().slice(1)}-${hex()}${hex()}${hex()}`;
-}
+export const newIdempotencyKey = generateIdempotencyKey;
 
 interface RequestOptions {
   method?: 'GET' | 'POST' | 'PATCH' | 'PUT';

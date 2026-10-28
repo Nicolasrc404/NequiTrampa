@@ -75,42 +75,40 @@ public sealed class IdempotencyActionFilter(IIdempotencyStore store, ILogger<Ide
         }
 
         // BeginOutcome.Started — execute the action.
-        // Use a flag to guarantee AbandonAsync runs at most once on failure paths.
-        var abandoned = false;
-
+        ActionExecutedContext executed;
         try
         {
-            var executed = await next();
-
-            // Case: next() returned with a captured exception (not rethrown).
-            if (executed.Exception != null)
-            {
-                abandoned = true;
-                // Cleanup must not depend on RequestAborted — the same key must stay retryable
-                // even if the client disconnected (mirrors IdempotencyFilter minimal-API behavior).
-                await store.AbandonAsync(uid, scope, key, CancellationToken.None);
-                throw executed.Exception;
-            }
-
-            var (status, body) = ExtractResult(executed.Result);
-            if (status >= 500)
-            {
-                abandoned = true;
-                await store.AbandonAsync(uid, scope, key, CancellationToken.None);
-            }
-            else
-            {
-                await store.CompleteAsync(uid, scope, key, status, body, "application/json", CancellationToken.None);
-            }
-
-            return;
+            executed = await next();
         }
         catch
         {
-            if (!abandoned)
-                await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            // next() itself threw without producing a result: the action never ran,
+            // so nothing was committed. Safe to free the key for a retry.
+            // Cleanup must not depend on RequestAborted — the same key must stay retryable
+            // even if the client disconnected (mirrors IdempotencyFilter minimal-API behavior).
+            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
             throw;
         }
+
+        if (executed.Exception != null)
+        {
+            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            throw executed.Exception;
+        }
+
+        var (status, body) = ExtractResult(executed.Result);
+        if (status >= 500)
+        {
+            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            return;
+        }
+
+        // The action already ran and succeeded (status < 500): any financial effect
+        // is already committed. From here on AbandonAsync must never run — deleting the
+        // IN_PROGRESS record now would let a retry with the same key re-execute an
+        // already-applied movement. If CompleteAsync itself fails, the record stays
+        // IN_PROGRESS so a retry is rejected with 409 instead of silently duplicating it.
+        await store.CompleteAsync(uid, scope, key, status, body, "application/json", CancellationToken.None);
     }
 
     private static ObjectResult BuildProblem(int status, string title, string detail, string code, HttpContext http)

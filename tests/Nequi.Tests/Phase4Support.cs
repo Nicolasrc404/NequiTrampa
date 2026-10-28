@@ -137,5 +137,11 @@ internal sealed class FlakyDocumentStore(IDocumentStore inner) : IDocumentStore
         string collection, string orderByField, int limit, CancellationToken ct) =>
         inner.ListAsync(collection, orderByField, limit, ct);
 
+    public Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedPageAsync(
+        string collection, string field, object value,
+        string orderByField, string tieBreakerField, int limit,
+        string? afterOrderValue, string? afterTieValue, CancellationToken ct) =>
+        inner.QueryOrderedPageAsync(collection, field, value, orderByField, tieBreakerField, limit, afterOrderValue, afterTieValue, ct);
+
     public Task PingAsync(CancellationToken ct) => inner.PingAsync(ct);
 }

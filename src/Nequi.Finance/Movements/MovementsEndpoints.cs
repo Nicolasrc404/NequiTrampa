@@ -79,8 +79,26 @@ public static class MovementsEndpoints
 {
     private const string FinancialMovements = "financial_movements";
     private const string OccurredAtField = "occurredAt";
+    private const string EventIdField = "eventId";
     private const int DefaultLimit = 50;
     private const int MaxLimit = 200;
+
+    /// <summary>Opaque keyset cursor over (occurredAt, eventId), both descending.</summary>
+    private static string EncodeCursor(string occurredAt, string eventId) =>
+        Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes($"{occurredAt}{eventId}"));
+
+    private static bool TryDecodeCursor(string cursor, out string occurredAt, out string eventId)
+    {
+        occurredAt = ""; eventId = "";
+        try
+        {
+            var parts = System.Text.Encoding.UTF8.GetString(Convert.FromBase64String(cursor)).Split('');
+            if (parts.Length != 2 || parts[0].Length == 0 || parts[1].Length == 0) return false;
+            occurredAt = parts[0]; eventId = parts[1];
+            return true;
+        }
+        catch (FormatException) { return false; }
+    }
 
     // Roles that may query movements for any clientId (investigation / backoffice).
     private static readonly HashSet<string> FinancialStaff =
@@ -95,6 +113,7 @@ public static class MovementsEndpoints
             HttpContext ctx,
             string? clientId,
             int? limit,
+            string? cursor,
             IDocumentStore docs,
             ClientIdentityResolver identities) =>
         {
@@ -157,21 +176,37 @@ public static class MovementsEndpoints
                 return Problems.Problem(ctx, 400, "Bad Request",
                     $"limit must be between 1 and {MaxLimit}.", "invalid_limit");
 
-            // ---------------------------------------------------------------
-            // 4. Query: WHERE clientId = owner ORDER BY occurredAt DESC LIMIT n
-            //    (server-side ordering via QueryOrderedAsync - see IDocumentStore)
-            // ---------------------------------------------------------------
-            var rows = await docs.QueryOrderedAsync(
-                FinancialMovements, "clientId", owner,
-                OccurredAtField, pageSize, ctx.RequestAborted);
+            string? afterOccurredAt = null, afterEventId = null;
+            if (!string.IsNullOrEmpty(cursor) && !TryDecodeCursor(cursor, out afterOccurredAt, out afterEventId))
+                return Problems.Problem(ctx, 400, "Bad Request", "Invalid cursor.", "invalid_cursor");
 
-            var items = rows.Select(MovementDto.From).ToList();
+            // ---------------------------------------------------------------
+            // 4. Query: WHERE clientId = owner ORDER BY occurredAt DESC, eventId DESC
+            //    keyset-paginated after the previous page's last (occurredAt, eventId).
+            //    Fetch one extra row to know whether another page follows.
+            // ---------------------------------------------------------------
+            var rows = await docs.QueryOrderedPageAsync(
+                FinancialMovements, "clientId", owner,
+                OccurredAtField, EventIdField, pageSize + 1,
+                afterOccurredAt, afterEventId, ctx.RequestAborted);
+
+            var hasMore = rows.Count > pageSize;
+            var items = rows.Take(pageSize).Select(MovementDto.From).ToList();
+
+            string? nextCursor = null;
+            if (hasMore && items.Count > 0)
+            {
+                var last = items[^1];
+                if (last.OccurredAt is { } occurredAt && last.EventId is { } eventId)
+                    nextCursor = EncodeCursor(occurredAt, eventId);
+            }
 
             return Results.Ok(new
             {
                 clientId = owner,
                 count = items.Count,
                 limit = pageSize,
+                nextCursor,
                 items,
             });
         }).RequireAuthorization();
