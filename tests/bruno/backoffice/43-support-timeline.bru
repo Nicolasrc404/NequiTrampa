@@ -1,0 +1,20 @@
+meta {
+  name: Support Operation Timeline
+  type: http
+  seq: 43
+}
+
+get {
+  url: {{backofficeUrl}}/v1/support/operations/{{finTransferRef}}/timeline
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+assert {
+  res.status: eq 200
+  res.body.timeline.length: gt 1
+}

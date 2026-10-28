@@ -1,0 +1,18 @@
+meta {
+  name: Get Profile (sin token 401)
+  type: http
+  seq: 7
+}
+
+get {
+  url: {{profileUrl}}/v1/profile
+  body: none
+  auth: none
+}
+
+headers {
+}
+
+assert {
+  res.status: eq 401
+}

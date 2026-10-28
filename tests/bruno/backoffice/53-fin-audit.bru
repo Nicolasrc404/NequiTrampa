@@ -1,0 +1,21 @@
+meta {
+  name: Fin: Audit Of Reversal
+  type: http
+  seq: 53
+}
+
+get {
+  url: {{backofficeUrl}}/v1/financial-operations/{{finOpId}}/audit
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: operator
+}
+
+assert {
+  res.status: eq 200
+  res.body.auditEntries.length: gt 0
+  res.body.auditEntries[0].action: eq FINANCIAL_REVERSAL_CREATED
+}

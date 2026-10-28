@@ -1,0 +1,20 @@
+meta {
+  name: List Reports
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{workersUrl}}/v1/reports
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 200
+  res.body.count: gt 0
+}

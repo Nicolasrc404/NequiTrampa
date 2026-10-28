@@ -1,0 +1,19 @@
+meta {
+  name: Get Report Not Found
+  type: http
+  seq: 17
+}
+
+get {
+  url: {{workersUrl}}/v1/reports/does-not-exist
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 404
+}

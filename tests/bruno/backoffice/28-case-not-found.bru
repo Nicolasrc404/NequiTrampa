@@ -1,0 +1,19 @@
+meta {
+  name: Support Case Not Found
+  type: http
+  seq: 28
+}
+
+get {
+  url: {{backofficeUrl}}/v1/support/cases/CASE-NOPE
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+assert {
+  res.status: eq 404
+}

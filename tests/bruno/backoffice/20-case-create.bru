@@ -1,0 +1,29 @@
+meta {
+  name: Support Case Create
+  type: http
+  seq: 20
+}
+
+post {
+  url: {{backofficeUrl}}/v1/support/cases
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+body:json {
+  { "subject": "Transferencia no recibida", "clientId": "{{clientGuid}}", "description": "Caso de prueba automatizado", "priority": "high" }
+}
+
+script:post-response {
+  if (res.getStatus() === 201) bru.setVar("caseId", res.body.id);
+}
+
+assert {
+  res.status: eq 201
+  res.body.status: eq OPEN
+  res.body.priority: eq HIGH
+}

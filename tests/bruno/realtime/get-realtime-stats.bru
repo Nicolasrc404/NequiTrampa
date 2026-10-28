@@ -1,0 +1,19 @@
+meta {
+  name: Realtime Stats
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{realtimeUrl}}/v1/realtime/stats
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+assert {
+  res.status: eq 200
+}

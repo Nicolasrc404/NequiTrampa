@@ -1,0 +1,21 @@
+meta {
+  name: Support Operation Status
+  type: http
+  seq: 42
+}
+
+get {
+  url: {{backofficeUrl}}/v1/support/operations/{{finTransferRef}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+assert {
+  res.status: eq 200
+  res.body.type: eq INTERNAL_TRANSFER
+  res.body.status: eq COMPLETED
+}

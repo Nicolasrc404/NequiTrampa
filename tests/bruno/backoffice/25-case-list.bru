@@ -1,0 +1,20 @@
+meta {
+  name: Support Case List
+  type: http
+  seq: 25
+}
+
+get {
+  url: {{backofficeUrl}}/v1/support/cases?status=ESCALATED
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+assert {
+  res.status: eq 200
+  res.body.count: gt 0
+}

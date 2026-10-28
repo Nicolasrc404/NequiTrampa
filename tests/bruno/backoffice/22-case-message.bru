@@ -1,0 +1,24 @@
+meta {
+  name: Support Case Message
+  type: http
+  seq: 22
+}
+
+post {
+  url: {{backofficeUrl}}/v1/support/cases/{{caseId}}/messages
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+body:json {
+  { "body": "Estamos revisando tu operación." }
+}
+
+assert {
+  res.status: eq 201
+  res.body.caseId: eq {{caseId}}
+}

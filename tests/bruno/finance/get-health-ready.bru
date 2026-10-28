@@ -1,0 +1,19 @@
+meta {
+  name: Finance Health Ready
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{financeUrl}}/health/ready
+  body: none
+  auth: none
+}
+
+headers {
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq Healthy
+}

@@ -38,10 +38,10 @@ Spanner.** Todo lo demás es proyección, caché o interfaz.
 ### Backend
 | Tecnología | Uso |
 |---|---|
-| ASP.NET Core (C#) | Los seis servicios web |
+| ASP.NET Core (.NET 10.0 / C#) | Microservicios de dominio y workers asíncronos |
 | Cloud Run | Ejecución de contenedores, HTTPS y WebSockets |
-| API Gateway | Entrada única de APIs y validación de JWT |
-| REST | Contrato público (sin SOAP, sin GraphQL, sin gRPC público) |
+| API Gateway | Entrada única pública (BFF `Nequi.Gateway`: CORS, rate limit); el JWT lo valida cada servicio |
+| REST | Contrato público HTTP/REST; sin SOAP, GraphQL ni gRPC público. Errores mediante RFC 9457 Problem Details. |
 
 ### Datos
 | Tecnología | Uso |
@@ -93,16 +93,19 @@ admins        ledger        categorías
  ADMIN     ──► Profile · Wallet · Finance  (auditoría obligatoria)
 ```
 
-### Los seis servicios
+### Servicios Funcionales y Agrupación de Despliegue Físico
 
-| Servicio | Base | Responsabilidad |
+> **Evolución Arquitectónica (ANTERIOR vs. VIGENTE)**:
+> Para un equipo pequeño y optimización de recursos en Cloud Run, los dominios funcionales no se despliegan como 30 microservicios ni como 6 contenedores aislados que aumenten la latencia de red. Se agrupan modularmente en **4 APIs de Cloud Run** y **1 conjunto de workers asíncronos**:
+
+| Unidad Cloud Run | Dominios que Contiene | Persistencia Principal |
 |---|---|---|
-| `profile-service` | Spanner | Cliente, perfil, resolución de destinatarios |
-| `wallet-service` | Spanner | Saldo, transferencias, recargas, ledger |
-| `finance-service` | Firestore | Movimientos, efectivo, categorías, presupuestos |
-| `assistant-service` | ninguna | IA consultiva + procesamiento de voz |
-| `realtime-service` | ninguna | WebSocket y difusión de eventos |
-| `admin-service` | vía los otros | Operaciones administrativas |
+| `core-api` | Profile, Access, Movements, Cash, Categories, Budgets, Goals, Analytics, Sync | Firestore / Spanner / SQLite sync |
+| `wallet-api` | Wallet, Transfers, Recharges, Beneficiaries | Cloud Spanner (Autoridad) |
+| `backoffice-api` | Support, Investigation, Financial Operations, Reversals, Adjustments, Reconciliation, Users, Roles, Config, Audit | Spanner / Firestore |
+| `assistant-api` | Assistant (IA Consultiva), Voice (Speech-to-Text) | Solo lectura (Vertex AI / STT) |
+| `workers` | Outbox Worker, Projection Worker, Notification Worker | Pub/Sub / Cloud Run Jobs |
+
 
 ---
 
@@ -111,7 +114,9 @@ admins        ledger        categorías
 Estas reglas no son opcionales: definen qué es el proyecto.
 
 - **Partida doble.** Toda operación cumple `Σ delta = 0` en `ledger_entries`.
-- **Saldo nunca negativo.** `current_balance >= 0`, validado dentro de la transacción.
+- **Saldo no negativo en cuentas de cliente.** `current_balance >= 0` lo valida
+  el servicio financiero para `CLIENT_WALLET`; la cuenta `SYSTEM_FUNDING` admite
+  sobregiro en el AS-IS y el DDL no impone `CHECK current_balance >= 0`.
 - **Dinero en centavos.** Enteros en todas las capas; `decimal` en C#, `NUMERIC` en
   Spanner, `int64` en Firestore. Nunca `float` ni `double`.
 - **COP es constante de dominio.** Cualquier otra moneda se rechaza.
@@ -157,29 +162,95 @@ distintos: que un gasto ya haya ocurrido en la vida real no significa que ya est
 
 ## Estado actual
 
-| Componente | Estado |
-|---|---|
-| Documento de arquitectura | ✅ Congelado |
-| Esquema Spanner `finanzas-core` | ✅ Desplegado en GCP (9 tablas, 18 índices, 25 CHECK, 5 FK) e invariantes verificados contra producción |
-| Infraestructura GCP | ✅ APIs, service accounts con mínimo privilegio, Pub/Sub con DLQ, Artifact Registry |
-| Firestore | 🚧 Parcial — faltan colecciones y el enlace `operationId` |
-| Los 6 servicios ASP.NET Core | ⬜ Pendientes |
-| API Gateway · Identity Platform · Cloud Scheduler | ⬜ Pendientes (necesitan las URLs de Cloud Run) |
-| App React Native | ⬜ Pendiente |
+El proyecto superó la fase puramente mock y cuenta con persistencia financiera autoritativa y pipeline asíncrono validados en **Google Cloud Platform**. Para máxima transparencia arquitectónica, el repositorio clasifica sus componentes en tres estados:
 
-Este repositorio todavía no contiene código de aplicación. El esquema SQL, los scripts de
-despliegue y la documentación de infraestructura viven por ahora en las carpetas hermanas
-`spanner/` e `infra/` del proyecto.
+### 1. Clasificación de Estado de Componentes
 
-### Tablas en Spanner
+| Componente | Estado | Detalle y Persistencia |
+|---|:---:|---|
+| **Arquitectura y Reglas Financieras** | ✅ AS-IS Verificado | Congeladas y validadas contra principios contables y RFCs |
+| **Esquema Spanner (`finanzas-core`)** | ✅ AS-IS Verificado | DDL en [database/spanner/01_schema.sql](database/spanner/01_schema.sql) (7 tablas: `clients`, `wallet_accounts`, `daily_transfer_usage`, `ledger_operations`, `ledger_entries`, `idempotency_records`, `outbox_events`) |
+| **Infraestructura Core (`full-stack-2026`)** | ✅ AS-IS Verificado | Cloud Run (`nequi-wallet`, `nequi-workers`), Spanner, Pub/Sub con DLQ, Secret Manager, Artifact Registry y Service Accounts dedicadas |
+| **Persistencia NoSQL (`fullstack-d3be5`)** | ✅ AS-IS Verificado | Firestore Nativo `(default)`, colecciones `financial_movements` y `notifications` proyectadas desde eventos de dominio |
+| **`Nequi.Wallet` (wallet-api)** | ✅ AS-IS Verificado | Soporte dual: Spanner autoritativo (`Data__Backend=gcp`) y Mocks (`Data__Backend=memory`). Validado en Cloud Run con Bruno (suite completa vía gateway, ver `tests/bruno/README.md`) |
+| **`Nequi.Workers` (Outbox / Proyecciones)** | ✅ AS-IS Verificado | Pipeline E2E validado: Spanner Outbox → `OutboxWorker` → Pub/Sub → Push OIDC → `ProjectionService` / `NotificationService` → Firestore |
+| **`Nequi.Realtime` (WebSockets)** | ✅ AS-IS Verificado | Pub/Sub push → WebSocket `/ws` validado E2E: una transferencia llega al socket del cliente (`?access_token=<JWT>` vía gateway) |
+| **`Nequi.Finance`** | ✅ AS-IS Verificado | `GET /v1/movements` desde Firestore, por claim `client_id`; staff con `?clientId=` |
+| **`Nequi.Profile`** | ✅ AS-IS Verificado | `GET/PATCH /v1/profile` sobre Spanner (`clients` + `wallet_accounts`) |
+| **`Nequi.Assistant`** | ✅ AS-IS Verificado | Solo lectura: saldo (Spanner) + movimientos (Firestore); chat con Vertex AI (`gemini-2.5-flash`) y respaldo determinista |
+| **`Nequi.Backoffice`** | ✅ AS-IS Verificado | Casos de soporte, investigación de operaciones, **reversos y ajustes formales en el ledger** (Spanner, transaccionales e idempotentes), reconciliación (`reconciliation_issues`), administración de usuarios/roles (claims de Identity Platform), configuración y auditoría (Firestore) |
+| **`Nequi.Gateway` (API Gateway / BFF)** | ✅ AS-IS Verificado | Único servicio público: CORS, rate limit, reenvío a los servicios privados con identity token; nunca expone `/internal/**`. Ver [docs/guia-frontend-api.md](docs/guia-frontend-api.md) |
+| **Autenticación Identity Platform** | ✅ AS-IS Verificado | JWT RS256 (roles + `client_id` como custom claims) validado por cada servicio con `Auth__DemoHeaders=false`; usuarios de prueba con `infra/seed-identity.sh` |
+| **App Móvil (React Native / Expo + SQLite)** | ⚪ TO-BE (Pendiente) | Cliente móvil y persistencia local SQLite pendientes de consolidación/documentación en este repositorio |
 
-`clients` · `administrators` · `wallet_accounts` · `ledger_operations` · `ledger_entries` ·
-`idempotency_records` · `daily_transfer_usage` · `outbox_events` · `reconciliation_issues`
+---
 
-### Colecciones en Firestore
+### 2. Proyectos GCP y Distribución de Infraestructura
 
-`financial_movements` · `categories` · `budgets` · `cash_summaries` ·
-`finance_idempotency` · `audit_events`
+El despliegue en la región `southamerica-west1` está dividido en dos proyectos de Google Cloud Platform para desacoplar el plano transaccional bancario del plano documental de experiencia de usuario:
+
+#### Proyecto Principal: `full-stack-2026`
+* **Cloud Run (Serverless Privado)**:
+  * `nequi-wallet`: Microservicio autoritativo de billetera, transferencias y recargas.
+  * `nequi-workers`: Host de background jobs (`OutboxWorker`) y endpoints push (`/internal/pubsub/projection`, `/internal/pubsub/notifications`).
+* **Google Cloud Spanner**:
+  * Instancia: `finanzas-mvp`
+  * Base de datos: `finanzas-core`
+  * Recurso: `projects/full-stack-2026/instances/finanzas-mvp/databases/finanzas-core`
+* **Google Cloud Pub/Sub**:
+  * Topic de eventos: `wallet-events`
+  * Dead Letter Queue: `wallet-events-dlq`
+  * Suscripciones Push OIDC autenticadas: `workers-projection` y `workers-notifications`
+* **Configuración e Identidades**:
+  * Secret Manager: `nequi-spanner-database` (resource identifier/configuración de la base Spanner).
+  * Artifact Registry: Repositorio Docker `servicios`.
+  * Service Accounts dedicadas verificadas: `wallet-service`, `outbox-dispatcher`, `pubsub-push-invoker`.
+
+#### Proyecto Firebase / Firestore: `fullstack-d3be5`
+* **Google Cloud Firestore**:
+  * Base de datos: `(default)`
+  * Modo: `FIRESTORE_NATIVE`
+  * Región: `southamerica-west1`
+  * Colecciones verificadas: `financial_movements` (proyecciones de transferencias y recargas) y `notifications` (alertas de usuario).
+
+---
+
+### 3. Documentación Técnica del Repositorio
+
+Para profundizar en cada subsistema, consulte las guías especializadas:
+
+* [Índice General de Documentación](docs/README.md)
+* [Guía de Despliegue y Validación en GCP (AS-IS)](docs/despliegue-y-validacion-gcp.md)
+* [Documentación del Servicio Nequi.Wallet](src/Nequi.Wallet/README.md)
+* [Documentación del Servicio Nequi.Workers](src/Nequi.Workers/README.md)
+* [Modelo Físico de Cloud Spanner (DDL)](database/spanner/README.md)
+* [Scripts de Automatización e Infraestructura](infra/README.md)
+* [Suite de Pruebas Automatizadas Bruno](tests/bruno/README.md)
+* [Bitácora de Troubleshooting](TROUBLESHOOTING.md)
+
+### 4. Ejecución local con Swagger
+
+`scripts/run-local.ps1` compila y levanta los 7 servicios con Swagger UI en `http://localhost:<puerto>/swagger`:
+
+| Servicio | Puerto | | Servicio | Puerto |
+|---|---|---|---|---|
+| Wallet | 8080 | | Assistant | 8084 |
+| Profile | 8081 | | Workers | 8085 |
+| Finance | 8082 | | Realtime | 8086 |
+| Backoffice | 8083 | | | |
+
+```powershell
+gcloud auth application-default login   # una vez; necesario para -Backend gcp
+.\scripts\run-local.ps1                  # contra GCP (Spanner, Pub/Sub, Firestore de full-stack-2026)
+.\scripts\run-local.ps1 -Backend memory  # sin credenciales, datos en memoria
+.\scripts\run-local.ps1 -Lan             # además accesible desde otros equipos de la red
+.\scripts\stop-local.ps1
+```
+
+En Swagger, **Authorize** acepta headers demo (`X-Demo-User: idp-sub-alejandro`, `X-Demo-Role: CLIENTE`) en lugar de un JWT;
+solo para entornos no productivos. Los `POST` financieros requieren el header `Idempotency-Key`. En local el OutboxWorker queda
+apagado: el outbox lo drena `nequi-workers` en Cloud Run, que proyecta a Firestore. Los endpoints que leen Firestore requieren que la
+cuenta de ADC tenga `roles/datastore.user` en `fullstack-d3be5`.
 
 ---
 
@@ -188,8 +259,8 @@ despliegue y la documentación de infraestructura viven por ahora en las carpeta
 | Etapa | Qué se construye | Prueba obligatoria |
 |---|---|---|
 | Fundamento | Identity + API Gateway + Cloud Run | Sin JWT → 401 |
-| SQL | Cliente/admin + billetera + ledger | Nunca saldo negativo |
-| Transacciones | Transferencia + recarga + idempotencia | Doble tap → un solo efecto |
+| SQL | Cliente/admin + billetera + ledger | Saldo de cliente nunca negativo |
+| Transacciones | Transferencia + recarga + idempotencia | Reintento idéntico → replay 201; misma key con payload distinto → 409. Limitación AS-IS: commit gap entre el efecto financiero y `CompleteAsync`; sin garantía atómica E2E de un solo efecto |
 | NoSQL | Movimientos + categorías + efectivo | Historial correcto |
 | Reversos | Compensaciones | El original permanece |
 | Realtime | Outbox + Pub/Sub + WebSocket | Dos sesiones reciben el saldo |
@@ -214,3 +285,21 @@ Dos excepciones conscientes:
 - **Vertex AI** no debe presupuestarse como Always Free. La app expone un flag
   `AI_ENABLED` para que la falta de créditos de IA nunca tumbe transferencias, saldos,
   efectivo ni presupuestos.
+
+---
+
+## Servicios internos y complementarios
+
+Authorization, Idempotency, Health, Logging y Secret Manager viven en `src/Nequi.Shared`.
+Outbox Worker, Projection, Notification y Report corren en `src/Nequi.Workers`; el WebSocket en `src/Nequi.Realtime`.
+
+```
+bash infra/setup.sh                      # APIs, IAM, Firestore, secreto (idempotente)
+AUTH_DEMO_HEADERS=true bash infra/deploy.sh all   # build con Cloud Build + Cloud Run + suscripciones push
+bash infra/smoke-test.sh                 # publica un evento y lo consulta por los endpoints
+dotnet test                              # pruebas locales (en memoria)
+```
+
+`AUTH_DEMO_HEADERS=true` habilita `X-Demo-User` / `X-Demo-Role` solo para pruebas; nunca en producción.
+Contrato del `payload` de `outbox_events` que debe escribir `wallet-service`: `clientId`, `amountCents` (con signo), `currency`
+(opcionales: `operationId`, `occurredAt`, `counterpartyClientId`, `description`, `balanceAfterCents`).

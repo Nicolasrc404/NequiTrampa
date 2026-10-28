@@ -1,0 +1,21 @@
+meta {
+  name: Outbox Stats (staff)
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{workersUrl}}/v1/outbox/stats
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+assert {
+  res.status: eq 200
+  res.body.failed: eq 0
+  res.body.published: gt 0
+}

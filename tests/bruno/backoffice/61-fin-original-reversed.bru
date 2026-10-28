@@ -1,0 +1,20 @@
+meta {
+  name: Fin: Original Operation Marked REVERSED
+  type: http
+  seq: 61
+}
+
+get {
+  url: {{backofficeUrl}}/v1/support/operations/{{finTransferRef}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: support
+}
+
+assert {
+  res.status: eq 200
+  res.body.status: eq REVERSED
+}

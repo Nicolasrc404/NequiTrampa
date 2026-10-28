@@ -1,0 +1,18 @@
+meta {
+  name: Assistant Health Ready
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{assistantUrl}}/health/ready
+  body: none
+  auth: none
+}
+
+headers {
+}
+
+assert {
+  res.status: eq 200
+}

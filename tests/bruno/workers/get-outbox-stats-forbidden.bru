@@ -1,0 +1,19 @@
+meta {
+  name: Outbox Stats (cliente 403)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{workersUrl}}/v1/outbox/stats
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 403
+}

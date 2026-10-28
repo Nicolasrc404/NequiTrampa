@@ -1,0 +1,21 @@
+meta {
+  name: Fin: Ledger Entries Balanced
+  type: http
+  seq: 47
+}
+
+get {
+  url: {{backofficeUrl}}/v1/financial-operations/{{finOpId}}/ledger
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: operator
+}
+
+assert {
+  res.status: eq 200
+  res.body.balanced: eq true
+  res.body.ledgerEntries.length: eq 2
+}

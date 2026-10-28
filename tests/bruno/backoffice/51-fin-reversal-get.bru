@@ -1,0 +1,20 @@
+meta {
+  name: Fin: Get Reversal
+  type: http
+  seq: 51
+}
+
+get {
+  url: {{backofficeUrl}}/v1/reversals/{{reversalRef}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: operator
+}
+
+assert {
+  res.status: eq 200
+  res.body.originalOperationId: eq {{finOpId}}
+}

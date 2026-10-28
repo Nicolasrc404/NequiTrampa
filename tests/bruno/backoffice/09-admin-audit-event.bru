@@ -1,0 +1,20 @@
+meta {
+  name: Admin Audit Event Detail
+  type: http
+  seq: 14
+}
+
+get {
+  url: {{backofficeUrl}}/v1/admin/audit-events/{{auditEventId}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: admin
+}
+
+assert {
+  res.status: eq 200
+  res.body.id: eq {{auditEventId}}
+}

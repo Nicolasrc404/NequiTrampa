@@ -1,0 +1,20 @@
+meta {
+  name: Admin Administrators
+  type: http
+  seq: 16
+}
+
+get {
+  url: {{backofficeUrl}}/v1/admin/administrators
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: admin
+}
+
+assert {
+  res.status: eq 200
+  res.body.administrators.length: gt 0
+}

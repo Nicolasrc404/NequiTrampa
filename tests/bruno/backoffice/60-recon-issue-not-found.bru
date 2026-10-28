@@ -1,0 +1,19 @@
+meta {
+  name: Reconciliation Issue Not Found
+  type: http
+  seq: 60
+}
+
+get {
+  url: {{backofficeUrl}}/v1/reconciliation/issues/RECON-NOPE
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: operator
+}
+
+assert {
+  res.status: eq 404
+}

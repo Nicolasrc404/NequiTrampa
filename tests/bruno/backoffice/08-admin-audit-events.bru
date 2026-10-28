@@ -1,0 +1,24 @@
+meta {
+  name: Admin Audit Events
+  type: http
+  seq: 13
+}
+
+get {
+  url: {{backofficeUrl}}/v1/admin/audit-events?pageSize=5
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: admin
+}
+
+script:post-response {
+  if (res.getStatus() === 200 && res.body.events.length) bru.setVar("auditEventId", res.body.events[0].id);
+}
+
+assert {
+  res.status: eq 200
+  res.body.total: gt 0
+}

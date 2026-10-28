@@ -1,0 +1,33 @@
+meta {
+  name: Fin: Create Transfer To Reverse
+  type: http
+  seq: 40
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: client
+  Idempotency-Key: {{finTransferKey}}
+}
+
+body:json {
+  { "destinationTransferCode": "{{destCode}}", "amount": 12000, "description": "Para reverso", "currency": "COP" }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("finTransferKey", uuid.v4());
+}
+
+script:post-response {
+  if (res.getStatus() === 201) { bru.setVar("finTransferRef", res.body.transferId); bru.setVar("finOpId", res.body.ledgerOperationId); }
+}
+
+assert {
+  res.status: eq 201
+}

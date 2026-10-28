@@ -1,0 +1,19 @@
+meta {
+  name: Gateway Root
+  type: http
+  seq: 1
+}
+
+get {
+  url: {{gatewayUrl}}/
+  body: none
+  auth: none
+}
+
+headers {
+}
+
+assert {
+  res.status: eq 200
+  res.body.service: eq nequi-gateway
+}

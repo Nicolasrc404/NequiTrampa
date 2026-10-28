@@ -1,0 +1,20 @@
+meta {
+  name: Projections via Gateway (client_id claim)
+  type: http
+  seq: 12
+}
+
+get {
+  url: {{gatewayUrl}}/v1/projections/movements?limit=3
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 200
+  res.body.count: gt 0
+}

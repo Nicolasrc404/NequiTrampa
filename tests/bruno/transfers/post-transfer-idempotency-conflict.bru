@@ -1,0 +1,30 @@
+meta {
+  name: Post Transfer Idempotency Conflict (same key, different body)
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/v1/transfers
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: client
+  Idempotency-Key: {{transferIdempotencyKey}}
+}
+
+body:json {
+  {
+    "destinationTransferCode": "TRF-OTH-9999",
+    "amount": 99000,
+    "description": "Payload modificado con la misma key",
+    "currency": "COP"
+  }
+}
+
+assert {
+  res.status: eq 409
+  res.body.code: eq idempotency_key_conflict
+}

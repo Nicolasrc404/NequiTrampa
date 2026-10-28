@@ -1,0 +1,24 @@
+meta {
+  name: Notifications (cliente seed)
+  type: http
+  seq: 8
+}
+
+get {
+  url: {{workersUrl}}/v1/notifications
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+script:post-response {
+  if (res.getStatus() === 200 && res.body.items.length) bru.setVar("notificationId", res.body.items[0].id);
+}
+
+assert {
+  res.status: eq 200
+  res.body.count: gt 0
+}

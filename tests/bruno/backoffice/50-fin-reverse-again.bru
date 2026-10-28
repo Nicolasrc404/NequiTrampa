@@ -1,0 +1,30 @@
+meta {
+  name: Fin: Reverse Twice (409)
+  type: http
+  seq: 50
+}
+
+post {
+  url: {{backofficeUrl}}/v1/financial-operations/{{finOpId}}/reversals
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: operator
+  Idempotency-Key: {{reversalKey2}}
+}
+
+body:json {
+  { "reason": "Segundo intento" }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("reversalKey2", uuid.v4());
+}
+
+assert {
+  res.status: eq 409
+  res.body.code: eq already_reversed
+}

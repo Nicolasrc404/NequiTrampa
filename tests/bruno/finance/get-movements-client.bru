@@ -1,0 +1,20 @@
+meta {
+  name: Finance Movements (cliente)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{financeUrl}}/v1/movements?limit=5
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 200
+  res.body.count: gt 0
+}

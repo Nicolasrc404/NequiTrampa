@@ -1,0 +1,24 @@
+meta {
+  name: Gateway CORS Disallowed Origin
+  type: http
+  seq: 8
+}
+
+options {
+  url: {{gatewayUrl}}/v1/wallet
+  body: none
+  auth: none
+}
+
+headers {
+  Origin: https://evil.example
+  Access-Control-Request-Method: GET
+}
+
+script:post-response {
+  test("origen no permitido no recibe allow-origin", function () { expect(res.getHeader("access-control-allow-origin")).to.equal(undefined); });
+}
+
+assert {
+  res.status: isNumber
+}

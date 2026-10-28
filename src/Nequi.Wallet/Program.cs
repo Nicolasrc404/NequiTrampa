@@ -1,0 +1,128 @@
+using Microsoft.AspNetCore.Mvc;
+using Nequi.Shared;
+using Nequi.Shared.OpenApi;
+using Nequi.Wallet.Beneficiaries;
+using Nequi.Wallet.Filters;
+using Nequi.Wallet.Interfaces;
+using Nequi.Wallet.Services;
+
+// =============================================================================
+// NequiTrampa — Nequi.Wallet (wallet-api conceptual)
+// Responsabilidades: Wallet · Transfers · Recharges · Beneficiaries (TO-BE)
+// Autenticación/Autorización: Nequi.Shared.Security (JWT + RBAC + deny-by-default)
+// Idempotencia: Nequi.Shared.Idempotency (InMemory dev / Spanner prod)
+//   - MVC: IdempotencyActionFilter (IAsyncActionFilter) applied via [TypeFilter] on POSTs
+//   - Minimal API: IdempotencyFilter (IEndpointFilter) applied via RequireIdempotency()
+// Problem Details: Nequi.Shared.Http.Problems (RFC 9457)
+// Exception mapping: Nequi.Wallet.Filters.WalletExceptionFilter (WalletDomainException→status, 401/403)
+// Health: Nequi.Shared.Health (/health/live + /health/ready)
+// Observabilidad: Nequi.Shared.Observability (CorrelationMiddleware + GCP JSON logs)
+// Modos de persistencia soportados:
+//   - Data:Backend = "gcp"    → implementaciones autoritativas respaldadas por Cloud Spanner
+//     (SpannerWalletService, SpannerTransferService, SpannerRechargeService).
+//   - Data:Backend = "memory" → mocks en memoria para desarrollo local y pruebas
+//     (MockWalletService, MockTransferService, MockRechargeService).
+// =============================================================================
+var builder = WebApplication.CreateBuilder(args);
+
+// Cloud Run provee el puerto dinámicamente mediante la variable de entorno PORT (0.0.0.0:$PORT)
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
+// 1. Configuración común de la plataforma Nequi (Auth, ProblemDetails, Health, Stores, Logging)
+//    Data:Backend = "gcp" → Firestore + SpannerIdempotencyStore
+//    Data:Backend = cualquier otra cosa → InMemory (dev/test)
+builder.AddNequiCommon();
+
+// 2. Controladores MVC con respuestas automáticas de validación bajo RFC 9457 (422)
+//    WalletExceptionFilter: mapea WalletDomainException → status code declarado y UnauthorizedAccessException → 403
+builder.Services.AddSingleton<WalletExceptionFilter>();
+builder.Services.AddControllers(options =>
+    {
+        options.Filters.AddService<WalletExceptionFilter>();
+    })
+    .ConfigureApiBehaviorOptions(options =>
+    {
+        options.InvalidModelStateResponseFactory = context =>
+        {
+            var errors = context.ModelState
+                .Where(e => e.Value?.Errors.Count > 0)
+                .ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => kvp.Value!.Errors.Select(err => err.ErrorMessage).ToArray()
+                );
+
+            var problem = new Microsoft.AspNetCore.Mvc.ProblemDetails
+            {
+                Status = StatusCodes.Status422UnprocessableEntity,
+                Title = "Error de validación en los datos de la solicitud",
+                Detail = "Uno o más campos enviados en el cuerpo o parámetros de la solicitud incumplen las reglas del contrato.",
+                Type = "https://errors.nequitrampa.internal/validation-error",
+            };
+            problem.Extensions["code"] = "VALIDATION_ERROR";
+            problem.Extensions["invalidParams"] = errors;
+
+            return new Microsoft.AspNetCore.Mvc.UnprocessableEntityObjectResult(problem)
+            {
+                ContentTypes = { "application/problem+json" }
+            };
+        };
+    });
+
+// 3. Inyección de Dependencias — Servicios de Dominio Wallet
+builder.Services.AddSingleton<BeneficiaryService>();
+// Deny-by-default gate for simulated payment methods (SIMULATED_PSE, SIMULATED_CARD,
+// SIMULATED_CORRESPONSAL). Only deployments that explicitly opt in accept them.
+builder.Services.AddSingleton<RechargePolicy>();
+var isGcp = string.Equals(builder.Configuration["Data:Backend"], "gcp", StringComparison.OrdinalIgnoreCase);
+if (isGcp)
+{
+    var spannerDb = builder.Configuration["Spanner:Database"];
+    if (string.IsNullOrWhiteSpace(spannerDb))
+    {
+        throw new InvalidOperationException(
+            "Configuración inválida: 'Data:Backend' es 'gcp' pero la configuración requerida 'Spanner:Database' no está definida.");
+    }
+
+    builder.Services.AddSingleton<IWalletService, SpannerWalletService>();
+    builder.Services.AddSingleton<ITransferService, SpannerTransferService>();
+    builder.Services.AddSingleton<IRechargeService, SpannerRechargeService>();
+}
+else
+{
+    builder.Services.AddSingleton<IWalletService, MockWalletService>();
+    builder.Services.AddSingleton<ITransferService, MockTransferService>();
+    builder.Services.AddSingleton<IRechargeService, MockRechargeService>();
+}
+
+// 4. OpenAPI / Swagger (Nequi.Shared.OpenApi): Bearer JWT + headers demo cuando Auth:DemoHeaders=true
+builder.AddNequiSwagger("NequiTrampa Wallet API",
+    "API de billetera digital, transferencias y recargas. " +
+    "Data:Backend=gcp → SpannerWalletService + SpannerTransferService + SpannerRechargeService (autoritativo en Cloud Spanner). " +
+    "Data:Backend=memory → MockWalletService + MockTransferService + MockRechargeService (dev/test). " +
+    "Moneda: COP. Límite por transferencia: $2.000.000. Límite diario: $5.000.000.");
+
+var app = builder.Build();
+
+// 5. Swagger UI en /swagger (Development o Swagger:Enabled=true); antes de UseNequiCommon por el deny-by-default
+app.UseNequiSwagger();
+
+// 6. Pipeline HTTP estándar Nequi: correlación, exception handler, auth, health, /v1/me/access
+//    WalletExceptionFilter (registrado globalmente) intercepta WalletDomainException y UnauthorizedAccessException.
+app.UseNequiCommon();
+
+// HTTPS redirection solo en desarrollo local sin proxy/contenedor; en Cloud Run la terminación TLS ocurre en GFE
+if (app.Environment.IsDevelopment() && string.IsNullOrEmpty(Environment.GetEnvironmentVariable("PORT")))
+{
+    app.UseHttpsRedirection();
+}
+
+// 7. Controladores de dominio (WalletController, TransfersController, RechargesController)
+app.MapControllers();
+
+app.Run();
+
+namespace Nequi.Wallet { public sealed class WalletMarker; }

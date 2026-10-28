@@ -1,0 +1,12 @@
+**/bin/
+**/obj/
+.git/
+tests/
+*.md
+.env*
+*.key
+*.pem
+*credentials*.json
+*service-account*.json
+.vs/
+.vscode/

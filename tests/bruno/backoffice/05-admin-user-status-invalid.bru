@@ -1,0 +1,23 @@
+meta {
+  name: Admin User Status Invalid
+  type: http
+  seq: 10
+}
+
+patch {
+  url: {{backofficeUrl}}/v1/admin/users/{{clientUser}}/status
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: admin
+}
+
+body:json {
+  { "status": "DELETED" }
+}
+
+assert {
+  res.status: eq 422
+}

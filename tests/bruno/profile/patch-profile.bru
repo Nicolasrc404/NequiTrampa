@@ -1,0 +1,25 @@
+meta {
+  name: Patch Profile Timezone
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{profileUrl}}/v1/profile
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+body:json {
+  { "timezone": "America/Bogota", "alias": "Ale" }
+}
+
+assert {
+  res.status: eq 200
+  res.body.timezone: eq America/Bogota
+  res.body.alias: eq Ale
+}

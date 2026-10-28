@@ -1,0 +1,29 @@
+meta {
+  name: Fin: Adjustment Debit
+  type: http
+  seq: 56
+}
+
+post {
+  url: {{backofficeUrl}}/v1/financial-adjustments
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: operator
+  Idempotency-Key: {{adjDebitKey}}
+}
+
+body:json {
+  { "clientId": "{{clientGuid}}", "direction": "DEBIT", "amount": 1000, "reason": "Contra-ajuste de prueba" }
+}
+
+script:pre-request {
+  const uuid = require("uuid");
+  bru.setVar("adjDebitKey", uuid.v4());
+}
+
+assert {
+  res.status: eq 201
+}

@@ -1,0 +1,19 @@
+meta {
+  name: Support Cases (cliente 403)
+  type: http
+  seq: 29
+}
+
+get {
+  url: {{backofficeUrl}}/v1/support/cases
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 403
+}

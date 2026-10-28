@@ -1,0 +1,20 @@
+meta {
+  name: Fin: Get Adjustment
+  type: http
+  seq: 55
+}
+
+get {
+  url: {{backofficeUrl}}/v1/financial-adjustments/{{adjustmentRef}}
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: operator
+}
+
+assert {
+  res.status: eq 200
+  res.body.type: eq ADMIN_ADJUSTMENT
+}

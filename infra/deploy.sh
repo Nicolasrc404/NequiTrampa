@@ -1,0 +1,148 @@
+#!/usr/bin/env bash
+# Builds with Cloud Build (no local Docker needed), deploys to Cloud Run and wires Pub/Sub push subscriptions.
+# Usage: PROJECT_ID=my-proj ./infra/deploy.sh [wallet|workers|realtime|finance|profile|backoffice|assistant|gateway|all]
+source "$(dirname "$0")/common.sh"
+cd "$(dirname "$0")/.."
+TARGET="${1:-all}"
+DEMO="${AUTH_DEMO_HEADERS:-false}"   # true => esquema X-Demo-User (solo smoke tests locales). Dejar en false: el gateway es publico y los servicios exigen JWT.
+
+build() { # $1=service dir name, $2=image name
+  gcloud builds submit . --project "$PROJECT_ID" --config infra/cloudbuild.yaml \
+    --substitutions "_SERVICE=$1,_IMAGE=${IMAGE_BASE}/$2:latest"
+}
+
+deploy_wallet() {
+  build Nequi.Wallet wallet
+  local secrets=""
+  exists gcloud secrets versions describe latest --secret nequi-spanner-database && secrets="--set-secrets Spanner__Database=nequi-spanner-database:latest"
+  gcloud run deploy nequi-wallet --project "$PROJECT_ID" --region "$REGION" \
+    --image "${IMAGE_BASE}/wallet:latest" --service-account "$(sa_email $SA_WALLET)" \
+    --no-allow-unauthenticated --min-instances 0 --max-instances 5 --memory 512Mi \
+    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Firestore__ProjectId=${FIRESTORE_PROJECT_ID},Data__Backend=gcp,Auth__DemoHeaders=${DEMO}" $secrets
+}
+
+deploy_workers() {
+  build Nequi.Workers workers
+  local secrets=""
+  exists gcloud secrets versions describe latest --secret nequi-spanner-database && secrets="--set-secrets Spanner__Database=nequi-spanner-database:latest"
+  # CPU always allocated + min 1 instance: the outbox worker polls in the background.
+  gcloud run deploy nequi-workers --project "$PROJECT_ID" --region "$REGION" \
+    --image "${IMAGE_BASE}/workers:latest" --service-account "$(sa_email $SA_WORKERS)" \
+    --no-allow-unauthenticated --no-cpu-throttling --min-instances 1 --max-instances 3 --memory 512Mi \
+    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Firestore__ProjectId=${FIRESTORE_PROJECT_ID},Data__Backend=gcp,PubSub__OutboxTopic=${TOPIC},Auth__DemoHeaders=${DEMO}" $secrets
+}
+
+deploy_realtime() {
+  build Nequi.Realtime realtime
+  # max-instances 1: connections live in memory (Memorystore was ruled out for the MVP), so one instance sees every socket.
+  gcloud run deploy nequi-realtime --project "$PROJECT_ID" --region "$REGION" \
+    --image "${IMAGE_BASE}/realtime:latest" --service-account "$(sa_email $SA_REALTIME)" \
+    --no-allow-unauthenticated --min-instances 0 --max-instances 1 --timeout 3600 --session-affinity --memory 512Mi \
+    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Data__Backend=memory,Auth__DemoHeaders=${DEMO}" # realtime stores nothing: no Firestore access needed
+}
+
+deploy_finance() {
+  build Nequi.Finance finance
+  gcloud run deploy nequi-finance --project "$PROJECT_ID" --region "$REGION" \
+    --image "${IMAGE_BASE}/finance:latest" --service-account "$(sa_email $SA_FINANCE)" \
+    --no-allow-unauthenticated --min-instances 0 --max-instances 5 --memory 512Mi \
+    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Firestore__ProjectId=${FIRESTORE_PROJECT_ID},Data__Backend=gcp,Auth__DemoHeaders=${DEMO}"
+}
+
+url_of() { gcloud run services describe "$1" --project "$PROJECT_ID" --region "$REGION" --format 'value(status.url)'; }
+
+SPANNER_SECRET="--set-secrets Spanner__Database=nequi-spanner-database:latest"
+
+# Profile: Spanner (clients + wallet_accounts).
+deploy_profile() {
+  build Nequi.Profile profile
+  gcloud run deploy nequi-profile --project "$PROJECT_ID" --region "$REGION" \
+    --image "${IMAGE_BASE}/profile:latest" --service-account "$(sa_email $SA_PROFILE)" \
+    --no-allow-unauthenticated --min-instances 0 --max-instances 3 --memory 512Mi \
+    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Data__Backend=memory,Auth__DemoHeaders=${DEMO}" $SPANNER_SECRET
+}
+
+# Backoffice: ledger autoritativo (Spanner), casos/auditoria/config (Firestore) y roles (Identity Platform).
+deploy_backoffice() {
+  build Nequi.Backoffice backoffice
+  gcloud run deploy nequi-backoffice --project "$PROJECT_ID" --region "$REGION" \
+    --image "${IMAGE_BASE}/backoffice:latest" --service-account "$(sa_email $SA_BACKOFFICE)" \
+    --no-allow-unauthenticated --min-instances 0 --max-instances 3 --memory 512Mi \
+    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Firestore__ProjectId=${FIRESTORE_PROJECT_ID},Data__Backend=gcp,Auth__DemoHeaders=${DEMO}" $SPANNER_SECRET
+}
+
+# Assistant: solo lectura (saldo en Spanner, movimientos en Firestore) + Vertex AI.
+deploy_assistant() {
+  build Nequi.Assistant assistant
+  gcloud run deploy nequi-assistant --project "$PROJECT_ID" --region "$REGION" \
+    --image "${IMAGE_BASE}/assistant:latest" --service-account "$(sa_email $SA_ASSISTANT)" \
+    --no-allow-unauthenticated --min-instances 0 --max-instances 3 --memory 512Mi \
+    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Firestore__ProjectId=${FIRESTORE_PROJECT_ID},Data__Backend=gcp,Auth__DemoHeaders=${DEMO},Assistant__VertexLocation=${VERTEX_LOCATION:-us-central1},Assistant__Model=${VERTEX_MODEL:-gemini-2.5-flash}" $SPANNER_SECRET
+}
+
+# Gateway: unico punto de entrada para el front (CORS + reenvio autenticado a los servicios privados).
+# CORS_ORIGINS = origenes del front separados por coma. Es el UNICO servicio sin IAM de Cloud Run; la autenticacion
+# de usuario la exige cada servicio con el JWT de Identity Platform (deny-by-default).
+deploy_gateway() {
+  build Nequi.Gateway gateway
+  gcloud run deploy nequi-gateway --project "$PROJECT_ID" --region "$REGION" \
+    --image "${IMAGE_BASE}/gateway:latest" --service-account "$(sa_email $SA_GATEWAY)" \
+    --allow-unauthenticated --min-instances 0 --max-instances 5 --timeout 3600 --memory 512Mi \
+    --set-env-vars "^@^Services__Wallet=$(url_of nequi-wallet)@Services__Workers=$(url_of nequi-workers)@Services__Finance=$(url_of nequi-finance)@Services__Profile=$(url_of nequi-profile)@Services__Assistant=$(url_of nequi-assistant)@Services__Backoffice=$(url_of nequi-backoffice)@Services__Realtime=$(url_of nequi-realtime)@Cors__AllowedOrigins=${CORS_ORIGINS:-http://localhost:3000,http://localhost:4200,http://localhost:5173}"
+  # El gateway invoca los servicios privados con su propia identidad.
+  for svc in wallet workers finance profile assistant backoffice realtime; do
+    gcloud run services add-iam-policy-binding "nequi-$svc" --project "$PROJECT_ID" --region "$REGION" \
+      --member "serviceAccount:$(sa_email $SA_GATEWAY)" --role roles/run.invoker >/dev/null
+  done
+}
+
+subscribe() { # $1=name $2=service $3=path
+  local url; url="$(url_of "$2")"
+  gcloud run services add-iam-policy-binding "$2" --project "$PROJECT_ID" --region "$REGION" \
+    --member "serviceAccount:$(sa_email $SA_PUSH)" --role roles/run.invoker >/dev/null
+  local args=(--push-endpoint "${url}$3" --push-auth-service-account "$(sa_email $SA_PUSH)"
+    --push-auth-token-audience "$url" --dead-letter-topic "$DLQ_TOPIC" --max-delivery-attempts 5
+    --min-retry-delay 5s --max-retry-delay 60s)
+  if exists gcloud pubsub subscriptions describe "$1"; then gcloud pubsub subscriptions update "$1" "${args[@]}"
+  else gcloud pubsub subscriptions create "$1" --topic "$TOPIC" "${args[@]}"; fi
+  gcloud pubsub subscriptions add-iam-policy-binding "$1" \
+    --member "serviceAccount:service-$(gcloud projects describe "$PROJECT_ID" --format 'value(projectNumber)')@gcp-sa-pubsub.iam.gserviceaccount.com" \
+    --role roles/pubsub.subscriber >/dev/null
+}
+
+case "$TARGET" in
+  wallet|all)   deploy_wallet ;;
+esac
+case "$TARGET" in
+  workers|all)  deploy_workers ;;
+esac
+case "$TARGET" in
+  realtime|all) deploy_realtime ;;
+esac
+case "$TARGET" in
+  finance|all)    deploy_finance ;;
+esac
+case "$TARGET" in
+  profile|all)    deploy_profile ;;
+esac
+case "$TARGET" in
+  backoffice|all) deploy_backoffice ;;
+esac
+case "$TARGET" in
+  assistant|all)  deploy_assistant ;;
+esac
+case "$TARGET" in
+  gateway|all)    deploy_gateway ;;
+esac
+case "$TARGET" in
+  workers|all)  subscribe workers-projection nequi-workers /internal/pubsub/projection
+                subscribe workers-notifications nequi-workers /internal/pubsub/notifications ;;
+esac
+case "$TARGET" in
+  realtime|all) subscribe realtime-push nequi-realtime /internal/pubsub/realtime ;;
+esac
+
+echo "wallet  : $(url_of nequi-wallet 2>/dev/null || true)"
+echo "workers : $(url_of nequi-workers 2>/dev/null || true)"
+echo "realtime: $(url_of nequi-realtime 2>/dev/null || true)"
+for svc in finance profile backoffice assistant gateway; do echo "$svc: $(url_of nequi-$svc 2>/dev/null || true)"; done

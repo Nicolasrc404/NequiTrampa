@@ -1,0 +1,99 @@
+using Nequi.Finance.Categories;
+using Nequi.Finance.Common;
+
+namespace Nequi.Finance.Cash;
+
+public enum CashCreateOutcome { Created, Duplicate, InsufficientCash, InvalidCategory, InvalidDate }
+
+/// <summary>
+/// Personal cash register. It is deliberately independent from the wallet: registering cash
+/// never credits or debits the Spanner wallet balance and never creates a ledger entry.
+/// The available amount is derived from the store's own authoritative summary.
+/// </summary>
+public sealed class CashService(ICashStore store, CategoryService categories)
+{
+    private const int DefaultMovementLimit = 100;
+    private const int MaxMovementLimit = 500;
+
+    public Task<CashBalanceDto> GetBalanceAsync(string owner, CancellationToken ct) =>
+        BuildBalanceAsync(owner, ct);
+
+    public async Task<IReadOnlyList<CashMovementDto>> ListMovementsAsync(
+        string owner, int? limit, CancellationToken ct)
+    {
+        var take = Math.Clamp(limit ?? DefaultMovementLimit, 1, MaxMovementLimit);
+        return await store.ReadMovementsAsync(owner, take, ct);
+    }
+
+    public async Task<(CashCreateOutcome Outcome, CashMovementDto? Movement, CashBalanceDto Balance)>
+        CreateAsync(
+            string owner,
+            CreateCashMovementRequest request,
+            string idempotencyKey,
+            CancellationToken ct)
+    {
+        // The HTTP layer already rejects missing keys (IdempotencyActionFilter). This guard
+        // keeps direct callers from silently writing an entry that cannot be replayed safely.
+        if (string.IsNullOrWhiteSpace(idempotencyKey))
+            throw new ArgumentException("Idempotency-Key is required.", nameof(idempotencyKey));
+
+        var occurredOn = request.OccurredOn ?? CashTime.TodayKey();
+        if (!CashTime.TryParseDate(occurredOn, out var date))
+            return (CashCreateOutcome.InvalidDate, null, await BuildBalanceAsync(owner, ct));
+
+        var today = CashTime.TodayKey();
+        if (!string.IsNullOrWhiteSpace(request.OccurredOn) &&
+            CashTime.TryParseDate(today, out var todayDate) && date > todayDate)
+            return (CashCreateOutcome.InvalidDate, null, await BuildBalanceAsync(owner, ct));
+
+        string? categoryName = null;
+        if (!string.IsNullOrWhiteSpace(request.CategoryId))
+        {
+            var category = await categories.FindAccessibleAsync(owner, request.CategoryId, ct);
+            if (category is null || !category.Active)
+                return (CashCreateOutcome.InvalidCategory, null, await BuildBalanceAsync(owner, ct));
+            categoryName = category.Name;
+        }
+
+        var note = StableKeys.NormalizeName(request.Note, 140);
+
+        // Identity of the intention, not of the content: two identical entries declared with
+        // different Idempotency-Key values are legitimate independent entries. Repeating the
+        // same key replays at the HTTP idempotency filter; the store keeps a second guard for
+        // concurrent calls that bypass that filter.
+        var dedupeKey = StableKeys.Of("cash", owner, idempotencyKey.Trim());
+
+        var draft = new CashMovementDraft(
+            Guid.NewGuid().ToString(),
+            request.Direction,
+            request.AmountCents,
+            request.CategoryId,
+            categoryName,
+            note,
+            occurredOn,
+            dedupeKey,
+            DateTimeOffset.UtcNow);
+
+        var result = await store.AppendAsync(owner, draft, ct);
+        return (
+            result.Outcome switch
+            {
+                CashAppendOutcome.Created => CashCreateOutcome.Created,
+                CashAppendOutcome.Duplicate => CashCreateOutcome.Duplicate,
+                _ => CashCreateOutcome.InsufficientCash,
+            },
+            result.Movement,
+            ToBalance(result.Account));
+    }
+
+    private async Task<CashBalanceDto> BuildBalanceAsync(string owner, CancellationToken ct) =>
+        ToBalance(await store.ReadAccountAsync(owner, ct));
+
+    private static CashBalanceDto ToBalance(CashAccountSnapshot account) => new(
+        account.AvailableCents,
+        account.IncomeCents,
+        account.ExpenseCents,
+        account.MovementCount,
+        "COP",
+        account.UpdatedAt == DateTimeOffset.UnixEpoch ? DateTimeOffset.UtcNow : account.UpdatedAt);
+}

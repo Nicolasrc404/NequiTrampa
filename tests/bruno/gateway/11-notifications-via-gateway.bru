@@ -1,0 +1,20 @@
+meta {
+  name: Notifications via Gateway (client_id claim)
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{gatewayUrl}}/v1/notifications
+  body: none
+  auth: none
+}
+
+headers {
+  X-Persona: client
+}
+
+assert {
+  res.status: eq 200
+  res.body.count: gt 0
+}

@@ -1,0 +1,24 @@
+meta {
+  name: Fin: Adjustment Without Idempotency-Key
+  type: http
+  seq: 58
+}
+
+post {
+  url: {{backofficeUrl}}/v1/financial-adjustments
+  body: json
+  auth: none
+}
+
+headers {
+  X-Persona: operator
+}
+
+body:json {
+  { "clientId": "{{clientGuid}}", "direction": "CREDIT", "amount": 1000, "reason": "Sin llave" }
+}
+
+assert {
+  res.status: eq 400
+  res.body.code: eq idempotency_key_required
+}
