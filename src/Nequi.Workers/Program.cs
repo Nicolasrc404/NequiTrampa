@@ -2,7 +2,9 @@ using Google.Cloud.PubSub.V1;
 using Nequi.Shared;
 using Nequi.Shared.Events;
 using Nequi.Shared.Health;
+using Nequi.Shared.Idempotency;
 using Nequi.Shared.OpenApi;
+using Nequi.Workers.Idempotency;
 using Nequi.Workers.Notifications;
 using Nequi.Workers.Outbox;
 using Nequi.Workers.Projection;
@@ -27,6 +29,10 @@ builder.Services.AddSingleton<ReportQueue>();
 builder.Services.AddSingleton<ReportGenerator>();
 builder.Services.AddHostedService<OutboxWorker>();
 builder.Services.AddHostedService<ReportWorker>();
+
+builder.Services.Configure<IdempotencyReconciliationOptions>(cfg.GetSection("IdempotencyReconciliation"));
+builder.Services.AddSingleton<IdempotencyReconciler>();
+builder.Services.AddHostedService<IdempotencyReconciliationWorker>();
 
 if (gcp)
 {
@@ -61,6 +67,22 @@ app.MapPost("/internal/outbox/drain", async (OutboxDispatcher d, Microsoft.Exten
 
 app.MapGet("/v1/outbox/stats", async (IOutboxStore s, CancellationToken ct) => Results.Ok(await s.StatsAsync(ct)))
     .RequireAuthorization(Nequi.Shared.Security.Policies.InternalStaff);
+
+// Cloud Scheduler fallback / manual trigger; same IAM-only exposure as /internal/outbox/drain.
+app.MapPost("/internal/idempotency/scan", async (
+    IdempotencyReconciler reconciler, Microsoft.Extensions.Options.IOptions<IdempotencyReconciliationOptions> o, CancellationToken ct) =>
+{
+    var stale = await reconciler.ScanOnceAsync(TimeSpan.FromMinutes(o.Value.StaleAfterMinutes), o.Value.BatchSize, ct);
+    return Results.Ok(new { found = stale.Count, records = stale });
+}).AllowAnonymous();
+
+// Staff-visible read of what the scan last found, on demand (same scan, no side effects beyond logging).
+app.MapGet("/v1/idempotency/stale", async (
+    IdempotencyReconciler reconciler, Microsoft.Extensions.Options.IOptions<IdempotencyReconciliationOptions> o, CancellationToken ct) =>
+{
+    var stale = await reconciler.ScanOnceAsync(TimeSpan.FromMinutes(o.Value.StaleAfterMinutes), o.Value.BatchSize, ct);
+    return Results.Ok(new { count = stale.Count, records = stale });
+}).RequireAuthorization(Nequi.Shared.Security.Policies.InternalStaff);
 
 if (cfg.GetValue<bool>("Auth:DemoHeaders"))
 {

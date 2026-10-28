@@ -94,6 +94,31 @@ public sealed class SpannerIdempotencyStore(SpannerDb db) : IIdempotencyStore
         cmd.Parameters.Add("k", SpannerDbType.String, key);
         await cmd.ExecuteNonQueryAsync(ct);
     }
+
+    /// <summary>
+    /// Full scan guarded by status + an age cutoff; acceptable because IN_PROGRESS rows are
+    /// meant to be short-lived (cleared by CompleteAsync/AbandonAsync within one request), so the
+    /// working set this filters down to should stay tiny relative to the table's lifetime volume.
+    /// </summary>
+    public async Task<IReadOnlyList<IdempotencyRecord>> FindStaleInProgressAsync(TimeSpan olderThan, int limit, CancellationToken ct)
+    {
+        await using var conn = db.Open();
+        var cmd = conn.CreateSelectCommand(
+            "SELECT actor_id, scope, idempotency_key, request_hash, created_at FROM idempotency_records " +
+            "WHERE status='IN_PROGRESS' AND created_at < @cutoff ORDER BY created_at LIMIT @limit");
+        cmd.Parameters.Add("cutoff", SpannerDbType.Timestamp, DateTime.UtcNow - olderThan);
+        cmd.Parameters.Add("limit", SpannerDbType.Int64, (long)limit);
+
+        var results = new List<IdempotencyRecord>();
+        await using var r = await cmd.ExecuteReaderAsync(ct);
+        while (await r.ReadAsync(ct))
+        {
+            results.Add(new IdempotencyRecord(
+                r.GetString(0), r.GetString(1), r.GetString(2), r.GetString(3),
+                null, null, null, new DateTimeOffset(r.GetFieldValue<DateTime>(4), TimeSpan.Zero)));
+        }
+        return results;
+    }
 }
 
 /// <summary>

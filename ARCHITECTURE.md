@@ -110,9 +110,34 @@ envolvía también la llamada a `CompleteAsync`), lo que borraba el registro
 `IN_PROGRESS` después de un efecto financiero ya aplicado y permitía que un
 retry con la misma `Idempotency-Key` volviera a ejecutar el movimiento. Ahora,
 si `CompleteAsync` falla, el registro se queda en `IN_PROGRESS`: un retry
-recibe 409 (bloqueado) en vez de duplicar el efecto. Ese registro huérfano
-requiere hoy limpieza/reconciliación manual contra el ledger — no hay todavía
-un job automático que lo resuelva.
+recibe 409 (bloqueado) en vez de duplicar el efecto.
+
+El otro caso — el proceso muere *antes* de llegar a `CompleteAsync`/`AbandonAsync`
+(no por un fallo de `CompleteAsync`, sino porque el contenedor se cae a mitad
+de la petición) — deja el registro en `IN_PROGRESS` para siempre, sin que
+nada lo marque como fallido. Esto sigue sin resolverse automáticamente **a
+propósito**: la tabla `idempotency_records` no guarda ninguna referencia a la
+operación de negocio resultante, así que no hay forma de saber desde ahí si
+el efecto financiero llegó a aplicarse antes de la caída. Borrar la clave a
+ciegas para "desatascarla" reintroduciría el mismo riesgo de doble ejecución
+que se acaba de cerrar arriba.
+
+Lo que sí existe para este caso es **detección + liberación manual
+auditada**, no una reconciliación automática:
+- `IdempotencyReconciliationWorker` (`Nequi.Workers`) escanea periódicamente
+  `idempotency_records` buscando filas `IN_PROGRESS` más viejas que
+  `IdempotencyReconciliation:StaleAfterMinutes` (default 10 min) y las deja en
+  el log como advertencia (`actor`, `scope`, `key`, antigüedad). También hay un
+  trigger manual (`POST /internal/idempotency/scan`, solo IAM) y una lectura
+  on-demand (`GET /v1/idempotency/stale`, staff).
+- `IdempotencyAdminController` (`Nequi.Backoffice`) expone
+  `GET /v1/admin/idempotency/stale` y `POST /v1/admin/idempotency/release`
+  para que un OPERADOR_FINANCIERO, después de verificar en el ledger que el
+  movimiento original **no** se aplicó, libere la clave explícitamente
+  (`AbandonAsync`) con motivo obligatorio y entrada de auditoría
+  (`IDEMPOTENCY_KEY_RELEASED`). Si el movimiento sí se aplicó, liberar la
+  clave es el error que hay que evitar: el camino correcto ahí es una
+  operación compensatoria (REVERSAL/ADJUSTMENT), no liberar y reintentar.
 
 #### C. Inmutabilidad y Correcciones Compensatorias
 De acuerdo con las reglas de negocio congeladas:

@@ -150,8 +150,6 @@ public sealed class InMemoryCashStore : ICashStore
 /// </summary>
 public sealed class FirestoreCashStore(Google.Cloud.Firestore.FirestoreDb db) : ICashStore
 {
-    private const int MaxMovements = 500;
-
     public async Task<CashAccountSnapshot> ReadAccountAsync(string owner, CancellationToken ct)
     {
         var snap = await db.Collection(CashCollections.Accounts).Document(owner).GetSnapshotAsync(ct);
@@ -166,7 +164,9 @@ public sealed class FirestoreCashStore(Google.Cloud.Firestore.FirestoreDb db) : 
         CancellationToken ct)
     {
         // Requires a composite index on (clientId ASC, occurredOn DESC, createdAt DESC, id DESC).
-        var capped = Math.Clamp(limit, 1, MaxMovements);
+        // No re-clamp here: CashService.MaxMovementLimit is the single ceiling on page size, and
+        // it already requests limit+1 to detect a next page - clamping again at the same ceiling
+        // would silently drop that lookahead row right at the max page size.
         Google.Cloud.Firestore.Query query = db.Collection(CashCollections.Movements)
             .WhereEqualTo("clientId", owner)
             .OrderByDescending("occurredOn")
@@ -176,7 +176,7 @@ public sealed class FirestoreCashStore(Google.Cloud.Firestore.FirestoreDb db) : 
         if (afterOccurredOn != null)
             query = query.StartAfter(afterOccurredOn, afterCreatedAt, afterId);
 
-        var snap = await query.Limit(capped).GetSnapshotAsync(ct);
+        var snap = await query.Limit(limit).GetSnapshotAsync(ct);
 
         var result = new List<CashMovementDto>(snap.Documents.Count);
         foreach (var document in snap.Documents)
