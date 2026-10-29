@@ -77,6 +77,20 @@ public sealed class SpannerEmulatorTestConfigurationTests
     }
 
     [Fact]
+    public void ConnectionBuilder_UsesEmulatorOnlyAndInsecureLocalTransport()
+    {
+        var configuration = CreateEnvironment("127.0.0.1:9010");
+
+        var builder = SpannerEmulatorConnectionFactory.CreateBuilder(configuration);
+
+        Assert.Equal(Google.Api.Gax.EmulatorDetection.EmulatorOnly, builder.EmulatorDetection);
+        Assert.Equal("127.0.0.1", builder.Host);
+        Assert.Equal(9010, builder.Port);
+        Assert.Contains("projects/test-run123456-project/instances/test-run123456-instance/databases/test-run123456-database", builder.DataSource, StringComparison.Ordinal);
+        Assert.True(string.IsNullOrEmpty(builder.CredentialFile));
+    }
+
+    [Fact]
     public void Validation_DoesNotMutateTheSuppliedEnvironment()
     {
         var environment = new Dictionary<string, string?>
