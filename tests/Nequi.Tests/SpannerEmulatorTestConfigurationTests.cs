@@ -84,10 +84,10 @@ public sealed class SpannerEmulatorTestConfigurationTests
         var builder = SpannerEmulatorConnectionFactory.CreateBuilder(configuration);
 
         Assert.Equal(Google.Api.Gax.EmulatorDetection.EmulatorOnly, builder.EmulatorDetection);
-        Assert.Equal("127.0.0.1", builder.Host);
-        Assert.Equal(9010, builder.Port);
         Assert.Contains("projects/test-run123456-project/instances/test-run123456-instance/databases/test-run123456-database", builder.DataSource, StringComparison.Ordinal);
         Assert.True(string.IsNullOrEmpty(builder.CredentialFile));
+        Assert.DoesNotContain("Host=", builder.ConnectionString, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("Port=", builder.ConnectionString, StringComparison.OrdinalIgnoreCase);
     }
 
     [Fact]

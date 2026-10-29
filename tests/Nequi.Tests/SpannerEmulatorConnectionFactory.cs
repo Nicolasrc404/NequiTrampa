@@ -1,6 +1,5 @@
 using Google.Api.Gax;
 using Google.Cloud.Spanner.Data;
-using Grpc.Core;
 
 namespace Nequi.Tests;
 
@@ -15,27 +14,14 @@ public static class SpannerEmulatorConnectionFactory
     {
         ArgumentNullException.ThrowIfNull(configuration);
 
-        var (host, port) = SplitHost(configuration.EmulatorHost);
         var dataSource =
             $"projects/{configuration.ProjectId}/instances/{configuration.InstanceId}/databases/{configuration.DatabaseId}";
 
-        var builder = new SpannerConnectionStringBuilder(
-            $"Data Source={dataSource};Host={host};Port={port}",
-            ChannelCredentials.Insecure)
+        var builder = new SpannerConnectionStringBuilder($"Data Source={dataSource}")
         {
             EmulatorDetection = EmulatorDetection.EmulatorOnly,
         };
 
         return builder;
-    }
-
-    private static (string Host, int Port) SplitHost(string value)
-    {
-        var separator = value.LastIndexOf(':');
-        var host = value.StartsWith("[", StringComparison.Ordinal)
-            ? value[1..separator]
-            : value[..separator];
-
-        return (host, int.Parse(value[(separator + 1)..], System.Globalization.CultureInfo.InvariantCulture));
     }
 }
