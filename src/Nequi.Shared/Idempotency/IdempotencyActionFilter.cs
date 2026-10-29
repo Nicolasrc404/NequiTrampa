@@ -58,8 +58,8 @@ public sealed class IdempotencyActionFilter(IIdempotencyStore store, ILogger<Ide
 
             case BeginOutcome.InProgress:
                 logger.LogWarning("Idempotency in-progress key={Key} scope={Scope} actor={Actor}", key, scope, uid);
-                context.Result = BuildProblem(409, "A request with this Idempotency-Key is still in progress",
-                    "Resubmit with a distinct Idempotency-Key or retry after the in-flight request completes.",
+                context.Result = BuildProblem(409, "The operation is pending confirmation or reconciliation",
+                    "Do not start an equivalent financial intention with a new Idempotency-Key until the original result is verified.",
                     "idempotency_in_progress", http);
                 return;
 
@@ -82,24 +82,23 @@ public sealed class IdempotencyActionFilter(IIdempotencyStore store, ILogger<Ide
         }
         catch
         {
-            // next() itself threw without producing a result: the action never ran,
-            // so nothing was committed. Safe to free the key for a retry.
-            // Cleanup must not depend on RequestAborted — the same key must stay retryable
-            // even if the client disconnected (mirrors IdempotencyFilter minimal-API behavior).
-            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            // The action may have committed a financial effect before the exception escaped.
+            // Keep the reservation for reconciliation.
+            // Do not infer that the effect was absent from the exception or client disconnect.
             throw;
         }
 
         if (executed.Exception != null)
         {
-            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            // An exception does not prove that the financial effect was absent.
             throw executed.Exception;
         }
 
         var (status, body) = ExtractResult(executed.Result);
         if (status >= 500)
         {
-            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            // The action may have committed a financial effect before producing the 5xx.
+            // Keep the reservation until the outcome is reconciled safely.
             return;
         }
 
