@@ -20,7 +20,12 @@ public sealed record ResolveIssueRequest([Required] string Resolution, [Required
 [Route("v1/reconciliation")]
 [Authorize(Policy = Policies.CanReverseOperation)]
 [Produces("application/json")]
-public sealed class ReconciliationController(ReconciliationService recon, LedgerAdjuster adjuster, IDocumentStore docs, AuditLog audit) : ControllerBase
+public sealed class ReconciliationController(
+    ReconciliationService recon,
+    FinancialReconciliationClassifier financialClassifier,
+    LedgerAdjuster adjuster,
+    IDocumentStore docs,
+    AuditLog audit) : ControllerBase
 {
     private static readonly string[] Resolutions = ["REQUEUE_EVENT", "ACKNOWLEDGED", "FALSE_POSITIVE", "ADJUSTED"];
 
@@ -42,6 +47,28 @@ public sealed class ReconciliationController(ReconciliationService recon, Ledger
     {
         var issue = await recon.FindAsync(id, ct);
         return issue is null ? this.ProblemJson(404, "Issue not found", code: "not_found") : Ok(issue);
+    }
+
+    /// <summary>
+    /// Classifies durable evidence for a financial idempotency identity.
+    /// This endpoint is read-only; it never releases reservations or changes
+    /// financial data.
+    /// </summary>
+    [HttpGet("financial")]
+    [ProducesResponseType(StatusCodes.Status200OK)]
+    public async Task<IActionResult> ClassifyFinancial(
+        [FromQuery] string scope,
+        [FromQuery(Name = "idempotencyKey")] string idempotencyKey,
+        [FromQuery] string? requestHash,
+        CancellationToken ct)
+    {
+        var me = CurrentUser.From(User);
+        if (me is null)
+            return this.ProblemJson(401, "Authenticated administrator required", code: "unauthorized");
+
+        var result = await financialClassifier.ClassifyAsync(
+            new FinancialReconciliationQuery(me.Uid, scope, idempotencyKey, requestHash), ct);
+        return Ok(result);
     }
 
     /// <summary>Resuelve una inconsistencia mediante una acción formal con nota. Requiere Idempotency-Key.</summary>
