@@ -96,6 +96,7 @@ public sealed record FinancialIntent
 /// </summary>
 public enum FinancialIntentResultKind
 {
+    NotFound,
     NewIntent,
     ExistingInProgress,
     Confirmed,
@@ -111,6 +112,9 @@ public sealed record FinancialIntentResult(
     FinancialIntent? Intent = null,
     string? ErrorCode = null)
 {
+    public static FinancialIntentResult NotFound() =>
+        new(FinancialIntentResultKind.NotFound);
+
     public static FinancialIntentResult New(FinancialIntent intent) =>
         new(FinancialIntentResultKind.NewIntent, RequireIntent(intent));
 
