@@ -12,11 +12,23 @@ public sealed class SpannerDb(string database)
 }
 
 /// <summary>idempotency_records (PK actor_id, scope, idempotency_key). Begin is one read-write transaction: no double effects.</summary>
-public sealed class SpannerIdempotencyStore(SpannerDb db) : IIdempotencyStore
+public sealed class SpannerIdempotencyStore : IIdempotencyStore
 {
+    private readonly Func<SpannerConnection> _connectionFactory;
+
+    public SpannerIdempotencyStore(SpannerDb db)
+        : this(db is null ? throw new ArgumentNullException(nameof(db)) : db.Open)
+    {
+    }
+
+    public SpannerIdempotencyStore(Func<SpannerConnection> connectionFactory)
+    {
+        _connectionFactory = connectionFactory ?? throw new ArgumentNullException(nameof(connectionFactory));
+    }
+
     public async Task<(BeginOutcome, IdempotencyRecord?)> BeginAsync(string actorId, string scope, string key, string requestHash, CancellationToken ct)
     {
-        await using var conn = db.Open();
+        await using var conn = _connectionFactory();
         return await conn.RunWithRetriableTransactionAsync(async tx =>
         {
             var select = conn.CreateSelectCommand(
@@ -39,7 +51,8 @@ public sealed class SpannerIdempotencyStore(SpannerDb db) : IIdempotencyStore
             if (hash is null)
             {
                 var ins = conn.CreateDmlCommand(
-                    "INSERT INTO idempotency_records (actor_id, scope, idempotency_key, request_hash, status) VALUES (@a,@s,@k,@h,'IN_PROGRESS')");
+                    "INSERT INTO idempotency_records (actor_id, scope, idempotency_key, request_hash, status, created_at) " +
+                    "VALUES (@a,@s,@k,@h,'IN_PROGRESS',CURRENT_TIMESTAMP())");
                 ins.Transaction = tx;
                 ins.Parameters.Add("a", SpannerDbType.String, actorId);
                 ins.Parameters.Add("s", SpannerDbType.String, scope);
@@ -54,6 +67,8 @@ public sealed class SpannerIdempotencyStore(SpannerDb db) : IIdempotencyStore
             return status switch
             {
                 "COMPLETED" => (BeginOutcome.Replay, rec),
+                "FAILED" when IdempotencyOperationClassification.Classify(scope) == IdempotencyOperationKind.Financial
+                    => (BeginOutcome.InProgress, rec),
                 "FAILED" => await Restart(conn, tx, actorId, scope, key, ct),
                 _ => (BeginOutcome.InProgress, rec),
             };
@@ -73,7 +88,7 @@ public sealed class SpannerIdempotencyStore(SpannerDb db) : IIdempotencyStore
 
     public async Task CompleteAsync(string actorId, string scope, string key, int statusCode, string? body, string? contentType, CancellationToken ct)
     {
-        await using var conn = db.Open();
+        await using var conn = _connectionFactory();
         var cmd = conn.CreateDmlCommand(
             "UPDATE idempotency_records SET status='COMPLETED', http_status=@h, response_body=@b, completed_at=CURRENT_TIMESTAMP() " +
             "WHERE actor_id=@a AND scope=@s AND idempotency_key=@k");
@@ -87,7 +102,7 @@ public sealed class SpannerIdempotencyStore(SpannerDb db) : IIdempotencyStore
 
     public async Task AbandonAsync(string actorId, string scope, string key, CancellationToken ct)
     {
-        await using var conn = db.Open();
+        await using var conn = _connectionFactory();
         var cmd = conn.CreateDmlCommand("DELETE FROM idempotency_records WHERE actor_id=@a AND scope=@s AND idempotency_key=@k AND status='IN_PROGRESS'");
         cmd.Parameters.Add("a", SpannerDbType.String, actorId);
         cmd.Parameters.Add("s", SpannerDbType.String, scope);
@@ -102,7 +117,7 @@ public sealed class SpannerIdempotencyStore(SpannerDb db) : IIdempotencyStore
     /// </summary>
     public async Task<IReadOnlyList<IdempotencyRecord>> FindStaleInProgressAsync(TimeSpan olderThan, int limit, CancellationToken ct)
     {
-        await using var conn = db.Open();
+        await using var conn = _connectionFactory();
         var cmd = conn.CreateSelectCommand(
             "SELECT actor_id, scope, idempotency_key, request_hash, created_at FROM idempotency_records " +
             "WHERE status='IN_PROGRESS' AND created_at < @cutoff ORDER BY created_at LIMIT @limit");

@@ -17,7 +17,10 @@ namespace Nequi.Shared.Idempotency;
 /// across minimal-API and MVC endpoints. Apply via <c>[TypeFilter(typeof(IdempotencyActionFilter))]</c>
 /// on POST actions that must be idempotent.
 /// </summary>
-public sealed class IdempotencyActionFilter(IIdempotencyStore store, ILogger<IdempotencyActionFilter> logger) : IAsyncActionFilter
+public sealed class IdempotencyActionFilter(
+    IIdempotencyStore store,
+    ILogger<IdempotencyActionFilter> logger,
+    IIdempotencyRecoveryHandler? recovery = null) : IAsyncActionFilter
 {
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
@@ -39,7 +42,7 @@ public sealed class IdempotencyActionFilter(IIdempotencyStore store, ILogger<Ide
         using var ms = new MemoryStream();
         await http.Request.Body.CopyToAsync(ms, http.RequestAborted);
         http.Request.Body.Position = 0;
-        var hash = Convert.ToHexString(SHA256.HashData(ms.ToArray()));
+        var hash = IdempotencyRequestHash.Compute(ms.ToArray());
 
         var uid = CurrentUser.From(http.User)?.Uid ?? "anonymous";
         var scope = $"{http.Request.Method}:{http.Request.Path}";
@@ -58,8 +61,24 @@ public sealed class IdempotencyActionFilter(IIdempotencyStore store, ILogger<Ide
 
             case BeginOutcome.InProgress:
                 logger.LogWarning("Idempotency in-progress key={Key} scope={Scope} actor={Actor}", key, scope, uid);
-                context.Result = BuildProblem(409, "A request with this Idempotency-Key is still in progress",
-                    "Resubmit with a distinct Idempotency-Key or retry after the in-flight request completes.",
+                if (recovery is not null)
+                {
+                    var recovered = await recovery.TryRecoverAsync(
+                        http, uid, scope, key, hash, http.RequestAborted);
+                    if (recovered is not null)
+                    {
+                        http.Response.Headers["Idempotent-Recovered"] = "true";
+                        context.Result = new ContentResult
+                        {
+                            StatusCode = recovered.StatusCode,
+                            Content = recovered.Body,
+                            ContentType = recovered.ContentType,
+                        };
+                        return;
+                    }
+                }
+                context.Result = BuildProblem(409, "The operation is pending confirmation or reconciliation",
+                    "Do not start an equivalent financial intention with a new Idempotency-Key until the original result is verified.",
                     "idempotency_in_progress", http);
                 return;
 
@@ -82,24 +101,23 @@ public sealed class IdempotencyActionFilter(IIdempotencyStore store, ILogger<Ide
         }
         catch
         {
-            // next() itself threw without producing a result: the action never ran,
-            // so nothing was committed. Safe to free the key for a retry.
-            // Cleanup must not depend on RequestAborted — the same key must stay retryable
-            // even if the client disconnected (mirrors IdempotencyFilter minimal-API behavior).
-            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            // The action may have committed a financial effect before the exception escaped.
+            // Keep the reservation for reconciliation.
+            // Do not infer that the effect was absent from the exception or client disconnect.
             throw;
         }
 
         if (executed.Exception != null)
         {
-            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            // An exception does not prove that the financial effect was absent.
             throw executed.Exception;
         }
 
         var (status, body) = ExtractResult(executed.Result);
         if (status >= 500)
         {
-            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            // The action may have committed a financial effect before producing the 5xx.
+            // Keep the reservation until the outcome is reconciled safely.
             return;
         }
 

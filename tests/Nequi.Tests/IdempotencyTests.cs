@@ -88,7 +88,7 @@ public sealed class IdempotencyFilterTests
     }
 
     [Fact]
-    public async Task ServerError_DoesAbandonKey_SoARetryCanRunAgain()
+    public async Task ServerError_KeepsKeyProtected_WhenEffectOutcomeIsUncertain()
     {
         var store = new InMemoryIdempotencyStore();
         var filter = new IdempotencyFilter();
@@ -98,7 +98,7 @@ public sealed class IdempotencyFilterTests
         await filter.InvokeAsync(ctx, next);
 
         var (outcome, _) = await store.BeginAsync("client-1", "POST:/v1/test", "k2", Hash("{}"), default);
-        Assert.Equal(BeginOutcome.Started, outcome);
+        Assert.Equal(BeginOutcome.InProgress, outcome);
     }
 
     private static string Hash(string body) =>

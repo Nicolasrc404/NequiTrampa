@@ -35,7 +35,7 @@ public sealed class IdempotencyFilter : IEndpointFilter
         using var ms = new MemoryStream();
         await http.Request.Body.CopyToAsync(ms, http.RequestAborted);
         http.Request.Body.Position = 0;
-        var hash = Convert.ToHexString(SHA256.HashData(ms.ToArray()));
+        var hash = IdempotencyRequestHash.Compute(ms.ToArray());
 
         var (outcome, record) = await store.BeginAsync(uid, scope, key, hash, http.RequestAborted);
         switch (outcome)
@@ -43,7 +43,25 @@ public sealed class IdempotencyFilter : IEndpointFilter
             case BeginOutcome.Conflict:
                 return Problems.Problem(http, 409, "Idempotency key reused with a different body", code: "idempotency_key_conflict");
             case BeginOutcome.InProgress:
-                return Problems.Problem(http, 409, "A request with this Idempotency-Key is still in progress", code: "idempotency_in_progress");
+                var recovery = http.RequestServices.GetService<IIdempotencyRecoveryHandler>();
+                if (recovery is not null)
+                {
+                    var recovered = await recovery.TryRecoverAsync(
+                        http, uid, scope, key, hash, http.RequestAborted);
+                    if (recovered is not null)
+                    {
+                        http.Response.Headers["Idempotent-Recovered"] = "true";
+                        return Results.Content(
+                            recovered.Body,
+                            recovered.ContentType,
+                            Encoding.UTF8,
+                            recovered.StatusCode);
+                    }
+                }
+                return Problems.Problem(http, 409,
+                    "The operation is pending confirmation or reconciliation",
+                    "Do not start an equivalent financial intention with a new Idempotency-Key until the original result is verified.",
+                    "idempotency_in_progress");
             case BeginOutcome.Replay:
                 http.Response.Headers["Idempotent-Replayed"] = "true";
                 return Results.Content(record!.ResponseBody ?? "", record.ContentType ?? "application/json", Encoding.UTF8, record.StatusCode);
@@ -56,17 +74,16 @@ public sealed class IdempotencyFilter : IEndpointFilter
         }
         catch
         {
-            // next() threw before producing a result: nothing was committed, so the
-            // key is safe to free for a retry.
-            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            // The handler may have committed a financial effect before the exception
+            // escaped. Keep the reservation for reconciliation.
             throw;
         }
 
         var status = (result as IStatusCodeHttpResult)?.StatusCode ?? 200;
         if (status >= 500)
         {
-            // A 5xx must stay retryable with the same key.
-            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            // The handler may have committed a financial effect before producing the
+            // 5xx. Keep the reservation until the outcome is reconciled safely.
             return result;
         }
 

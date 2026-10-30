@@ -1,8 +1,61 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
+using Microsoft.AspNetCore.Http;
 
 namespace Nequi.Shared.Idempotency;
 
 public enum BeginOutcome { Started, Replay, Conflict, InProgress }
+
+public static class IdempotencyRequestHash
+{
+    public static string Compute(ReadOnlySpan<byte> requestBody) =>
+        Convert.ToHexString(SHA256.HashData(requestBody));
+}
+
+public sealed record IdempotencyRecoveryResponse(
+    int StatusCode,
+    string Body,
+    string ContentType = "application/json");
+
+/// <summary>
+/// Optional read-only recovery hook used when an HTTP reservation remains
+/// IN_PROGRESS after a durable financial commit. Implementations must never
+/// execute a new financial effect.
+/// </summary>
+public interface IIdempotencyRecoveryHandler
+{
+    Task<IdempotencyRecoveryResponse?> TryRecoverAsync(
+        HttpContext http,
+        string actorId,
+        string scope,
+        string idempotencyKey,
+        string requestHash,
+        CancellationToken ct);
+}
+
+public enum IdempotencyOperationKind
+{
+    NonFinancial,
+    Financial,
+}
+
+/// <summary>
+/// Central classification for idempotency scopes. Financial scopes never
+/// restart a FAILED reservation because FAILED does not prove that the ledger
+/// has no committed effect.
+/// </summary>
+public static class IdempotencyOperationClassification
+{
+    public const string TransferScope = "POST:/v1/transfers";
+    public const string RechargeScope = "POST:/v1/recharges";
+
+    public static IdempotencyOperationKind Classify(string scope) =>
+        scope switch
+        {
+            TransferScope or RechargeScope => IdempotencyOperationKind.Financial,
+            _ => IdempotencyOperationKind.NonFinancial,
+        };
+}
 
 public sealed record IdempotencyRecord(
     string ActorId, string Scope, string Key, string RequestHash, int? StatusCode, string? ResponseBody, string? ContentType,

@@ -1,7 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
-using Nequi.Backoffice.Services;
 using Nequi.Shared.Http;
 using Nequi.Shared.Idempotency;
 using Nequi.Shared.Security;
@@ -26,7 +25,7 @@ public sealed record ReleaseIdempotencyKeyRequest(
 [ApiController]
 [Authorize(Policy = Policies.CanReverseOperation)]
 [Produces("application/json")]
-public sealed class IdempotencyAdminController(IIdempotencyStore store, AuditLog audit) : ControllerBase
+public sealed class IdempotencyAdminController(IIdempotencyStore store) : ControllerBase
 {
     private const int DefaultStaleAfterMinutes = 10;
     private const int MaxResults = 200;
@@ -49,13 +48,12 @@ public sealed class IdempotencyAdminController(IIdempotencyStore store, AuditLog
     /// si ya se aplicó, liberar la clave permite un reintento que la ejecutaría de nuevo.
     /// </summary>
     [HttpPost("v1/admin/idempotency/release")]
-    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status409Conflict)]
     [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
-    public async Task<IActionResult> Release([FromBody] ReleaseIdempotencyKeyRequest request, CancellationToken ct)
-    {
-        await store.AbandonAsync(request.ActorId, request.Scope, request.Key, ct);
-        await audit.WriteAsync(Me, "IDEMPOTENCY_KEY_RELEASED", "idempotency_record", $"{request.ActorId}|{request.Scope}|{request.Key}",
-            new { request.ActorId, request.Scope, request.Key, request.Reason }, ct: ct);
-        return NoContent();
-    }
+    public Task<IActionResult> Release([FromBody] ReleaseIdempotencyKeyRequest request, CancellationToken ct) =>
+        Task.FromResult<IActionResult>(this.ProblemJson(
+            StatusCodes.Status409Conflict,
+            "Administrative idempotency release is disabled",
+            "Release remains disabled until safe financial reconciliation is available. Do not create another Idempotency-Key for an equivalent financial intention.",
+            "idempotency_release_disabled"));
 }
