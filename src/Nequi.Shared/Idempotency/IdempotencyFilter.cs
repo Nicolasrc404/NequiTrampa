@@ -43,6 +43,21 @@ public sealed class IdempotencyFilter : IEndpointFilter
             case BeginOutcome.Conflict:
                 return Problems.Problem(http, 409, "Idempotency key reused with a different body", code: "idempotency_key_conflict");
             case BeginOutcome.InProgress:
+                var recovery = http.RequestServices.GetService<IIdempotencyRecoveryHandler>();
+                if (recovery is not null)
+                {
+                    var recovered = await recovery.TryRecoverAsync(
+                        http, uid, scope, key, hash, http.RequestAborted);
+                    if (recovered is not null)
+                    {
+                        http.Response.Headers["Idempotent-Recovered"] = "true";
+                        return Results.Content(
+                            recovered.Body,
+                            recovered.ContentType,
+                            Encoding.UTF8,
+                            recovered.StatusCode);
+                    }
+                }
                 return Problems.Problem(http, 409,
                     "The operation is pending confirmation or reconciliation",
                     "Do not start an equivalent financial intention with a new Idempotency-Key until the original result is verified.",

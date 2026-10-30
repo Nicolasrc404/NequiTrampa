@@ -2,6 +2,7 @@ using Microsoft.AspNetCore.Mvc;
 using Nequi.Shared;
 using Nequi.Shared.Data;
 using Nequi.Shared.Financial;
+using Nequi.Shared.Idempotency;
 using Nequi.Shared.OpenApi;
 using Nequi.Wallet.Beneficiaries;
 using Nequi.Wallet.Filters;
@@ -105,6 +106,7 @@ if (isGcp)
                 sp.GetRequiredService<SpannerDb>(),
                 sp.GetRequiredService<IFinancialIntentStore>(),
                 sp.GetRequiredService<IFinancialIdentityResolver>()));
+        builder.Services.AddSingleton<IIdempotencyRecoveryHandler, ConfirmedTransferIdempotencyRecoveryHandler>();
     }
     else
     {

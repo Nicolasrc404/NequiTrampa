@@ -17,7 +17,10 @@ namespace Nequi.Shared.Idempotency;
 /// across minimal-API and MVC endpoints. Apply via <c>[TypeFilter(typeof(IdempotencyActionFilter))]</c>
 /// on POST actions that must be idempotent.
 /// </summary>
-public sealed class IdempotencyActionFilter(IIdempotencyStore store, ILogger<IdempotencyActionFilter> logger) : IAsyncActionFilter
+public sealed class IdempotencyActionFilter(
+    IIdempotencyStore store,
+    ILogger<IdempotencyActionFilter> logger,
+    IIdempotencyRecoveryHandler? recovery = null) : IAsyncActionFilter
 {
     public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
     {
@@ -58,6 +61,22 @@ public sealed class IdempotencyActionFilter(IIdempotencyStore store, ILogger<Ide
 
             case BeginOutcome.InProgress:
                 logger.LogWarning("Idempotency in-progress key={Key} scope={Scope} actor={Actor}", key, scope, uid);
+                if (recovery is not null)
+                {
+                    var recovered = await recovery.TryRecoverAsync(
+                        http, uid, scope, key, hash, http.RequestAborted);
+                    if (recovered is not null)
+                    {
+                        http.Response.Headers["Idempotent-Recovered"] = "true";
+                        context.Result = new ContentResult
+                        {
+                            StatusCode = recovered.StatusCode,
+                            Content = recovered.Body,
+                            ContentType = recovered.ContentType,
+                        };
+                        return;
+                    }
+                }
                 context.Result = BuildProblem(409, "The operation is pending confirmation or reconciliation",
                     "Do not start an equivalent financial intention with a new Idempotency-Key until the original result is verified.",
                     "idempotency_in_progress", http);
