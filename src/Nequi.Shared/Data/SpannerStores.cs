@@ -51,7 +51,8 @@ public sealed class SpannerIdempotencyStore : IIdempotencyStore
             if (hash is null)
             {
                 var ins = conn.CreateDmlCommand(
-                    "INSERT INTO idempotency_records (actor_id, scope, idempotency_key, request_hash, status) VALUES (@a,@s,@k,@h,'IN_PROGRESS')");
+                    "INSERT INTO idempotency_records (actor_id, scope, idempotency_key, request_hash, status, created_at) " +
+                    "VALUES (@a,@s,@k,@h,'IN_PROGRESS',CURRENT_TIMESTAMP())");
                 ins.Transaction = tx;
                 ins.Parameters.Add("a", SpannerDbType.String, actorId);
                 ins.Parameters.Add("s", SpannerDbType.String, scope);

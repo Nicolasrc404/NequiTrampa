@@ -109,6 +109,21 @@ public sealed class SpannerTransferFinancialIntentEmulatorTests
         ) PRIMARY KEY(financial_intent_id)
         """;
 
+    private const string CreateIdempotencyRecords = """
+        CREATE TABLE idempotency_records (
+          actor_id STRING(36) NOT NULL,
+          scope STRING(64) NOT NULL,
+          idempotency_key STRING(64) NOT NULL,
+          request_hash STRING(64) NOT NULL,
+          operation_id STRING(36),
+          status STRING(16) NOT NULL,
+          http_status INT64,
+          response_body JSON,
+          created_at TIMESTAMP NOT NULL,
+          completed_at TIMESTAMP,
+        ) PRIMARY KEY(actor_id, scope, idempotency_key)
+        """;
+
     [SpannerEmulatorPersistenceFact]
     [Trait("Category", "SpannerEmulatorPersistence")]
     public async Task TransferSameIntentCreatesOneOperationAndReplayDoesNotChangeBalances()
@@ -191,7 +206,7 @@ public sealed class SpannerTransferFinancialIntentEmulatorTests
         Assert.Equal(0, await ReadBalanceAsync(scenario, "account-dest"));
     }
 
-    private static async Task<Scenario> CreateScenarioAsync()
+    internal static async Task<Scenario> CreateScenarioAsync()
     {
         var runId = Guid.NewGuid().ToString("N")[..12];
         var environment = new Dictionary<string, string?>
@@ -249,6 +264,7 @@ public sealed class SpannerTransferFinancialIntentEmulatorTests
                 CreateEntries,
                 CreateOutbox,
                 CreateIntents,
+                CreateIdempotencyRecords,
                 "CREATE UNIQUE INDEX ux_transfer_intent_identity ON financial_intents(domain_actor_id, operation_type, scope, idempotency_key)",
                 "CREATE UNIQUE NULL_FILTERED INDEX ux_transfer_intent_operation ON financial_intents(operation_id)",
             },
@@ -319,7 +335,7 @@ public sealed class SpannerTransferFinancialIntentEmulatorTests
         return (long)reader.GetNumeric(0);
     }
 
-    private sealed record Scenario(
+    internal sealed record Scenario(
         SpannerEmulatorTestConfiguration Configuration,
         SpannerTransferService Service,
         SpannerFinancialIntentCoordinator Coordinator);
