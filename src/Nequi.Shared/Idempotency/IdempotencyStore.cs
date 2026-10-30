@@ -4,6 +4,30 @@ namespace Nequi.Shared.Idempotency;
 
 public enum BeginOutcome { Started, Replay, Conflict, InProgress }
 
+public enum IdempotencyOperationKind
+{
+    NonFinancial,
+    Financial,
+}
+
+/// <summary>
+/// Central classification for idempotency scopes. Financial scopes never
+/// restart a FAILED reservation because FAILED does not prove that the ledger
+/// has no committed effect.
+/// </summary>
+public static class IdempotencyOperationClassification
+{
+    public const string TransferScope = "POST:/v1/transfers";
+    public const string RechargeScope = "POST:/v1/recharges";
+
+    public static IdempotencyOperationKind Classify(string scope) =>
+        scope switch
+        {
+            TransferScope or RechargeScope => IdempotencyOperationKind.Financial,
+            _ => IdempotencyOperationKind.NonFinancial,
+        };
+}
+
 public sealed record IdempotencyRecord(
     string ActorId, string Scope, string Key, string RequestHash, int? StatusCode, string? ResponseBody, string? ContentType,
     DateTimeOffset CreatedAt = default);
