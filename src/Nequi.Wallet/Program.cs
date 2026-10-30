@@ -1,5 +1,7 @@
 using Microsoft.AspNetCore.Mvc;
 using Nequi.Shared;
+using Nequi.Shared.Data;
+using Nequi.Shared.Financial;
 using Nequi.Shared.OpenApi;
 using Nequi.Wallet.Beneficiaries;
 using Nequi.Wallet.Filters;
@@ -78,6 +80,9 @@ builder.Services.AddSingleton<BeneficiaryService>();
 // SIMULATED_CORRESPONSAL). Only deployments that explicitly opt in accept them.
 builder.Services.AddSingleton<RechargePolicy>();
 var isGcp = string.Equals(builder.Configuration["Data:Backend"], "gcp", StringComparison.OrdinalIgnoreCase);
+var enableConfirmedTransferRecovery =
+    isGcp && !builder.Environment.IsProduction() &&
+    builder.Configuration.GetValue<bool>("FinancialRecovery:EnableConfirmedTransferRecovery");
 if (isGcp)
 {
     var spannerDb = builder.Configuration["Spanner:Database"];
@@ -90,12 +95,28 @@ if (isGcp)
     builder.Services.AddSingleton<IWalletService, SpannerWalletService>();
     builder.Services.AddSingleton<ITransferService, SpannerTransferService>();
     builder.Services.AddSingleton<IRechargeService, SpannerRechargeService>();
+
+    if (enableConfirmedTransferRecovery)
+    {
+        builder.Services.AddSingleton<IFinancialIntentStore, SpannerFinancialIntentStore>();
+        builder.Services.AddSingleton<IFinancialIdentityResolver, SpannerFinancialIdentityResolver>();
+        builder.Services.AddSingleton<IConfirmedTransferRecoveryService>(sp =>
+            new ConfirmedTransferRecoveryService(
+                sp.GetRequiredService<SpannerDb>(),
+                sp.GetRequiredService<IFinancialIntentStore>(),
+                sp.GetRequiredService<IFinancialIdentityResolver>()));
+    }
+    else
+    {
+        builder.Services.AddSingleton<IConfirmedTransferRecoveryService, DisabledConfirmedTransferRecoveryService>();
+    }
 }
 else
 {
     builder.Services.AddSingleton<IWalletService, MockWalletService>();
     builder.Services.AddSingleton<ITransferService, MockTransferService>();
     builder.Services.AddSingleton<IRechargeService, MockRechargeService>();
+    builder.Services.AddSingleton<IConfirmedTransferRecoveryService, DisabledConfirmedTransferRecoveryService>();
 }
 
 // 4. OpenAPI / Swagger (Nequi.Shared.OpenApi): Bearer JWT + headers demo cuando Auth:DemoHeaders=true

@@ -43,6 +43,20 @@ public sealed class SpannerFinancialIntentStore
             : ToResult(intent);
     }
 
+    public async Task<FinancialIntentResult> GetInTransactionAsync(
+        SpannerConnection connection,
+        SpannerTransaction transaction,
+        FinancialIntentIdentity identity,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(connection);
+        ArgumentNullException.ThrowIfNull(transaction);
+        ArgumentNullException.ThrowIfNull(identity);
+
+        var intent = await ReadByIdentityAsync(connection, transaction, identity, ct);
+        return intent is null ? FinancialIntentResult.NotFound() : ToResult(intent);
+    }
+
     public async Task<FinancialIntentResult> GetOutcomeAsync(
         FinancialIntentIdentity identity,
         CancellationToken ct) => await GetAsync(identity, ct);

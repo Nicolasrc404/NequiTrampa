@@ -272,6 +272,12 @@ public interface IFinancialIntentStore
 {
     Task<FinancialIntentResult> GetAsync(FinancialIntentIdentity identity, CancellationToken ct);
 
+    Task<FinancialIntentResult> GetInTransactionAsync(
+        Google.Cloud.Spanner.Data.SpannerConnection connection,
+        Google.Cloud.Spanner.Data.SpannerTransaction transaction,
+        FinancialIntentIdentity identity,
+        CancellationToken ct);
+
     Task<FinancialIntentResult> GetOutcomeAsync(FinancialIntentIdentity identity, CancellationToken ct);
 
     /// <summary>
