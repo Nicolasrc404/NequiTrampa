@@ -97,6 +97,8 @@ public sealed record FinancialIntent
 public enum FinancialIntentResultKind
 {
     NotFound,
+    IdentityNotFound,
+    IdentityAmbiguous,
     NewIntent,
     ExistingInProgress,
     Confirmed,
@@ -114,6 +116,12 @@ public sealed record FinancialIntentResult(
 {
     public static FinancialIntentResult NotFound() =>
         new(FinancialIntentResultKind.NotFound);
+
+    public static FinancialIntentResult IdentityNotFound() =>
+        new(FinancialIntentResultKind.IdentityNotFound, null, "financial_identity_not_found");
+
+    public static FinancialIntentResult IdentityAmbiguous() =>
+        new(FinancialIntentResultKind.IdentityAmbiguous, null, "financial_identity_ambiguous");
 
     public static FinancialIntentResult New(FinancialIntent intent) =>
         new(FinancialIntentResultKind.NewIntent, RequireIntent(intent));
@@ -152,23 +160,62 @@ public sealed record FinancialIntentResult(
 public sealed record FinancialIntentExecutionRequest
 {
     public FinancialIntentExecutionRequest(
-        FinancialIntentIdentity identity,
         string authenticatedActorId,
+        string operationType,
+        string scope,
+        string idempotencyKey,
         string requestHash)
     {
-        Identity = identity ?? throw new ArgumentNullException(nameof(identity));
         AuthenticatedActorId = Require(authenticatedActorId, nameof(authenticatedActorId));
+        OperationType = Require(operationType, nameof(operationType));
+        Scope = Require(scope, nameof(scope));
+        IdempotencyKey = Require(idempotencyKey, nameof(idempotencyKey));
         RequestHash = Require(requestHash, nameof(requestHash));
     }
 
-    public FinancialIntentIdentity Identity { get; }
     public string AuthenticatedActorId { get; }
+    public string OperationType { get; }
+    public string Scope { get; }
+    public string IdempotencyKey { get; }
     public string RequestHash { get; }
 
     private static string Require(string value, string name) =>
         string.IsNullOrWhiteSpace(value)
             ? throw new ArgumentException("Value is required.", name)
             : value;
+}
+
+public enum FinancialIdentityResolutionKind
+{
+    Resolved,
+    NotFound,
+    Ambiguous,
+}
+
+public sealed record FinancialIdentityResolution(
+    FinancialIdentityResolutionKind Kind,
+    string? DomainActorId = null)
+{
+    public static FinancialIdentityResolution Resolved(string domainActorId) =>
+        new(FinancialIdentityResolutionKind.Resolved,
+            string.IsNullOrWhiteSpace(domainActorId)
+                ? throw new ArgumentException("Value is required.", nameof(domainActorId))
+                : domainActorId);
+
+    public static FinancialIdentityResolution NotFound() =>
+        new(FinancialIdentityResolutionKind.NotFound);
+
+    public static FinancialIdentityResolution Ambiguous() =>
+        new(FinancialIdentityResolutionKind.Ambiguous);
+}
+
+public interface IFinancialIdentityResolver
+{
+    Task<FinancialIdentityResolution> ResolveInTransactionAsync(
+        Google.Cloud.Spanner.Data.SpannerConnection connection,
+        Google.Cloud.Spanner.Data.SpannerTransaction transaction,
+        string authenticatedActorId,
+        CancellationToken ct);
 }
 
 /// <summary>

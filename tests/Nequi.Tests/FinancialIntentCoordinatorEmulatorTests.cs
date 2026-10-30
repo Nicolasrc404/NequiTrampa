@@ -16,6 +16,18 @@ namespace Nequi.Tests;
 /// </summary>
 public sealed class FinancialIntentCoordinatorEmulatorTests
 {
+    private const string CreateClientTable = """
+        CREATE TABLE clients (
+          client_id STRING(36) NOT NULL,
+          auth_subject STRING(128) NOT NULL,
+          status STRING(16) NOT NULL,
+        ) PRIMARY KEY(client_id)
+        """;
+
+    private const string CreateClientAuthIndex = """
+        CREATE UNIQUE INDEX ux_test_client_auth_subject ON clients(auth_subject)
+        """;
+
     private const string CreateIntentTable = """
         CREATE TABLE financial_intents (
           financial_intent_id STRING(36) NOT NULL,
@@ -81,6 +93,66 @@ public sealed class FinancialIntentCoordinatorEmulatorTests
 
     [SpannerEmulatorPersistenceFact]
     [Trait("Category", "SpannerEmulatorPersistence")]
+    public async Task Coordinator_ResolvesAuthenticatedSubjectInsideTheTransaction()
+    {
+        var scenario = await CreateScenarioAsync();
+        var result = await scenario.Coordinator.ExecuteAsync(
+            Request("identity-key", "identity-hash"),
+            (context, ct) => InsertLedgerAsync(context, "identity", ct),
+            CancellationToken.None);
+
+        Assert.Equal(FinancialIntentResultKind.Confirmed, result.Result.Kind);
+        Assert.Equal("client-coordinator", result.Result.Intent!.Identity.DomainActorId);
+        Assert.Equal("subject-coordinator", result.Result.Intent.AuthenticatedActorId);
+    }
+
+    [SpannerEmulatorPersistenceFact]
+    [Trait("Category", "SpannerEmulatorPersistence")]
+    public async Task Coordinator_RejectsUnknownAuthenticatedSubjectWithoutCreatingIntent()
+    {
+        var scenario = await CreateScenarioAsync();
+        var request = new FinancialIntentExecutionRequest(
+            "subject-missing", "TEST", "coordinator-v1", "missing-identity-key", "missing-hash");
+        var effectExecuted = false;
+
+        var result = await scenario.Coordinator.ExecuteAsync(
+            request,
+            (context, ct) =>
+            {
+                effectExecuted = true;
+                return InsertLedgerAsync(context, "must-not-write", ct);
+            },
+            CancellationToken.None);
+
+        Assert.Equal(FinancialIntentResultKind.IdentityNotFound, result.Result.Kind);
+        Assert.False(effectExecuted);
+        Assert.Equal(0, await CountAsync(scenario, "financial_intents"));
+        Assert.Equal(0, await CountAsync(scenario, "coordinator_test_ledger"));
+    }
+
+    [SpannerEmulatorPersistenceFact]
+    [Trait("Category", "SpannerEmulatorPersistence")]
+    public async Task Coordinator_ConcurrentRequestsForResolvedActorConfirmOneIntent()
+    {
+        var scenario = await CreateScenarioAsync();
+        var request = Request("concurrent-identity-key", "concurrent-identity-hash");
+        var executions = 0;
+
+        var results = await Task.WhenAll(
+            ExecuteWithCounterAsync(scenario, request, () => Interlocked.Increment(ref executions)),
+            ExecuteWithCounterAsync(scenario, request, () => Interlocked.Increment(ref executions)));
+
+        Assert.All(results, result => Assert.Equal(FinancialIntentResultKind.Confirmed, result.Result.Kind));
+        Assert.Equal(1, executions);
+        Assert.Equal(1, await CountAsync(scenario, "financial_intents"));
+        Assert.Equal(1, await CountAsync(scenario, "coordinator_test_ledger"));
+        Assert.All(results, result => Assert.Equal(
+            results[0].Result.Intent!.OperationId,
+            result.Result.Intent!.OperationId));
+    }
+
+    [SpannerEmulatorPersistenceFact]
+    [Trait("Category", "SpannerEmulatorPersistence")]
     public async Task Coordinator_RollsBackIntentWhenLedgerFails()
     {
         var scenario = await CreateScenarioAsync();
@@ -98,7 +170,9 @@ public sealed class FinancialIntentCoordinatorEmulatorTests
         Assert.Equal(0, await CountAsync(scenario, "financial_intents"));
         Assert.Equal(0, await CountAsync(scenario, "coordinator_test_ledger"));
         Assert.Equal(FinancialIntentResultKind.NotFound,
-            (await scenario.Store.GetAsync(request.Identity, CancellationToken.None)).Kind);
+            (await scenario.Store.GetAsync(
+                new FinancialIntentIdentity("client-coordinator", "TEST", "coordinator-v1", "rollback-ledger-key"),
+                CancellationToken.None)).Kind);
     }
 
     [SpannerEmulatorPersistenceFact]
@@ -305,8 +379,10 @@ public sealed class FinancialIntentCoordinatorEmulatorTests
 
     private static FinancialIntentExecutionRequest Request(string key, string hash) =>
         new(
-            new FinancialIntentIdentity("client-coordinator", "TEST", "coordinator-v1", key),
             "subject-coordinator",
+            "TEST",
+            "coordinator-v1",
+            key,
             hash);
 
     private static string NewId() => Guid.NewGuid().ToString("N");
@@ -372,17 +448,30 @@ public sealed class FinancialIntentCoordinatorEmulatorTests
         var ddlOperation = databaseAdmin.UpdateDatabaseDdl(new UpdateDatabaseDdlRequest
         {
             Database = databaseName,
-            Statements = { CreateIntentTable, CreateIdentityIndex, CreateOperationIndex, CreateLedgerTable, CreateOutboxTable },
+            Statements = { CreateClientTable, CreateClientAuthIndex, CreateIntentTable, CreateIdentityIndex, CreateOperationIndex, CreateLedgerTable, CreateOutboxTable },
         }, timeout).PollUntilCompleted();
         Assert.True(ddlOperation.IsCompleted);
         Assert.False(ddlOperation.IsFaulted);
         _ = ddlOperation.Result;
 
+        await using (var seedConnection = new SpannerConnection(
+            SpannerEmulatorConnectionFactory.CreateBuilder(configuration)))
+        {
+            await seedConnection.OpenAsync();
+            await using var seed = seedConnection.CreateDmlCommand(
+                "INSERT INTO clients (client_id, auth_subject, status) VALUES (@client, @subject, 'ACTIVE')");
+            seed.Parameters.Add("client", SpannerDbType.String, "client-coordinator");
+            seed.Parameters.Add("subject", SpannerDbType.String, "subject-coordinator");
+            await seed.ExecuteNonQueryAsync();
+        }
+
         var store = new SpannerFinancialIntentStore(
             () => new SpannerConnection(SpannerEmulatorConnectionFactory.CreateBuilder(configuration)));
+        var identityResolver = new SpannerFinancialIdentityResolver();
         var coordinator = new SpannerFinancialIntentCoordinator(
             () => new SpannerConnection(SpannerEmulatorConnectionFactory.CreateBuilder(configuration)),
-            store);
+            store,
+            identityResolver);
         return new Scenario(configuration, store, coordinator);
     }
 
