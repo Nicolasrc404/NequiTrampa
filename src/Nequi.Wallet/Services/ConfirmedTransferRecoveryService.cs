@@ -85,10 +85,14 @@ public sealed class ConfirmedTransferRecoveryService : IConfirmedTransferRecover
             return TransferRecoveryResult.Blocked("transfer_recovery_invalid_request");
 
         await using var connection = _connectionFactory();
-        await connection.OpenAsync(ct);
-
-        return await connection.RunWithRetriableTransactionAsync(async transaction =>
+        try
         {
+            await connection.OpenAsync(ct);
+            return await connection.RunWithRetriableTransactionAsync(async transaction =>
+            {
+            if (authenticatedActorId.Length > 36)
+                return TransferRecoveryResult.Blocked("authenticated_actor_not_correlatable");
+
             var resolution = await _identityResolver.ResolveInTransactionAsync(
                 connection, transaction, authenticatedActorId, ct);
             if (resolution.Kind != FinancialIdentityResolutionKind.Resolved)
@@ -96,6 +100,12 @@ public sealed class ConfirmedTransferRecoveryService : IConfirmedTransferRecover
 
             var identity = new FinancialIntentIdentity(
                 resolution.DomainActorId!, OperationType, Scope, idempotencyKey);
+            var httpReservation = await ReadHttpReservationAsync(
+                connection, transaction, authenticatedActorId, idempotencyKey, ct);
+            if (httpReservation is { } reservation &&
+                !string.Equals(reservation.RequestHash, requestHash, StringComparison.Ordinal))
+                return TransferRecoveryResult.Conflict();
+
             var intentResult = await _intentStore.GetInTransactionAsync(
                 connection, transaction, identity, ct);
 
@@ -130,7 +140,12 @@ public sealed class ConfirmedTransferRecoveryService : IConfirmedTransferRecover
                 LedgerOperationId: intentResult.Intent.OperationId!,
                 Timestamp: ledger.ConfirmedAt ?? ledger.CreatedAt,
                 Description: ledger.Description));
-        }, ct);
+            }, ct);
+        }
+        catch (SpannerException)
+        {
+            return TransferRecoveryResult.Blocked("recovery_storage_not_verifiable");
+        }
     }
 
     private static bool MatchesRequest(LedgerTransferRow ledger, CreateTransferRequestDto request)
@@ -182,6 +197,27 @@ public sealed class ConfirmedTransferRecoveryService : IConfirmedTransferRecover
             reader.GetString(8));
     }
 
+    private static async Task<HttpReservationRow?> ReadHttpReservationAsync(
+        SpannerConnection connection,
+        SpannerTransaction transaction,
+        string authenticatedActorId,
+        string idempotencyKey,
+        CancellationToken ct)
+    {
+        await using var command = connection.CreateSelectCommand(
+            "SELECT request_hash, status FROM idempotency_records " +
+            "WHERE actor_id=@actor AND scope=@scope AND idempotency_key=@key");
+        command.Transaction = transaction;
+        command.Parameters.Add("actor", SpannerDbType.String, authenticatedActorId);
+        command.Parameters.Add("scope", SpannerDbType.String, Scope);
+        command.Parameters.Add("key", SpannerDbType.String, idempotencyKey);
+
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        return await reader.ReadAsync(ct)
+            ? new HttpReservationRow(reader.GetString(0), reader.GetString(1))
+            : null;
+    }
+
     private static DateTimeOffset ToUtc(DateTime value) =>
         new(DateTime.SpecifyKind(value, DateTimeKind.Utc));
 
@@ -195,6 +231,8 @@ public sealed class ConfirmedTransferRecoveryService : IConfirmedTransferRecover
         DateTimeOffset? ConfirmedAt,
         string DestinationClientId,
         string DestinationTransferCode);
+
+    private sealed record HttpReservationRow(string RequestHash, string Status);
 }
 
 public sealed class DisabledConfirmedTransferRecoveryService : IConfirmedTransferRecoveryService

@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Nequi.Shared.Idempotency;
 using Nequi.Shared.Security;
 using Nequi.Wallet.DTOs;
 using Nequi.Wallet.Services;
@@ -34,10 +35,26 @@ public sealed class TransferRecoveryController(
         if (user is null)
             return Unauthorized();
 
+        Request.EnableBuffering();
+        Request.Body.Position = 0;
+        using var body = new MemoryStream();
+        await Request.Body.CopyToAsync(body, cancellationToken);
+        Request.Body.Position = 0;
+        var computedRequestHash = IdempotencyRequestHash.Compute(body.ToArray());
+        if (!string.IsNullOrWhiteSpace(requestHash) &&
+            !string.Equals(requestHash, computedRequestHash, StringComparison.Ordinal))
+            return Conflict(new ProblemDetails
+            {
+                Status = StatusCodes.Status409Conflict,
+                Title = "Hash de solicitud incompatible",
+                Detail = "El hash enviado no coincide con el cuerpo recibido.",
+                Extensions = { ["code"] = "request_hash_mismatch" }
+            });
+
         var result = await recovery.RecoverAsync(
             user.Uid,
             idempotencyKey ?? string.Empty,
-            requestHash ?? string.Empty,
+            computedRequestHash,
             request,
             cancellationToken);
 

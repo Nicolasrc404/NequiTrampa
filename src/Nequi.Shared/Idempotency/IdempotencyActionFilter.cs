@@ -39,7 +39,7 @@ public sealed class IdempotencyActionFilter(IIdempotencyStore store, ILogger<Ide
         using var ms = new MemoryStream();
         await http.Request.Body.CopyToAsync(ms, http.RequestAborted);
         http.Request.Body.Position = 0;
-        var hash = Convert.ToHexString(SHA256.HashData(ms.ToArray()));
+        var hash = IdempotencyRequestHash.Compute(ms.ToArray());
 
         var uid = CurrentUser.From(http.User)?.Uid ?? "anonymous";
         var scope = $"{http.Request.Method}:{http.Request.Path}";

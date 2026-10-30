@@ -74,6 +74,17 @@ public sealed class ConfirmedTransferRecoveryEmulatorTests
         ) PRIMARY KEY(financial_intent_id)
         """;
 
+    private const string CreateHttpReservations = """
+        CREATE TABLE idempotency_records (
+          actor_id STRING(36) NOT NULL,
+          scope STRING(64) NOT NULL,
+          idempotency_key STRING(64) NOT NULL,
+          request_hash STRING(64) NOT NULL,
+          status STRING(16) NOT NULL,
+          created_at TIMESTAMP NOT NULL,
+        ) PRIMARY KEY(actor_id, scope, idempotency_key)
+        """;
+
     [SpannerEmulatorPersistenceFact]
     [Trait("Category", "SpannerEmulatorPersistence")]
     public async Task ConfirmedIntentAndValidLedgerAreRecoveredReadOnly()
@@ -139,10 +150,26 @@ public sealed class ConfirmedTransferRecoveryEmulatorTests
         Assert.Equal(TransferRecoveryKind.RecoveryBlocked, result.Kind);
     }
 
+    [SpannerEmulatorPersistenceFact]
+    [Trait("Category", "SpannerEmulatorPersistence")]
+    public async Task ExpiredHttpReservationDoesNotRemoveDurableProtection()
+    {
+        var scenario = await CreateScenarioAsync("CONFIRMED", includeLedger: true, includeHttpReservation: false);
+
+        var result = await scenario.Service.RecoverAsync(
+            "subject-origin", "transfer-key", "request-hash", Request(), CancellationToken.None);
+
+        Assert.Equal(TransferRecoveryKind.Recovered, result.Kind);
+        Assert.Equal("operation-recovery", result.Response!.LedgerOperationId);
+    }
+
     private static CreateTransferRequestDto Request() =>
         new("DEST-001", 10m, "test", "COP");
 
-    private static async Task<Scenario> CreateScenarioAsync(string status, bool includeLedger)
+    private static async Task<Scenario> CreateScenarioAsync(
+        string status,
+        bool includeLedger,
+        bool includeHttpReservation = true)
     {
         var runId = Guid.NewGuid().ToString("N")[..12];
         var environment = new Dictionary<string, string?>
@@ -180,7 +207,7 @@ public sealed class ConfirmedTransferRecoveryEmulatorTests
         }, timeout).PollUntilCompleted();
         Assert.False(database.IsFaulted);
 
-        var statements = new List<string> { CreateClients, CreateClientIndex, CreateWallets, CreateOperations, CreateEntries, CreateIntents,
+        var statements = new List<string> { CreateClients, CreateClientIndex, CreateWallets, CreateOperations, CreateEntries, CreateIntents, CreateHttpReservations,
             "CREATE UNIQUE INDEX ux_recovery_intent_identity ON financial_intents(domain_actor_id, operation_type, scope, idempotency_key)",
             "CREATE UNIQUE NULL_FILTERED INDEX ux_recovery_intent_operation ON financial_intents(operation_id)" };
         var ddlRequest = new UpdateDatabaseDdlRequest { Database = databaseName };
@@ -194,6 +221,8 @@ public sealed class ConfirmedTransferRecoveryEmulatorTests
         await ExecuteAsync(connection, "INSERT INTO wallet_accounts (account_id, client_id, current_balance_minor) VALUES ('account-origin', 'client-origin', 100000)");
         await ExecuteAsync(connection, "INSERT INTO wallet_accounts (account_id, client_id, current_balance_minor) VALUES ('account-dest', 'client-dest', 0)");
         await ExecuteAsync(connection, $"INSERT INTO financial_intents (financial_intent_id, authenticated_actor_id, domain_actor_id, operation_type, scope, idempotency_key, request_hash, operation_id, financial_status, created_at, confirmed_at) VALUES ('intent-recovery', 'subject-origin', 'client-origin', 'TRANSFER', 'POST:/v1/transfers', 'transfer-key', 'request-hash', 'operation-recovery', '{status}', CURRENT_TIMESTAMP(), {(status == "CONFIRMED" ? "CURRENT_TIMESTAMP()" : "NULL")})");
+        if (includeHttpReservation)
+            await ExecuteAsync(connection, "INSERT INTO idempotency_records (actor_id, scope, idempotency_key, request_hash, status, created_at) VALUES ('subject-origin', 'POST:/v1/transfers', 'transfer-key', 'request-hash', 'IN_PROGRESS', CURRENT_TIMESTAMP())");
         if (includeLedger)
         {
             await ExecuteAsync(connection, "INSERT INTO ledger_operations (operation_id, public_reference, type, status, actor_id, amount_minor, currency, idempotency_key, reason, created_at, confirmed_at) VALUES ('operation-recovery', 'TRF-RECOVERY-001', 'INTERNAL_TRANSFER', 'COMPLETED', 'client-origin', 1000, 'COP', 'transfer-key', 'test', CURRENT_TIMESTAMP(), CURRENT_TIMESTAMP())");

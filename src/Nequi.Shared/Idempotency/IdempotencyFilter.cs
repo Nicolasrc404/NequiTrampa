@@ -35,7 +35,7 @@ public sealed class IdempotencyFilter : IEndpointFilter
         using var ms = new MemoryStream();
         await http.Request.Body.CopyToAsync(ms, http.RequestAborted);
         http.Request.Body.Position = 0;
-        var hash = Convert.ToHexString(SHA256.HashData(ms.ToArray()));
+        var hash = IdempotencyRequestHash.Compute(ms.ToArray());
 
         var (outcome, record) = await store.BeginAsync(uid, scope, key, hash, http.RequestAborted);
         switch (outcome)

@@ -1,8 +1,15 @@
 using System.Collections.Concurrent;
+using System.Security.Cryptography;
 
 namespace Nequi.Shared.Idempotency;
 
 public enum BeginOutcome { Started, Replay, Conflict, InProgress }
+
+public static class IdempotencyRequestHash
+{
+    public static string Compute(ReadOnlySpan<byte> requestBody) =>
+        Convert.ToHexString(SHA256.HashData(requestBody));
+}
 
 public enum IdempotencyOperationKind
 {
