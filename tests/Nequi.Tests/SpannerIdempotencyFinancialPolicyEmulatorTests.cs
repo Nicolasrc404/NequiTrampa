@@ -52,6 +52,50 @@ public sealed class SpannerIdempotencyFinancialPolicyTests
         Assert.Equal("IN_PROGRESS", await ReadStatusAsync(configuration, "actor-nonfinancial", "POST:/v1/reports"));
     }
 
+    [SpannerEmulatorPersistenceFact]
+    [Trait("Category", "SpannerEmulatorPersistence")]
+    public async Task CreatedAtIsPersistedAndRemainsStableAcrossReplayAndCompletion()
+    {
+        var configuration = await CreateDatabaseAsync();
+        var store = CreateStore(configuration);
+
+        var (started, _) = await store.BeginAsync(
+            "actor-created-at", "POST:/v1/transfers", "created-at-key", "hash", CancellationToken.None);
+        Assert.Equal(BeginOutcome.Started, started);
+
+        var createdAt = await ReadCreatedAtAsync(configuration, "actor-created-at", "POST:/v1/transfers", "created-at-key");
+        Assert.NotEqual(default, createdAt);
+
+        await store.CompleteAsync(
+            "actor-created-at", "POST:/v1/transfers", "created-at-key", 201, "{}", "application/json", CancellationToken.None);
+        Assert.Equal(createdAt, await ReadCreatedAtAsync(
+            configuration, "actor-created-at", "POST:/v1/transfers", "created-at-key"));
+
+        var (replay, _) = await store.BeginAsync(
+            "actor-created-at", "POST:/v1/transfers", "created-at-key", "hash", CancellationToken.None);
+        Assert.Equal(BeginOutcome.Replay, replay);
+        Assert.Equal(createdAt, await ReadCreatedAtAsync(
+            configuration, "actor-created-at", "POST:/v1/transfers", "created-at-key"));
+    }
+
+    [SpannerEmulatorPersistenceFact]
+    [Trait("Category", "SpannerEmulatorPersistence")]
+    public async Task FindStaleReturnsOldInProgressWithoutReleasingIt()
+    {
+        var configuration = await CreateDatabaseAsync();
+        var store = CreateStore(configuration);
+        var old = DateTime.UtcNow.AddHours(-2);
+        await SeedAsync(configuration, "actor-stale", "POST:/v1/transfers", "IN_PROGRESS", old);
+
+        var stale = await store.FindStaleInProgressAsync(TimeSpan.FromHours(1), 10, CancellationToken.None);
+
+        var record = Assert.Single(stale);
+        Assert.Equal("actor-stale", record.ActorId);
+        Assert.Equal("POST:/v1/transfers", record.Scope);
+        Assert.Equal("key", record.Key);
+        Assert.Equal("IN_PROGRESS", await ReadStatusAsync(configuration, "actor-stale", "POST:/v1/transfers"));
+    }
+
     private const string CreateTable = """
         CREATE TABLE idempotency_records (
           actor_id STRING(36) NOT NULL,
@@ -77,17 +121,36 @@ public sealed class SpannerIdempotencyFinancialPolicyTests
         SpannerEmulatorTestConfiguration configuration,
         string actor,
         string scope,
-        string status)
+        string status,
+        DateTime? createdAt = null)
     {
         await using var connection = await OpenAsync(configuration);
         await using var command = connection.CreateDmlCommand(
             "INSERT INTO idempotency_records " +
             "(actor_id, scope, idempotency_key, request_hash, status, created_at) " +
-            "VALUES (@actor, @scope, 'key', 'hash', @status, CURRENT_TIMESTAMP())");
+            "VALUES (@actor, @scope, 'key', 'hash', @status, @createdAt)");
         command.Parameters.Add("actor", SpannerDbType.String, actor);
         command.Parameters.Add("scope", SpannerDbType.String, scope);
         command.Parameters.Add("status", SpannerDbType.String, status);
+        command.Parameters.Add("createdAt", SpannerDbType.Timestamp, createdAt ?? DateTime.UtcNow);
         await command.ExecuteNonQueryAsync();
+    }
+
+    private static async Task<DateTime> ReadCreatedAtAsync(
+        SpannerEmulatorTestConfiguration configuration,
+        string actor,
+        string scope,
+        string key)
+    {
+        await using var connection = await OpenAsync(configuration);
+        await using var command = connection.CreateSelectCommand(
+            "SELECT created_at FROM idempotency_records WHERE actor_id=@actor AND scope=@scope AND idempotency_key=@key");
+        command.Parameters.Add("actor", SpannerDbType.String, actor);
+        command.Parameters.Add("scope", SpannerDbType.String, scope);
+        command.Parameters.Add("key", SpannerDbType.String, key);
+        await using var reader = await command.ExecuteReaderAsync();
+        Assert.True(await reader.ReadAsync());
+        return reader.GetFieldValue<DateTime>(0);
     }
 
     private static async Task<string> ReadStatusAsync(
