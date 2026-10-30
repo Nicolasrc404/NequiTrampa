@@ -3,6 +3,7 @@ using Google.Cloud.Spanner.V1;
 using Microsoft.Extensions.Logging;
 using Nequi.Shared.Data;
 using Nequi.Shared.Events;
+using Nequi.Shared.Financial;
 using Nequi.Wallet.DTOs;
 using Nequi.Wallet.Exceptions;
 using Nequi.Wallet.Interfaces;
@@ -31,7 +32,10 @@ namespace Nequi.Wallet.Services;
 /// Dinero: NUMERIC en Spanner (100 minor = 1 COP) → long en C#. Nunca float/double.
 /// Idempotencia: delegada al IdempotencyActionFilter; ledger_operations.idempotency_key almacena la clave recibida.
 /// </summary>
-public sealed class SpannerTransferService(SpannerDb db, ILogger<SpannerTransferService> logger) : ITransferService
+public sealed class SpannerTransferService(
+    SpannerDb db,
+    ILogger<SpannerTransferService> logger,
+    Func<SpannerConnection>? connectionFactory = null) : ITransferService
 {
     // -------------------------------------------------------------------------
     // Límites físicos (en unidades menores: 100 minor = 1 COP)
@@ -73,7 +77,7 @@ public sealed class SpannerTransferService(SpannerDb db, ILogger<SpannerTransfer
             "Iniciando INTERNAL_TRANSFER origin_auth={OriginAuth} dest_code={DestCode} amount_minor={AmountMinor} key={Key}",
             originAuthSubject, request.DestinationTransferCode, amountMinor, idempotencyKey);
 
-        await using var conn = db.Open();
+        await using var conn = (connectionFactory ?? db.Open)();
 
         TransferResponseDto result = null!;
 
@@ -217,6 +221,219 @@ public sealed class SpannerTransferService(SpannerDb db, ILogger<SpannerTransfer
     }
 
     /// <summary>
+    /// Executes the transfer effect under the shared financial-intent
+    /// transaction. This seam is intentionally not part of ITransferService
+    /// and is not registered by production DI yet.
+    /// </summary>
+    public async Task<FinancialIntentExecutionResult<TransferResponseDto>> CreateTransferWithFinancialIntentAsync(
+        IFinancialIntentCoordinator coordinator,
+        string authenticatedActorId,
+        string idempotencyKey,
+        string requestHash,
+        CreateTransferRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(coordinator);
+        ValidateTransferRequestForCoordinator(request);
+
+        // These values are generated outside the retriable callback. A retry
+        // must reuse the same ledger/public/outbox identifiers.
+        var artifacts = TransferArtifacts.Create();
+        var execution = await coordinator.ExecuteAsync(
+            new FinancialIntentExecutionRequest(
+                authenticatedActorId,
+                "TRANSFER",
+                "POST:/v1/transfers",
+                idempotencyKey,
+                requestHash),
+            (context, ct) => ExecuteTransferEffectInTransactionAsync(
+                context,
+                authenticatedActorId,
+                idempotencyKey,
+                request,
+                artifacts,
+                ct),
+            cancellationToken);
+
+        if (execution.Result.Kind == FinancialIntentResultKind.Confirmed &&
+            !execution.EffectExecuted &&
+            execution.Result.Intent?.OperationId is { } confirmedOperationId)
+        {
+            var replay = await ReadCommittedTransferForReplayAsync(
+                authenticatedActorId,
+                idempotencyKey,
+                request,
+                confirmedOperationId,
+                cancellationToken);
+            if (replay is null)
+            {
+                return execution with
+                {
+                    Result = FinancialIntentResult.StorageError("confirmed_transfer_replay_not_verifiable")
+                };
+            }
+
+            return execution with { Value = replay };
+        }
+
+        return execution;
+    }
+
+    private async Task<TransferResponseDto> ExecuteTransferEffectInTransactionAsync(
+        FinancialIntentTransactionContext context,
+        string authenticatedActorId,
+        string idempotencyKey,
+        CreateTransferRequestDto request,
+        TransferArtifacts artifacts,
+        CancellationToken ct)
+    {
+        var conn = context.Connection;
+        var tx = context.Transaction;
+        var operationId = context.Intent.OperationId!;
+
+        var (originClientId, _, originTimezone) =
+            await ResolveOriginClientInTxAsync(conn, tx, authenticatedActorId, ct);
+        var (destinationClientId, destinationTransferCode) =
+            await ResolveDestinationClientInTxAsync(conn, tx, request.DestinationTransferCode, ct);
+
+        if (originClientId == destinationClientId)
+            throw new SelfTransferException("El destinatario no puede ser el mismo cliente origen.");
+
+        var (originAccountId, originBalance, originVersion) =
+            await ReadWalletInTxAsync(conn, tx, originClientId, true, ct);
+        var (destinationAccountId, destinationBalance, destinationVersion) =
+            await ReadWalletInTxAsync(conn, tx, destinationClientId, false, ct);
+
+        var amountMinor = checked((long)(request.Amount * 100m));
+        if (amountMinor > originBalance)
+            throw new InsufficientFundsException();
+
+        var localDate = GetClientLocalDate(originTimezone);
+        await CheckAndUpdateDailyUsageInTxAsync(
+            conn,
+            tx,
+            originClientId,
+            new SpannerDate(localDate.Year, localDate.Month, localDate.Day),
+            amountMinor,
+            ct);
+
+        var newOriginBalance = originBalance - amountMinor;
+        var newDestinationBalance = destinationBalance + amountMinor;
+
+        await InsertLedgerOperationAsync(
+            conn, tx, operationId, artifacts.PublicReference, originClientId,
+            amountMinor, request.Currency, request.Description, idempotencyKey, ct);
+        await InsertLedgerEntryAsync(
+            conn, tx, operationId, 1, originAccountId, -amountMinor,
+            originBalance, newOriginBalance, ct);
+        await InsertLedgerEntryAsync(
+            conn, tx, operationId, 2, destinationAccountId, amountMinor,
+            destinationBalance, newDestinationBalance, ct);
+        await UpdateWalletBalanceAsync(conn, tx, originAccountId, newOriginBalance, originVersion, ct);
+        await UpdateWalletBalanceAsync(conn, tx, destinationAccountId, newDestinationBalance, destinationVersion, ct);
+
+        var originEvent = new DomainEvent(
+            artifacts.EventIdOrigin,
+            EventTypes.TransferCompleted,
+            operationId,
+            originClientId,
+            artifacts.OccurredAt,
+            -amountMinor,
+            request.Currency,
+            destinationClientId,
+            request.Description,
+            newOriginBalance);
+        var destinationEvent = new DomainEvent(
+            artifacts.EventIdDestination,
+            EventTypes.TransferCompleted,
+            operationId,
+            destinationClientId,
+            artifacts.OccurredAt,
+            amountMinor,
+            request.Currency,
+            originClientId,
+            request.Description,
+            newDestinationBalance);
+        await InsertOutboxEventAsync(conn, tx, artifacts.EventIdOrigin, operationId, originEvent, ct);
+        await InsertOutboxEventAsync(conn, tx, artifacts.EventIdDestination, operationId, destinationEvent, ct);
+
+        return new TransferResponseDto(
+            artifacts.PublicReference,
+            originClientId,
+            destinationClientId,
+            destinationTransferCode,
+            request.Amount,
+            amountMinor,
+            request.Currency,
+            "COMPLETED",
+            operationId,
+            artifacts.OccurredAt,
+            request.Description);
+    }
+
+    private static void ValidateTransferRequestForCoordinator(CreateTransferRequestDto request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Amount <= 0 || request.Amount > 2_000_000m)
+            throw new TransferLimitExceededException("El monto de la transferencia supera el límite individual permitido.");
+        var amountMinor = request.Amount * 100m;
+        if (amountMinor % 1m != 0 || amountMinor > MaxTransferMinor)
+            throw new InvalidTransferAmountException("El monto en COP debe representar unidades menores enteras.");
+        if (!string.Equals(request.Currency, "COP", StringComparison.Ordinal))
+            throw new InvalidCurrencyException("La única moneda autorizada en el sistema es COP.");
+    }
+
+    private sealed record TransferArtifacts(
+        string PublicReference,
+        string EventIdOrigin,
+        string EventIdDestination,
+        DateTimeOffset OccurredAt)
+    {
+        public static TransferArtifacts Create() => new(
+            $"TRF-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}"[..24].ToUpperInvariant(),
+            Guid.NewGuid().ToString("N"),
+            Guid.NewGuid().ToString("N"),
+            DateTimeOffset.UtcNow);
+    }
+
+    private async Task<TransferResponseDto?> ReadCommittedTransferForReplayAsync(
+        string authenticatedActorId,
+        string idempotencyKey,
+        CreateTransferRequestDto request,
+        string operationId,
+        CancellationToken ct)
+    {
+        await using var conn = (connectionFactory ?? db.Open)();
+        var clientId = await ResolveClientByAuthSubjectAsync(conn, authenticatedActorId, ct);
+        await using var command = conn.CreateSelectCommand(
+            "SELECT lo.operation_id, lo.public_reference, lo.actor_id, " +
+            "wa_dest.client_id, c_dest.public_transfer_code, lo.amount_minor, " +
+            "lo.currency, lo.status, lo.reason, lo.created_at, lo.confirmed_at " +
+            "FROM ledger_operations lo " +
+            "JOIN ledger_entries le_dest ON le_dest.operation_id=lo.operation_id AND le_dest.entry_no=2 " +
+            "JOIN wallet_accounts wa_dest ON wa_dest.account_id=le_dest.account_id " +
+            "JOIN clients c_dest ON c_dest.client_id=wa_dest.client_id " +
+            "WHERE lo.operation_id=@operation AND lo.actor_id=@actor " +
+            "AND lo.idempotency_key=@key AND lo.type='INTERNAL_TRANSFER' " +
+            "AND lo.status='COMPLETED'");
+        command.Parameters.Add("operation", SpannerDbType.String, operationId);
+        command.Parameters.Add("actor", SpannerDbType.String, clientId);
+        command.Parameters.Add("key", SpannerDbType.String, idempotencyKey);
+
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            return null;
+
+        var response = MapTransferRow(reader);
+        return response.Amount == request.Amount &&
+               string.Equals(response.Currency, request.Currency, StringComparison.Ordinal) &&
+               string.Equals(response.DestinationTransferCode, request.DestinationTransferCode, StringComparison.Ordinal) &&
+               string.Equals(response.Description, request.Description, StringComparison.Ordinal)
+            ? response
+            : null;
+    }
+
+    /// <summary>
     /// Lista el historial de transferencias donde el cliente autenticado (<paramref name="clientId"/> = auth_subject)
     /// sea el ORIGEN o el DESTINO de la transferencia.
     /// </summary>
@@ -226,7 +443,7 @@ public sealed class SpannerTransferService(SpannerDb db, ILogger<SpannerTransfer
         int pageSize = 20,
         CancellationToken cancellationToken = default)
     {
-        await using var conn = db.Open();
+        await using var conn = (connectionFactory ?? db.Open)();
         var clientDbId = await ResolveClientByAuthSubjectAsync(conn, clientId, cancellationToken);
 
         var offset = (Math.Max(1, page) - 1) * Math.Min(100, pageSize);
@@ -278,7 +495,7 @@ public sealed class SpannerTransferService(SpannerDb db, ILogger<SpannerTransfer
         string transferId,
         CancellationToken cancellationToken = default)
     {
-        await using var conn = db.Open();
+        await using var conn = (connectionFactory ?? db.Open)();
         var clientDbId = await ResolveClientByAuthSubjectAsync(conn, clientId, cancellationToken);
 
         var cmd = conn.CreateSelectCommand(
@@ -328,7 +545,7 @@ public sealed class SpannerTransferService(SpannerDb db, ILogger<SpannerTransfer
         string transferId,
         CancellationToken cancellationToken = default)
     {
-        await using var conn = db.Open();
+        await using var conn = (connectionFactory ?? db.Open)();
         var clientDbId = await ResolveClientByAuthSubjectAsync(conn, clientId, cancellationToken);
 
         var cmd = conn.CreateSelectCommand(
