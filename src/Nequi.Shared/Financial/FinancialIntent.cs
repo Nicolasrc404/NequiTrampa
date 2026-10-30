@@ -1,3 +1,5 @@
+using Google.Cloud.Spanner.Data;
+
 namespace Nequi.Shared.Financial;
 
 /// <summary>
@@ -142,9 +144,57 @@ public sealed record FinancialIntentResult(
             : errorCode;
 }
 
+/// <summary>Input for one durable financial-intent execution.</summary>
+public sealed record FinancialIntentExecutionRequest
+{
+    public FinancialIntentExecutionRequest(
+        FinancialIntentIdentity identity,
+        string authenticatedActorId,
+        string requestHash)
+    {
+        Identity = identity ?? throw new ArgumentNullException(nameof(identity));
+        AuthenticatedActorId = Require(authenticatedActorId, nameof(authenticatedActorId));
+        RequestHash = Require(requestHash, nameof(requestHash));
+    }
+
+    public FinancialIntentIdentity Identity { get; }
+    public string AuthenticatedActorId { get; }
+    public string RequestHash { get; }
+
+    private static string Require(string value, string name) =>
+        string.IsNullOrWhiteSpace(value)
+            ? throw new ArgumentException("Value is required.", name)
+            : value;
+}
+
 /// <summary>
-/// The data needed to confirm a financial intent with its ledger operation.
-/// The implementation must persist both in one Spanner transaction.
+/// Shared Spanner transaction supplied by the financial coordinator.
+/// The transaction must remain open until the financial effect and the intent
+/// confirmation have both been written.
+/// </summary>
+public sealed class FinancialIntentTransactionContext
+{
+    public FinancialIntentTransactionContext(
+        SpannerConnection connection,
+        SpannerTransaction transaction,
+        FinancialIntent intent)
+    {
+        Connection = connection ?? throw new ArgumentNullException(nameof(connection));
+        Transaction = transaction ?? throw new ArgumentNullException(nameof(transaction));
+        Intent = intent ?? throw new ArgumentNullException(nameof(intent));
+
+        if (string.IsNullOrWhiteSpace(intent.OperationId))
+            throw new ArgumentException("A transaction context requires a stable operation ID.", nameof(intent));
+    }
+
+    public SpannerConnection Connection { get; }
+    public SpannerTransaction Transaction { get; }
+    public FinancialIntent Intent { get; }
+}
+
+/// <summary>
+/// Legacy value object retained for source compatibility. It is not a
+/// confirmation API; confirmation must use ConfirmInTransactionAsync.
 /// </summary>
 public sealed record FinancialIntentConfirmation
 {
@@ -163,31 +213,59 @@ public sealed record FinancialIntentConfirmation
 }
 
 /// <summary>
-/// Future transaction-aware boundary for durable intent correlation.
-/// No implementation is introduced in this increment.
+/// Transaction-aware persistence boundary for durable financial intentions.
+/// It intentionally has no public create operation outside a shared financial
+/// transaction.
 /// </summary>
 public interface IFinancialIntentStore
 {
     Task<FinancialIntentResult> GetAsync(FinancialIntentIdentity identity, CancellationToken ct);
 
-    /// <summary>
-    /// Atomically gets or creates the durable intention. A hash mismatch must
-    /// be returned as <see cref="FinancialIntentResultKind.IdentityConflict"/>.
-    /// </summary>
-    Task<FinancialIntentResult> GetOrCreateAsync(
-        FinancialIntentIdentity identity,
-        string authenticatedActorId,
-        string requestHash,
-        CancellationToken ct);
-
     Task<FinancialIntentResult> GetOutcomeAsync(FinancialIntentIdentity identity, CancellationToken ct);
 
     /// <summary>
-    /// Confirms the intent and writes the corresponding ledger operation,
-    /// entries, balances and outbox event in the same Spanner transaction.
-    /// There is intentionally no standalone AssociateOperationAsync method.
+    /// Gets or inserts the durable intention inside the supplied financial
+    /// transaction. A hash mismatch must return <see
+    /// cref="FinancialIntentResultKind.IdentityConflict"/>. The caller must
+    /// execute the ledger effect and confirm the intent before committing this
+    /// same transaction.
     /// </summary>
-    Task<FinancialIntentResult> ConfirmWithLedgerAsync(
-        FinancialIntentConfirmation confirmation,
+    Task<FinancialIntentResult> GetOrCreateInTransactionAsync(
+        FinancialIntentTransactionContext transaction,
+        FinancialIntentIdentity identity,
+        string authenticatedActorId,
+        string requestHash,
+        string financialIntentId,
+        string operationId,
+        CancellationToken ct);
+
+    /// <summary>
+    /// Marks the newly created intent as confirmed inside the transaction that
+    /// also contains the ledger operation, entries, balances and outbox event.
+    /// This method must never be called as a second transaction after a ledger
+    /// commit.
+    /// </summary>
+    Task<FinancialIntentResult> ConfirmInTransactionAsync(
+        FinancialIntentTransactionContext transaction,
+        string financialIntentId,
+        string operationId,
         CancellationToken ct);
 }
+
+/// <summary>
+/// Coordinates the durable intent and the complete financial effect in one
+/// retryable Spanner transaction. Existing confirmed intents must be returned
+/// without invoking <paramref name="effect"/>.
+/// </summary>
+public interface IFinancialIntentCoordinator
+{
+    Task<FinancialIntentExecutionResult<T>> ExecuteAsync<T>(
+        FinancialIntentExecutionRequest request,
+        Func<FinancialIntentTransactionContext, CancellationToken, Task<T>> effect,
+        CancellationToken ct);
+}
+
+public sealed record FinancialIntentExecutionResult<T>(
+    FinancialIntentResult Result,
+    T? Value,
+    bool EffectExecuted);
