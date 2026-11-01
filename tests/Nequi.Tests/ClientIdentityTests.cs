@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Nequi.Shared.Security;
 
@@ -97,5 +98,21 @@ public class ClientIdentityTests
         var result = await resolver.ResolveAsync(User("staff-1", Roles.Soporte, "client-9"), CancellationToken.None);
 
         Assert.Equal("client-9", result);
+    }
+
+    [Fact]
+    public void DemoHeaders_En_Produccion_Lanza_Excepcion()
+    {
+        var services = new ServiceCollection();
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["Gcp:ProjectId"] = "test-proj",
+                ["Auth:DemoHeaders"] = "true",
+                ["ASPNETCORE_ENVIRONMENT"] = "Production",
+            })
+            .Build();
+
+        Assert.Throws<InvalidOperationException>(() => { services.AddNequiAuth(config); });
     }
 }

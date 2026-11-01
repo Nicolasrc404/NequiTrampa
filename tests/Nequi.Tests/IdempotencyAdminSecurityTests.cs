@@ -160,6 +160,7 @@ public sealed class IdempotencyAdminSecurityTests
         public Task<bool> DeleteAsync(string collection, string id, CancellationToken ct) => throw new IOException("audit unavailable");
         public Task<IReadOnlyList<IDictionary<string, object?>>> QueryEqualsAsync(string collection, string field, object value, int limit, CancellationToken ct) => throw new IOException("audit unavailable");
         public Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedAsync(string collection, string field, object value, string orderByField, int limit, CancellationToken ct) => throw new IOException("audit unavailable");
+        public Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedAfterAsync(string collection, string field, object value, string orderByField, string? afterOrderValue, string? afterId, int limit, CancellationToken ct) => throw new IOException("audit unavailable");
         public Task<IReadOnlyList<IDictionary<string, object?>>> ListAsync(string collection, string orderByField, int limit, CancellationToken ct) => throw new IOException("audit unavailable");
         public Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedPageAsync(string collection, string field, object value, string orderByField, string tieBreakerField, int limit, string? afterOrderValue, string? afterTieValue, CancellationToken ct) => throw new IOException("audit unavailable");
         public Task PingAsync(CancellationToken ct) => throw new IOException("audit unavailable");

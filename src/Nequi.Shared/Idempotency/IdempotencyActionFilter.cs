@@ -82,6 +82,15 @@ public sealed class IdempotencyActionFilter(
                     "idempotency_in_progress", http);
                 return;
 
+            case BeginOutcome.Stale:
+                // Abandoned IN_PROGRESS record: it may have committed. Never replay automatically.
+                logger.LogWarning("Idempotency stale key={Key} scope={Scope} actor={Actor}", key, scope, uid);
+                context.Result = BuildProblem(409, "Idempotency key requires reconciliation",
+                    "This Idempotency-Key was left in progress after a possible commit. " +
+                    "Verify the operation against the ledger/movements before retrying with a new key.",
+                    "idempotency_stale", http);
+                return;
+
             case BeginOutcome.Replay:
                 http.Response.Headers["Idempotent-Replayed"] = "true";
                 context.Result = new ContentResult
@@ -94,39 +103,50 @@ public sealed class IdempotencyActionFilter(
         }
 
         // BeginOutcome.Started — execute the action.
-        ActionExecutedContext executed;
         try
         {
-            executed = await next();
+            var executed = await next();
+
+            // When an exception filter (e.g. WalletExceptionFilter) handles an exception,
+            // executed.Exception is still populated, but ExceptionHandled is true and Result is set.
+            if (executed.Exception != null && !executed.ExceptionHandled)
+            {
+                if (executed.Exception is BadHttpRequestException badHttp && badHttp.StatusCode < 500)
+                {
+                    // Pre-execution validation/HTTP parse failure: record definitive 4xx rejection.
+                    var problemBody = JsonSerializer.Serialize(new
+                    {
+                        status = badHttp.StatusCode,
+                        title = "Bad Request",
+                        detail = badHttp.Message,
+                        code = "bad_request"
+                    });
+                    await store.CompleteAsync(uid, scope, key, badHttp.StatusCode, problemBody, "application/problem+json", CancellationToken.None);
+                    return;
+                }
+
+                // Unhandled exception (crash, timeout, Spanner commit uncertainty):
+                // keep IN_PROGRESS to prevent dangerous duplicate commits; do NOT abandon blindly.
+                throw executed.Exception;
+            }
+
+            var (status, body) = ExtractResult(executed.Result);
+            if (status >= 500)
+            {
+                // Server-side failure: outcome is uncertain. Do NOT delete the idempotency key;
+                // keep it in progress so reconciliation is required instead of duplicate execution.
+                return;
+            }
+
+            // Definite outcome (< 500): 2xx success or 4xx domain rejection.
+            await store.CompleteAsync(uid, scope, key, status, body, "application/json", CancellationToken.None);
+            return;
         }
         catch
         {
-            // The action may have committed a financial effect before the exception escaped.
-            // Keep the reservation for reconciliation.
-            // Do not infer that the effect was absent from the exception or client disconnect.
+            // Do NOT abandon on unhandled exception: preserve IN_PROGRESS record for financial safety.
             throw;
         }
-
-        if (executed.Exception != null)
-        {
-            // An exception does not prove that the financial effect was absent.
-            throw executed.Exception;
-        }
-
-        var (status, body) = ExtractResult(executed.Result);
-        if (status >= 500)
-        {
-            // The action may have committed a financial effect before producing the 5xx.
-            // Keep the reservation until the outcome is reconciled safely.
-            return;
-        }
-
-        // The action already ran and succeeded (status < 500): any financial effect
-        // is already committed. From here on AbandonAsync must never run — deleting the
-        // IN_PROGRESS record now would let a retry with the same key re-execute an
-        // already-applied movement. If CompleteAsync itself fails, the record stays
-        // IN_PROGRESS so a retry is rejected with 409 instead of silently duplicating it.
-        await store.CompleteAsync(uid, scope, key, status, body, "application/json", CancellationToken.None);
     }
 
     private static ObjectResult BuildProblem(int status, string title, string detail, string code, HttpContext http)

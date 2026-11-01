@@ -4,7 +4,17 @@ using Microsoft.AspNetCore.Http;
 
 namespace Nequi.Shared.Idempotency;
 
-public enum BeginOutcome { Started, Replay, Conflict, InProgress }
+public enum BeginOutcome { Started, Replay, Conflict, InProgress, Stale }
+
+/// <summary>
+/// Time a record may stay IN_PROGRESS before it is treated as abandoned. An abandoned key is
+/// never replayed automatically: the caller gets a recoverable STALE error so the operation can
+/// be reconciled against the authoritative ledger first (no double financial effect).
+/// </summary>
+public sealed class IdempotencyOptions
+{
+    public TimeSpan InProgressTimeout { get; init; } = TimeSpan.FromMinutes(5);
+}
 
 public static class IdempotencyRequestHash
 {
@@ -83,20 +93,25 @@ public interface IIdempotencyStore
 }
 
 /// <summary>Single-instance store for local development and tests. Cloud deployments use the Spanner store.</summary>
-public sealed class InMemoryIdempotencyStore : IIdempotencyStore
+public sealed class InMemoryIdempotencyStore(IdempotencyOptions? options = null) : IIdempotencyStore
 {
     private readonly ConcurrentDictionary<string, IdempotencyRecord> _records = new();
+    private readonly IdempotencyOptions _options = options ?? new IdempotencyOptions();
     private static string Id(string actor, string scope, string key) => $"{actor}|{scope}|{key}";
 
-    public Task<(BeginOutcome, IdempotencyRecord?)> BeginAsync(string actorId, string scope, string key, string requestHash, CancellationToken ct)
+    public Task<(BeginOutcome Outcome, IdempotencyRecord? Record)> BeginAsync(string actorId, string scope, string key, string requestHash, CancellationToken ct)
     {
         var fresh = new IdempotencyRecord(actorId, scope, key, requestHash, null, null, null, DateTimeOffset.UtcNow);
         var existing = _records.GetOrAdd(Id(actorId, scope, key), fresh);
         if (ReferenceEquals(existing, fresh)) return Task.FromResult<(BeginOutcome, IdempotencyRecord?)>((BeginOutcome.Started, null));
         if (existing.RequestHash != requestHash) return Task.FromResult<(BeginOutcome, IdempotencyRecord?)>((BeginOutcome.Conflict, existing));
-        return Task.FromResult<(BeginOutcome, IdempotencyRecord?)>(existing.StatusCode is null
-            ? (BeginOutcome.InProgress, existing)
-            : (BeginOutcome.Replay, existing));
+        if (existing.StatusCode is not null) return Task.FromResult<(BeginOutcome, IdempotencyRecord?)>((BeginOutcome.Replay, existing));
+        // IN_PROGRESS: only an abandoned record (older than the timeout) is reported as STALE.
+        // It is never restarted here; reconciliation must happen before a new attempt.
+        return Task.FromResult<(BeginOutcome, IdempotencyRecord?)>(
+            DateTimeOffset.UtcNow - existing.CreatedAt > _options.InProgressTimeout
+                ? (BeginOutcome.Stale, existing)
+                : (BeginOutcome.InProgress, existing));
     }
 
     public Task CompleteAsync(string actorId, string scope, string key, int statusCode, string? body, string? contentType, CancellationToken ct)

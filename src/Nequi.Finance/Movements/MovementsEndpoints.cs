@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Microsoft.AspNetCore.WebUtilities;
 using Nequi.Finance.Common;
 using Nequi.Shared.Data;
 using Nequi.Shared.Http;
@@ -62,6 +64,42 @@ public sealed record MovementDto(
 }
 
 // ---------------------------------------------------------------------------
+// Cursor
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Opaque pagination cursor: base64url(JSON{occurredAt, eventId}) of the last item of a page.
+/// eventId is the Firestore document id, used as deterministic tie-break for equal occurredAt.
+/// </summary>
+public static class MovementsCursor
+{
+    private sealed record Payload(string O, string I);
+
+    public static string Encode(string occurredAt, string eventId) =>
+        WebEncoders.Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(new Payload(occurredAt, eventId)));
+
+    public static bool TryDecode(string? cursor, out string occurredAt, out string eventId)
+    {
+        occurredAt = "";
+        eventId = "";
+        if (string.IsNullOrWhiteSpace(cursor)) return false;
+        try
+        {
+            var payload = JsonSerializer.Deserialize<Payload>(WebEncoders.Base64UrlDecode(cursor));
+            if (payload is null || string.IsNullOrWhiteSpace(payload.O) || string.IsNullOrWhiteSpace(payload.I))
+                return false;
+            occurredAt = payload.O;
+            eventId = payload.I;
+            return true;
+        }
+        catch (Exception e) when (e is FormatException or JsonException or ArgumentException)
+        {
+            return false;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Endpoint
 // ---------------------------------------------------------------------------
 
@@ -83,15 +121,20 @@ public static class MovementsEndpoints
     private const string EventIdField = "eventId";
     private const int DefaultLimit = 50;
     private const int MaxLimit = 200;
+    // Cursor wire format: KeysetCursor, shared with the other Finance list endpoints.
+    // Cursors issued before this merge (MovementsCursor JSON payload) are still accepted.
     private static string EncodeCursor(string occurredAt, string eventId) =>
         KeysetCursor.Encode(occurredAt, eventId);
 
     private static bool TryDecodeCursor(string cursor, out string occurredAt, out string eventId)
     {
         occurredAt = ""; eventId = "";
-        if (!KeysetCursor.TryDecode(cursor, 2, out var parts)) return false;
-        occurredAt = parts[0]; eventId = parts[1];
-        return true;
+        if (KeysetCursor.TryDecode(cursor, 2, out var parts))
+        {
+            occurredAt = parts[0]; eventId = parts[1];
+            return true;
+        }
+        return MovementsCursor.TryDecode(cursor, out occurredAt, out eventId);
     }
 
     // Roles that may query movements for any clientId (investigation / backoffice).
@@ -163,7 +206,7 @@ public static class MovementsEndpoints
             }
 
             // ---------------------------------------------------------------
-            // 3. Limit validation (explicit 400 for out-of-range values)
+            // 3. Limit + cursor validation (explicit 400 for out-of-range values)
             // ---------------------------------------------------------------
             var pageSize = limit ?? DefaultLimit;
             if (pageSize < 1 || pageSize > MaxLimit)
@@ -171,29 +214,32 @@ public static class MovementsEndpoints
                     $"limit must be between 1 and {MaxLimit}.", "invalid_limit");
 
             string? afterOccurredAt = null, afterEventId = null;
-            if (!string.IsNullOrEmpty(cursor) && !TryDecodeCursor(cursor, out afterOccurredAt, out afterEventId))
-                return Problems.Problem(ctx, 400, "Bad Request", "Invalid cursor.", "invalid_cursor");
+            if (!string.IsNullOrWhiteSpace(cursor) &&
+                !TryDecodeCursor(cursor, out afterOccurredAt, out afterEventId))
+                return Problems.Problem(ctx, 400, "Bad Request",
+                    "cursor is not a valid pagination cursor returned by this endpoint.", "invalid_cursor");
 
             // ---------------------------------------------------------------
-            // 4. Query: WHERE clientId = owner ORDER BY occurredAt DESC, eventId DESC
-            //    keyset-paginated after the previous page's last (occurredAt, eventId).
-            //    Fetch one extra row to know whether another page follows.
+            // 4. Query: WHERE clientId = owner ORDER BY occurredAt DESC, eventId ASC LIMIT n+1
+            //    (one extra row only to decide whether nextCursor exists)
             // ---------------------------------------------------------------
-            var rows = await docs.QueryOrderedPageAsync(
+            var rows = await docs.QueryOrderedAfterAsync(
                 FinancialMovements, "clientId", owner,
-                OccurredAtField, EventIdField, pageSize + 1,
-                afterOccurredAt, afterEventId, ctx.RequestAborted);
+                OccurredAtField, afterOccurredAt, afterEventId, pageSize + 1, ctx.RequestAborted);
 
-            var hasMore = rows.Count > pageSize;
-            var items = rows.Take(pageSize).Select(MovementDto.From).ToList();
-
+            var page = rows.Take(pageSize).ToList();
             string? nextCursor = null;
-            if (hasMore && items.Count > 0)
+            if (rows.Count > pageSize && page.Count > 0)
             {
-                var last = items[^1];
-                if (last.OccurredAt is { } occurredAt && last.EventId is { } eventId)
+                var last = page[^1];
+                var occurredAt = last.TryGetValue(OccurredAtField, out var o) ? o?.ToString() : null;
+                var eventId = last.TryGetValue(EventIdField, out var e) ? e?.ToString() : null;
+                // Legacy projections without eventId cannot be paginated deterministically.
+                if (!string.IsNullOrEmpty(occurredAt) && !string.IsNullOrEmpty(eventId))
                     nextCursor = EncodeCursor(occurredAt, eventId);
             }
+
+            var items = page.Select(MovementDto.From).ToList();
 
             return Results.Ok(new
             {

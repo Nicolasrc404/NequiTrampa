@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 using System.Threading.RateLimiting;
 using Google.Apis.Auth.OAuth2;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Nequi.Gateway.Health;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Transforms;
 
@@ -75,6 +78,13 @@ async Task<string> GetIdentityTokenAsync(string audience)
     return await oidc.GetAccessTokenAsync();
 }
 
+// Readiness = upstream services reachable (they probe Spanner/Firestore themselves).
+builder.Services.AddHttpClient("upstream-health", c => c.Timeout = TimeSpan.FromSeconds(3));
+builder.Services.AddSingleton(new GatewayUpstreams(
+    services.ToDictionary(s => s.Key, s => s.Value!), useIdentityTokens));
+builder.Services.AddHealthChecks()
+    .AddCheck<UpstreamReadinessCheck>("upstreams", tags: ["ready"]);
+
 builder.Services.AddReverseProxy()
     .LoadFromMemory(routes.ToList(), clusters)
     .AddTransforms(ctx =>
@@ -100,10 +110,6 @@ builder.Services.AddReverseProxy()
         });
     });
 
-// Cliente dedicado a los probes de /health/ready: timeout corto para que un
-// upstream caido no cuelgue la respuesta de readiness del propio gateway.
-builder.Services.AddHttpClient("gateway-health", c => c.Timeout = TimeSpan.FromSeconds(3));
-
 var origins = (cfg["Cors:AllowedOrigins"] ?? "http://localhost:3000,http://localhost:4200,http://localhost:5173")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
@@ -116,10 +122,15 @@ builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
-        RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+    {
+        // Behind Cloud Run / reverse proxies: trusted edge proxies append the connecting client IP
+        // at the end of X-Forwarded-For. Taking the rightmost valid IP prevents header spoofing / evasion.
+        var clientIp = GetClientIp(ctx);
+        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = cfg.GetValue("RateLimit:PerMinute", 600), Window = TimeSpan.FromMinutes(1), QueueLimit = 0,
-        }));
+        });
+    });
 });
 
 var app = builder.Build();
@@ -136,37 +147,31 @@ app.Use(async (ctx, next) =>
 });
 
 app.MapGet("/", () => Results.Ok(new { service = "nequi-gateway", status = "ok", routes = map.SelectMany(m => m.Paths).Order() }));
-app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy" }));
-app.MapGet("/health/ready", async (IHttpClientFactory httpFactory) =>
+app.MapHealthChecks("/health/live", new HealthCheckOptions
 {
-    var client = httpFactory.CreateClient("gateway-health");
-    var checks = new ConcurrentDictionary<string, string>();
-
-    await Task.WhenAll(services.Select(async kv =>
-    {
-        var (name, baseUrl) = kv;
-        try
-        {
-            using var req = new HttpRequestMessage(HttpMethod.Get, baseUrl!.TrimEnd('/') + "/health/live");
-            if (useIdentityTokens)
-                req.Headers.TryAddWithoutValidation("Authorization", $"Bearer {await GetIdentityTokenAsync(baseUrl.TrimEnd('/'))}");
-
-            using var resp = await client.SendAsync(req);
-            checks[name] = resp.IsSuccessStatusCode ? "Healthy" : "Unhealthy";
-        }
-        catch
-        {
-            checks[name] = "Unhealthy";
-        }
-    }));
-
-    var healthy = checks.Values.All(v => v == "Healthy");
-    return Results.Json(
-        new { status = healthy ? "Healthy" : "Unhealthy", upstreams = services.Keys.Order(), checks },
-        statusCode: healthy ? StatusCodes.Status200OK : StatusCodes.Status503ServiceUnavailable);
+    Predicate = _ => false,
+    ResponseWriter = HealthResponse.Write,
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = r => r.Tags.Contains("ready"),
+    ResponseWriter = HealthResponse.Write,
+    ResultStatusCodes = { [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable },
 });
 app.MapReverseProxy();
 app.Run();
+
+static string GetClientIp(HttpContext ctx)
+{
+    var xff = ctx.Request.Headers["X-Forwarded-For"].ToString();
+    if (!string.IsNullOrWhiteSpace(xff))
+    {
+        var ips = xff.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (ips.Length > 0 && System.Net.IPAddress.TryParse(ips[^1], out _))
+            return ips[^1];
+    }
+    return ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+}
 
 public partial class Program { }
 

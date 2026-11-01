@@ -113,7 +113,7 @@ public sealed class FinancialOperationsController(LedgerReader ledger, LedgerAdj
         {
             var op = await adjuster.AdjustAsync(request.ClientId, dir == "CREDIT", request.Amount, request.Reason, Me, idempotencyKey!, ct);
             await audit.WriteAsync(Me, "FINANCIAL_ADJUSTMENT_CREATED", "ledger_operation", op.OperationId,
-                new { request.ClientId, dir, request.Amount, request.Reason, reference = op.PublicReference }, operationId: op.OperationId, ct: ct);
+                new { request.ClientId, dir, amountCop = request.Amount, amountMinorCents = request.Amount * 100L, request.Reason, reference = op.PublicReference }, operationId: op.OperationId, ct: ct);
             return Created($"/v1/financial-adjustments/{op.PublicReference}", op);
         }
         catch (BackofficeException e) { return Map(e); }

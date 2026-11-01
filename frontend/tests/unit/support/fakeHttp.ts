@@ -49,6 +49,11 @@ export function createFakeHttp(
       call<T>(method, path, options?.body, options),
     get: <T>(path: string, options?: RequestOptions) =>
       call<T>('GET', path, undefined, options),
+    getWithResponse: async <T>(path: string, options?: RequestOptions) => {
+      const data = await call<T>('GET', path, undefined, options);
+      const headers = new Headers();
+      return { data, headers, status: 200 };
+    },
     post: <T>(path: string, body?: unknown, options?: RequestOptions) =>
       call<T>('POST', path, body, options),
     patch: <T>(path: string, body?: unknown, options?: RequestOptions) =>

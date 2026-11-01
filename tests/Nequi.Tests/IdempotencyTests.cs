@@ -45,7 +45,7 @@ internal sealed class ThrowOnceOnCompleteStore : IIdempotencyStore
         _inner.FindStaleInProgressAsync(olderThan, limit, ct);
 }
 
-public sealed class IdempotencyFilterTests
+public sealed class IdempotencyEndpointFilterTests
 {
     private static EndpointFilterInvocationContext BuildContext(IIdempotencyStore store, string key, string body)
     {

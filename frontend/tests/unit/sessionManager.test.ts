@@ -309,3 +309,71 @@ test('un logout durante la restauración impide que la respuesta tardía reabra 
   assert.equal(manager.getSnapshot().status, 'anonymous');
   assert.equal(await storage.loadRefreshToken(), null);
 });
+
+test('un 401 con el token de una sesión anterior no cierra la sesión nueva', async () => {
+  let signInCount = 0;
+  const identity = new FakeIdentity({
+    signIn: async () => {
+      signInCount += 1;
+      return tokens({
+        idToken: idToken({ user_id: `uid-${signInCount}` }),
+        refreshToken: `refresh-${signInCount}`,
+      });
+    },
+  });
+  const { manager } = createManager({ identity });
+
+  await manager.signIn('a@nequi.com', 'pw');
+  const previousToken = await manager.getAccessToken();
+  await manager.signOut();
+  await manager.signIn('b@nequi.com', 'pw');
+
+  await manager.handleUnauthorized(previousToken);
+
+  assert.equal(manager.getSnapshot().status, 'authenticated');
+  assert.equal(manager.getSnapshot().user?.uid, 'uid-2');
+});
+
+test('un 401 con el token vigente sí invalida la sesión', async () => {
+  const { manager } = createManager();
+  await manager.signIn('a@nequi.com', 'pw');
+  const currentToken = await manager.getAccessToken();
+
+  await manager.handleUnauthorized(currentToken);
+
+  assert.equal(manager.getSnapshot().status, 'anonymous');
+  assert.equal(manager.getSnapshot().errorCode, 'invalid_session');
+});
+
+class DelayedClearStorage extends MemorySessionStorage {
+  private readonly pending: Array<() => void> = [];
+
+  override async clear(): Promise<void> {
+    await new Promise<void>((resolve) => this.pending.push(resolve));
+    await super.clear();
+  }
+
+  release(): void {
+    for (const resolve of this.pending.splice(0)) resolve();
+  }
+}
+
+test('getAccessToken durante el logout no reutiliza el refresh token', async () => {
+  const storage = new DelayedClearStorage();
+  await storage.saveRefreshToken('refresh-old');
+  const identity = new FakeIdentity();
+  const { manager } = createManager({ storage, identity });
+  await manager.restore();
+  assert.equal(identity.refreshCalls.length, 1);
+
+  const loggingOut = manager.signOut();
+  const tokenDuringLogout = await manager.getAccessToken();
+  assert.equal(tokenDuringLogout, null);
+  assert.equal(identity.refreshCalls.length, 1);
+
+  storage.release();
+  await loggingOut;
+  assert.equal(manager.getSnapshot().status, 'anonymous');
+  assert.equal(await manager.getAccessToken(), null);
+  assert.equal(await storage.loadRefreshToken(), null);
+});

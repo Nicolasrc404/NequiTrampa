@@ -1991,6 +1991,9 @@ function MainApp() {
             sectionTitle={demoEnabled ? 'Hoy' : 'Movimientos recientes'}
             onRefresh={demoEnabled ? undefined : reloadMovements}
             realMode={!demoEnabled}
+            hasMore={demoEnabled ? false : movements.hasMore}
+            loadingMore={demoEnabled ? false : movements.loadingMore}
+            onLoadMore={demoEnabled ? undefined : movements.loadMore}
           />
         )}
         {currentState === 'Movements_02' && (

@@ -48,23 +48,13 @@ public sealed class GatewayRouteTests : IDisposable
 
         Assert.Equal(HttpStatusCode.OK, (await http.GetAsync("/health/live")).StatusCode);
 
-        // The test upstreams (http://localhost:910x) are not actually running, so a real
-        // readiness probe against them must report Unhealthy/503 instead of a hardcoded
-        // Healthy — that is exactly the bug this endpoint used to have.
+        // Readiness is real: the synthetic upstreams are unreachable, so it must report 503,
+        // but the endpoint itself stays public (no auth required).
         var ready = await http.GetAsync("/health/ready");
         Assert.Equal(HttpStatusCode.ServiceUnavailable, ready.StatusCode);
 
         var body = await Phase4.BodyAsync(ready);
         Assert.Equal("Unhealthy", body.GetProperty("status").GetString());
-
-        var upstreams = body.GetProperty("upstreams").EnumerateArray()
-            .Select(u => u.GetString()!)
-            .ToHashSet(StringComparer.Ordinal);
-        Assert.Contains("wallet", upstreams);
-        Assert.Contains("finance", upstreams);
-
-        var checks = body.GetProperty("checks");
-        Assert.Equal("Unhealthy", checks.GetProperty("wallet").GetString());
-        Assert.Equal("Unhealthy", checks.GetProperty("finance").GetString());
+        Assert.Equal("Unhealthy", body.GetProperty("checks").GetProperty("upstreams").GetString());
     }
 }

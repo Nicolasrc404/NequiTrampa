@@ -120,3 +120,35 @@ test('list tolera campos opcionales ausentes sin inventar valores', async () => 
   assert.equal(item.occurredAt, null);
   assert.equal(item.status, null);
 });
+
+test('list envía cursor solo cuando se solicita la página siguiente', async () => {
+  const fake = createFakeHttp(() => ({ ...PAGE, nextCursor: 'abc123' }));
+  const page = await createMovementsService(fake.http).list({ limit: 10, cursor: 'abc123' });
+
+  assert.deepEqual(fake.calls[0].options?.query, { limit: 10, cursor: 'abc123' });
+  assert.equal(page.nextCursor, 'abc123');
+});
+
+test('list devuelve nextCursor null cuando el backend no envía más páginas', async () => {
+  const fake = createFakeHttp(() => ({ ...PAGE, nextCursor: null }));
+  const page = await createMovementsService(fake.http).list();
+
+  assert.equal(page.nextCursor, null);
+});
+
+test('list tolera nextCursor ausente (contrato anterior)', async () => {
+  const fake = createFakeHttp(() => PAGE);
+  const page = await createMovementsService(fake.http).list();
+
+  assert.equal(page.nextCursor, null);
+});
+
+test('list tolera cursor devuelto como cursor o xNextCursor', async () => {
+  const fake1 = createFakeHttp(() => ({ ...PAGE, cursor: 'cur_abc' }));
+  const page1 = await createMovementsService(fake1.http).list();
+  assert.equal(page1.nextCursor, 'cur_abc');
+
+  const fake2 = createFakeHttp(() => ({ ...PAGE, xNextCursor: 'cur_xyz' }));
+  const page2 = await createMovementsService(fake2.http).list();
+  assert.equal(page2.nextCursor, 'cur_xyz');
+});

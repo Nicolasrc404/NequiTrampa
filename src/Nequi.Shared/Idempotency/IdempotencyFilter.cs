@@ -62,6 +62,12 @@ public sealed class IdempotencyFilter : IEndpointFilter
                     "The operation is pending confirmation or reconciliation",
                     "Do not start an equivalent financial intention with a new Idempotency-Key until the original result is verified.",
                     "idempotency_in_progress");
+            case BeginOutcome.Stale:
+                // Abandoned IN_PROGRESS record: it may have committed. Never replay automatically.
+                return Problems.Problem(http, 409, "Idempotency key requires reconciliation",
+                    "This Idempotency-Key was left in progress after a possible commit. " +
+                    "Verify the operation against the ledger/movements before retrying with a new key.",
+                    code: "idempotency_stale");
             case BeginOutcome.Replay:
                 http.Response.Headers["Idempotent-Replayed"] = "true";
                 return Results.Content(record!.ResponseBody ?? "", record.ContentType ?? "application/json", Encoding.UTF8, record.StatusCode);
@@ -72,10 +78,22 @@ public sealed class IdempotencyFilter : IEndpointFilter
         {
             result = await next(ctx);
         }
+        catch (BadHttpRequestException ex) when (ex.StatusCode < 500)
+        {
+            var problemBody = JsonSerializer.Serialize(new
+            {
+                status = ex.StatusCode,
+                title = "Bad Request",
+                detail = ex.Message,
+                code = "bad_request"
+            });
+            await store.CompleteAsync(uid, scope, key, ex.StatusCode, problemBody, "application/problem+json", CancellationToken.None);
+            throw;
+        }
         catch
         {
-            // The handler may have committed a financial effect before the exception
-            // escaped. Keep the reservation for reconciliation.
+            // Do NOT abandon on unhandled exception: preserve IN_PROGRESS record for financial consistency.
+            // The handler may have committed a financial effect before the exception escaped.
             throw;
         }
 

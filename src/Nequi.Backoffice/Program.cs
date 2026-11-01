@@ -61,3 +61,9 @@ app.UseNequiCommon();
 app.UseHttpsRedirection();
 app.MapControllers();
 app.Run();
+
+namespace Nequi.Backoffice
+{
+    /// <summary>Stable marker for <c>WebApplicationFactory</c> (avoids collisions with other Program classes).</summary>
+    public sealed class BackofficeMarker;
+}

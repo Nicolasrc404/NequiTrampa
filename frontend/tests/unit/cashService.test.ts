@@ -46,7 +46,9 @@ test('listMovements pasa limit y valida lista', async () => {
   assert.equal(movements.length, 1);
   assert.equal(movements[0].direction, 'expense');
 
-  const notAList = createFakeHttp(() => ({ items: [] }));
+  // Un objeto con items es ahora formato válido (paginación).
+  // Verificamos que un payload inválido (string) sí se rechaza.
+  const notAList = createFakeHttp(() => 'not-a-list');
   await assert.rejects(
     createCashService(notAList.http).listMovements(),
     ServiceContractError,

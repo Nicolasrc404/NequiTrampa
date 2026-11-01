@@ -25,7 +25,16 @@ public static class AuthExtensions
     public static IServiceCollection AddNequiAuth(this IServiceCollection services, IConfiguration config)
     {
         var projectId = config["Gcp:ProjectId"] ?? throw new InvalidOperationException("Gcp:ProjectId is required");
-        var demo = config.GetValue<bool>("Auth:DemoHeaders");
+        var envName = config["ASPNETCORE_ENVIRONMENT"]
+            ?? Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT")
+            ?? Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT");
+        var isProduction = string.Equals(envName, "Production", StringComparison.OrdinalIgnoreCase);
+
+        var demoRequested = config.GetValue<bool>("Auth:DemoHeaders");
+        if (demoRequested && isProduction)
+            throw new InvalidOperationException("Auth:DemoHeaders cannot be enabled in Production environment.");
+
+        var demo = demoRequested && !isProduction;
 
         var schemes = services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
             .AddJwtBearer(o =>

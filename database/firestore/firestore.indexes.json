@@ -18,6 +18,14 @@
         { "fieldPath": "occurredAt", "order": "DESCENDING" },
         { "fieldPath": "eventId", "order": "DESCENDING" }
       ]
+    },
+    {
+      "collectionGroup": "financial_movements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientId", "order": "ASCENDING" },
+        { "fieldPath": "occurredAt", "order": "DESCENDING" }
+      ]
     }
   ],
   "fieldOverrides": []

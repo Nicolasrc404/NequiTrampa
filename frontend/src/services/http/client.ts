@@ -24,7 +24,7 @@ export interface HttpClientOptions {
   /** Devuelve el ID token vigente o `null` si no hay sesión. */
   readonly getAccessToken?: () => string | null | Promise<string | null>;
   /** Se invoca una sola vez por respuesta 401 (excepto con `skipAuth`). */
-  readonly onUnauthorized?: (error: ApiError) => void;
+  readonly onUnauthorized?: (error: ApiError, accessToken: string | null) => void;
   readonly defaultHeaders?: Readonly<Record<string, string>>;
 }
 
@@ -40,10 +40,17 @@ export interface RequestOptions {
   readonly skipAuth?: boolean;
 }
 
+export interface HttpResponse<T> {
+  readonly data: T;
+  readonly headers: Headers;
+  readonly status: number;
+}
+
 export interface HttpClient {
   readonly baseUrl: string;
   request<T>(method: string, path: string, options?: RequestOptions): Promise<T>;
   get<T>(path: string, options?: RequestOptions): Promise<T>;
+  getWithResponse?<T>(path: string, options?: RequestOptions): Promise<HttpResponse<T>>;
   post<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T>;
   patch<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T>;
   put<T>(path: string, body?: unknown, options?: RequestOptions): Promise<T>;
@@ -136,11 +143,11 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
       return fetch(input, init);
     });
 
-  async function request<T>(
+  async function execute<T>(
     method: string,
     path: string,
     requestOptions: RequestOptions = {},
-  ): Promise<T> {
+  ): Promise<{ data: T; response: Response; status: number }> {
     if (requestOptions.signal?.aborted) {
       throw ApiError.fromTransport('aborted');
     }
@@ -209,7 +216,7 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
       const error = ApiError.fromResponse(status, raw, response.headers);
       if (status === 401 && !requestOptions.skipAuth && options.onUnauthorized) {
         try {
-          options.onUnauthorized(error);
+          options.onUnauthorized(error, accessToken);
         } catch {
           // El hook de sesión nunca debe enmascarar el error HTTP original.
         }
@@ -218,20 +225,28 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
     }
 
     const contentType = response.headers?.get?.('content-type') ?? '';
-    return parseSuccessBody<T>(status, raw, contentType);
+    const data = parseSuccessBody<T>(status, raw, contentType);
+    return { data, response, status };
   }
+
+  const requestFn = async <T>(method: string, path: string, requestOptions?: RequestOptions) =>
+    (await execute<T>(method, path, requestOptions)).data;
 
   return {
     baseUrl: resolvedBaseUrl,
-    request,
-    get: (path, requestOptions) => request('GET', path, requestOptions),
+    request: requestFn,
+    get: (path, requestOptions) => requestFn('GET', path, requestOptions),
+    getWithResponse: async <T>(path: string, requestOptions?: RequestOptions) => {
+      const res = await execute<T>('GET', path, requestOptions);
+      return { data: res.data, headers: res.response.headers, status: res.status };
+    },
     post: (path, body, requestOptions) =>
-      request('POST', path, { ...requestOptions, body }),
+      requestFn('POST', path, { ...requestOptions, body }),
     patch: (path, body, requestOptions) =>
-      request('PATCH', path, { ...requestOptions, body }),
+      requestFn('PATCH', path, { ...requestOptions, body }),
     put: (path, body, requestOptions) =>
-      request('PUT', path, { ...requestOptions, body }),
-    delete: (path, requestOptions) => request('DELETE', path, requestOptions),
+      requestFn('PUT', path, { ...requestOptions, body }),
+    delete: (path, requestOptions) => requestFn('DELETE', path, requestOptions),
   };
 }
 

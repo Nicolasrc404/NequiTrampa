@@ -21,10 +21,13 @@ export class ApiError extends Error {
 }
 
 type TokenProvider = () => Promise<string | null>;
+type UnauthorizedHandler = (accessToken: string | null) => void;
+// Sin cablear por defecto: `src/api/bootstrap.ts` conecta esta capa antigua
+// (Backoffice) con la sesión única antes de cualquier petición.
 let tokenProvider: TokenProvider = async () => null;
-let onUnauthorized: () => void = () => {};
+let onUnauthorized: UnauthorizedHandler = () => {};
 
-export function configureHttp(opts: { getToken: TokenProvider; onUnauthorized: () => void }) {
+export function configureHttp(opts: { getToken: TokenProvider; onUnauthorized: UnauthorizedHandler }) {
   tokenProvider = opts.getToken;
   onUnauthorized = opts.onUnauthorized;
 }
@@ -50,7 +53,7 @@ export async function request<T>(path: string, opts: RequestOptions = {}): Promi
       baseUrl: API_URL,
       timeoutMs: opts.timeoutMs,
       getAccessToken: tokenProvider,
-      onUnauthorized,
+      onUnauthorized: (_error, accessToken) => onUnauthorized(accessToken),
     });
     return await client.request<T>(opts.method ?? 'GET', path, {
       query: opts.query,
