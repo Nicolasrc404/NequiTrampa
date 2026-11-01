@@ -4,8 +4,6 @@
         "stitch": {
             "type": "local",
             "command": [
-                "cmd",
-                "/c",
                 "stitch",
                 "mcp",
                 "start"

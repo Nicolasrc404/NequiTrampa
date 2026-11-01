@@ -1,3 +1,4 @@
+import '../api/bootstrap';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { fetchRoles, hasSession, restoreSession, subscribeSession } from '../api/auth';
 import { ApiError } from '../api/http';

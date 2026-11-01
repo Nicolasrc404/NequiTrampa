@@ -1,3 +1,5 @@
+using System.Text.Json;
+using Microsoft.AspNetCore.WebUtilities;
 using Nequi.Shared.Data;
 using Nequi.Shared.Http;
 using Nequi.Shared.Security;
@@ -61,6 +63,42 @@ public sealed record MovementDto(
 }
 
 // ---------------------------------------------------------------------------
+// Cursor
+// ---------------------------------------------------------------------------
+
+/// <summary>
+/// Opaque pagination cursor: base64url(JSON{occurredAt, eventId}) of the last item of a page.
+/// eventId is the Firestore document id, used as deterministic tie-break for equal occurredAt.
+/// </summary>
+public static class MovementsCursor
+{
+    private sealed record Payload(string O, string I);
+
+    public static string Encode(string occurredAt, string eventId) =>
+        WebEncoders.Base64UrlEncode(JsonSerializer.SerializeToUtf8Bytes(new Payload(occurredAt, eventId)));
+
+    public static bool TryDecode(string? cursor, out string occurredAt, out string eventId)
+    {
+        occurredAt = "";
+        eventId = "";
+        if (string.IsNullOrWhiteSpace(cursor)) return false;
+        try
+        {
+            var payload = JsonSerializer.Deserialize<Payload>(WebEncoders.Base64UrlDecode(cursor));
+            if (payload is null || string.IsNullOrWhiteSpace(payload.O) || string.IsNullOrWhiteSpace(payload.I))
+                return false;
+            occurredAt = payload.O;
+            eventId = payload.I;
+            return true;
+        }
+        catch (Exception e) when (e is FormatException or JsonException or ArgumentException)
+        {
+            return false;
+        }
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Endpoint
 // ---------------------------------------------------------------------------
 
@@ -95,6 +133,7 @@ public static class MovementsEndpoints
             HttpContext ctx,
             string? clientId,
             int? limit,
+            string? cursor,
             IDocumentStore docs,
             ClientIdentityResolver identities) =>
         {
@@ -150,22 +189,40 @@ public static class MovementsEndpoints
             }
 
             // ---------------------------------------------------------------
-            // 3. Limit validation (explicit 400 for out-of-range values)
+            // 3. Limit + cursor validation (explicit 400 for out-of-range values)
             // ---------------------------------------------------------------
             var pageSize = limit ?? DefaultLimit;
             if (pageSize < 1 || pageSize > MaxLimit)
                 return Problems.Problem(ctx, 400, "Bad Request",
                     $"limit must be between 1 and {MaxLimit}.", "invalid_limit");
 
-            // ---------------------------------------------------------------
-            // 4. Query: WHERE clientId = owner ORDER BY occurredAt DESC LIMIT n
-            //    (server-side ordering via QueryOrderedAsync - see IDocumentStore)
-            // ---------------------------------------------------------------
-            var rows = await docs.QueryOrderedAsync(
-                FinancialMovements, "clientId", owner,
-                OccurredAtField, pageSize, ctx.RequestAborted);
+            string? afterOccurredAt = null, afterEventId = null;
+            if (!string.IsNullOrWhiteSpace(cursor) &&
+                !MovementsCursor.TryDecode(cursor, out afterOccurredAt, out afterEventId))
+                return Problems.Problem(ctx, 400, "Bad Request",
+                    "cursor is not a valid pagination cursor returned by this endpoint.", "invalid_cursor");
 
-            var items = rows.Select(MovementDto.From).ToList();
+            // ---------------------------------------------------------------
+            // 4. Query: WHERE clientId = owner ORDER BY occurredAt DESC, eventId ASC LIMIT n+1
+            //    (one extra row only to decide whether nextCursor exists)
+            // ---------------------------------------------------------------
+            var rows = await docs.QueryOrderedAfterAsync(
+                FinancialMovements, "clientId", owner,
+                OccurredAtField, afterOccurredAt, afterEventId, pageSize + 1, ctx.RequestAborted);
+
+            var page = rows.Take(pageSize).ToList();
+            string? nextCursor = null;
+            if (rows.Count > pageSize && page.Count > 0)
+            {
+                var last = page[^1];
+                var occurredAt = last.TryGetValue(OccurredAtField, out var o) ? o?.ToString() : null;
+                var eventId = last.TryGetValue("eventId", out var e) ? e?.ToString() : null;
+                // Legacy projections without eventId cannot be paginated deterministically.
+                if (!string.IsNullOrEmpty(occurredAt) && !string.IsNullOrEmpty(eventId))
+                    nextCursor = MovementsCursor.Encode(occurredAt, eventId);
+            }
+
+            var items = page.Select(MovementDto.From).ToList();
 
             return Results.Ok(new
             {
@@ -173,6 +230,7 @@ public static class MovementsEndpoints
                 count = items.Count,
                 limit = pageSize,
                 items,
+                nextCursor,
             });
         }).RequireAuthorization();
     }

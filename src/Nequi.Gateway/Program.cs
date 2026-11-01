@@ -1,7 +1,10 @@
 using System.Collections.Concurrent;
 using System.Threading.RateLimiting;
 using Google.Apis.Auth.OAuth2;
+using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
+using Nequi.Gateway.Health;
 using Yarp.ReverseProxy.Configuration;
 using Yarp.ReverseProxy.Transforms;
 
@@ -63,6 +66,13 @@ var oidcCache = new ConcurrentDictionary<string, OidcToken>();
 var useIdentityTokens = cfg.GetValue("Gateway:IdentityTokens", true);
 GoogleCredential? adc = null;
 
+// Readiness = upstream services reachable (they probe Spanner/Firestore themselves).
+builder.Services.AddHttpClient("upstream-health", c => c.Timeout = TimeSpan.FromSeconds(3));
+builder.Services.AddSingleton(new GatewayUpstreams(
+    services.ToDictionary(s => s.Key, s => s.Value!), useIdentityTokens));
+builder.Services.AddHealthChecks()
+    .AddCheck<UpstreamReadinessCheck>("upstreams", tags: ["ready"]);
+
 builder.Services.AddReverseProxy()
     .LoadFromMemory(routes.ToList(), clusters)
     .AddTransforms(ctx =>
@@ -109,10 +119,15 @@ builder.Services.AddRateLimiter(o =>
 {
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
     o.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(ctx =>
-        RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown", _ => new FixedWindowRateLimiterOptions
+    {
+        // Behind Cloud Run / reverse proxies: trusted edge proxies append the connecting client IP
+        // at the end of X-Forwarded-For. Taking the rightmost valid IP prevents header spoofing / evasion.
+        var clientIp = GetClientIp(ctx);
+        return RateLimitPartition.GetFixedWindowLimiter(clientIp, _ => new FixedWindowRateLimiterOptions
         {
             PermitLimit = cfg.GetValue("RateLimit:PerMinute", 600), Window = TimeSpan.FromMinutes(1), QueueLimit = 0,
-        }));
+        });
+    });
 });
 
 var app = builder.Build();
@@ -129,10 +144,31 @@ app.Use(async (ctx, next) =>
 });
 
 app.MapGet("/", () => Results.Ok(new { service = "nequi-gateway", status = "ok", routes = map.SelectMany(m => m.Paths).Order() }));
-app.MapGet("/health/live", () => Results.Ok(new { status = "Healthy" }));
-app.MapGet("/health/ready", () => Results.Ok(new { status = "Healthy", upstreams = services.Keys.Order() }));
+app.MapHealthChecks("/health/live", new HealthCheckOptions
+{
+    Predicate = _ => false,
+    ResponseWriter = HealthResponse.Write,
+});
+app.MapHealthChecks("/health/ready", new HealthCheckOptions
+{
+    Predicate = r => r.Tags.Contains("ready"),
+    ResponseWriter = HealthResponse.Write,
+    ResultStatusCodes = { [HealthStatus.Unhealthy] = StatusCodes.Status503ServiceUnavailable },
+});
 app.MapReverseProxy();
 app.Run();
+
+static string GetClientIp(HttpContext ctx)
+{
+    var xff = ctx.Request.Headers["X-Forwarded-For"].ToString();
+    if (!string.IsNullOrWhiteSpace(xff))
+    {
+        var ips = xff.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (ips.Length > 0 && System.Net.IPAddress.TryParse(ips[^1], out _))
+            return ips[^1];
+    }
+    return ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+}
 
 public partial class Program { }
 

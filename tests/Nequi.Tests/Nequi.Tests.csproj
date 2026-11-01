@@ -26,6 +26,7 @@
     <ProjectReference Include="..\..\src\Nequi.Wallet\Nequi.Wallet.csproj" />
     <ProjectReference Include="..\..\src\Nequi.Finance\Nequi.Finance.csproj" />
     <ProjectReference Include="..\..\src\Nequi.Gateway\Nequi.Gateway.csproj" />
+    <ProjectReference Include="..\..\src\Nequi.Backoffice\Nequi.Backoffice.csproj" />
   </ItemGroup>
 
 </Project>

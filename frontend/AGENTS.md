@@ -18,29 +18,36 @@ This project uses npm (`package-lock.json`); there is no `bun.lock`.
 npx expo install <package>  # ALWAYS use instead of npm/yarn/pnpm/bun add — resolves SDK-compatible versions
 npx expo start              # start the dev server
 npx tsc --noEmit            # typecheck
+npm run typecheck           # same as above
+npm run test:unit           # compile pure modules + run node --test (no Jest)
 npx expo-doctor             # diagnose dependency and config issues
 npx expo install --fix      # fix incompatible package versions
 ```
 
-There is no lint script or ESLint configuration in this app. Do not add lint tooling without explicit approval. Run typecheck before declaring any task done.
+`test:unit` compiles only `src/config`, `src/services`, `src/utils` and `tests/unit` via `tsconfig.test.json` (it excludes `src/services/api.ts` and `src/services/session/platform.ts`, which import Expo/React Native). Keep new testable logic pure in those folders and add `tests/unit/*.test.ts`.
+
+There is no lint script or ESLint configuration in this app. Do not add lint tooling without explicit approval. Run typecheck and unit tests before declaring any task done.
 
 ## Navigation
 
 - The app entry is `index.ts`, which calls `registerRootComponent(App)`.
-- `App.tsx` owns navigation: it stores the active `MovementsState` and the selected movement, then renders one of `Movements01Screen`–`Movements08Screen`.
-- `DevStateBar` is the current development switcher for previewing states.
-- Screens live in `src/screens/movements/`.
+- `App.tsx` owns client-app navigation: it stores the active `AppState`, wires services/hooks, routes loading/empty/error states, and renders every client module (movements, beneficiaries, categories, transfers, recharges, budgets, goals, cash, analytics, wallet, profile, access, configuration, projection status). New screens are added to this switch.
+- `DevStateBarMulti` is the development switcher for previewing states.
+- `EXPO_PUBLIC_APP_MODE=backoffice` renders `src/navigation/BackofficeApp.tsx` instead, which has its own stack (`NavContext`) and role-gated routes.
+- `SessionGate` is the client login: it captures email/password and calls `sessionManager.signIn`; without a valid session the app shows no data and allows no operations. Do not add a parallel login screen or simulate authentication. The backoffice has `src/screens/auth/LoginScreen.tsx`.
 - Expo Router and React Navigation are NOT installed. Do not add them or migrate navigation without explicit approval.
 
 ## Project structure
 
-- `App.tsx` — root component and current state-based navigation.
-- `src/screens/movements/` — the eight implemented screens.
-- `src/components/common/` — shared UI components.
-- `src/components/movements/` — movement-specific UI components.
-- `src/data/demoMovements.ts` — clearly identified DEMO data.
-- `src/theme/colors.ts` — current source of design tokens.
-- `src/types/movements.ts` — shared types.
+- `App.tsx` — root component and client-app state router.
+- `src/screens/<module>/` — screens grouped by module (movements, beneficiaries, categories, transfers, recharges, budgets, goals, cash, analytics, wallet, access, profile, configuration, projection-status, plus backoffice modules: auth, home, users, cases, customers, operations, reversals).
+- `src/components/common/` — shared UI (including `states/` loading/empty/error) and `src/components/<module>/` — module-specific UI.
+- `src/services/` — pure domain clients over `HttpClient`; `src/hooks/` — React data/action hooks.
+- `src/api/` — legacy HTTP compatibility layer used by the backoffice and `useAsync`; do not add new client code there.
+- `src/services/session/` — session core; `src/services/session/platform.ts` wires SecureStore (native) or memory (web).
+- `src/data/demo*.ts` — clearly identified DEMO data.
+- `src/theme/colors.ts` — single source of design tokens.
+- `src/types/` — shared module types. The `AppState` union lives in `App.tsx`.
 
 ## Styling
 
@@ -69,8 +76,8 @@ La separación arquitectónica oficial es:
 
 - Hooks React: `frontend/src/hooks/`.
 - Interfaces, tipos, enums y contratos de datos: `frontend/src/types/`.
-- Acceso HTTP al Gateway: `frontend/src/services/`.
-- Presentación e interacción visual: `frontend/src/screens/`.
+- Acceso HTTP al Gateway: `frontend/src/services/` (capa nueva); `frontend/src/api/` es legado del backoffice.
+- Presentación e interacción visual: `frontend/src/screens/` y `frontend/src/components/<módulo>/`.
 
 No deben crearse `frontend/types/` ni estructuras paralelas.
 

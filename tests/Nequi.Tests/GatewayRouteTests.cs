@@ -47,14 +47,14 @@ public sealed class GatewayRouteTests : IDisposable
         using var http = _factory.CreateClient();
 
         Assert.Equal(HttpStatusCode.OK, (await http.GetAsync("/health/live")).StatusCode);
+
+        // Readiness is real: the synthetic upstreams are unreachable, so it must report 503,
+        // but the endpoint itself stays public (no auth required).
         var ready = await http.GetAsync("/health/ready");
-        Assert.Equal(HttpStatusCode.OK, ready.StatusCode);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, ready.StatusCode);
 
         var body = await Phase4.BodyAsync(ready);
-        var upstreams = body.GetProperty("upstreams").EnumerateArray()
-            .Select(u => u.GetString()!)
-            .ToHashSet(StringComparer.Ordinal);
-        Assert.Contains("wallet", upstreams);
-        Assert.Contains("finance", upstreams);
+        Assert.Equal("Unhealthy", body.GetProperty("status").GetString());
+        Assert.Equal("Unhealthy", body.GetProperty("checks").GetProperty("upstreams").GetString());
     }
 }

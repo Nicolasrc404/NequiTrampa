@@ -103,7 +103,9 @@ export class SessionManager {
    * Renueva cerca del vencimiento con una única petición concurrente.
    */
   async getAccessToken(): Promise<string | null> {
-    if (!this.session && this.status !== 'unavailable') {
+    // Solo se restaura en el arranque. Tras logout/anonymous o unavailable no
+    // se reutiliza el refresh token persistido (evita resucitar la sesión).
+    if (!this.session && this.status === 'initializing') {
       await this.restore();
     }
 
@@ -174,8 +176,16 @@ export class SessionManager {
     await this.clearSession('anonymous', null);
   }
 
-  /** Un 401 del backend invalida la sesión local (no se reintenta la request). */
-  async handleUnauthorized(): Promise<void> {
+  /**
+   * Un 401 del backend invalida la sesión local (no se reintenta la request).
+   * Si se conoce el token usado, un 401 de una petición emitida con un token
+   * anterior (logout/login posterior) no debe cerrar la sesión vigente.
+   */
+  async handleUnauthorized(accessToken?: string | null): Promise<void> {
+    if (accessToken !== undefined) {
+      const current = this.session;
+      if (current === null || current.tokens.idToken !== accessToken) return;
+    }
     await this.clearSession('anonymous', 'invalid_session');
   }
 

@@ -24,6 +24,16 @@ public interface IDocumentStore
         string collection, string field, object value,
         string orderByField, int limit, CancellationToken ct);
 
+    /// <summary>
+    /// Cursor variant of <see cref="QueryOrderedAsync"/>: order is <paramref name="orderByField"/> DESC,
+    /// then document id ASC (deterministic tie-break), resuming strictly after the
+    /// (<paramref name="afterOrderValue"/>, <paramref name="afterId"/>) pair when provided.
+    /// </summary>
+    Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedAfterAsync(
+        string collection, string field, object value,
+        string orderByField, string? afterOrderValue, string? afterId,
+        int limit, CancellationToken ct);
+
     /// <summary>Lists the newest documents of a collection ordered by <paramref name="orderByField"/> descending (single-field order: no composite index needed).</summary>
     Task<IReadOnlyList<IDictionary<string, object?>>> ListAsync(string collection, string orderByField, int limit, CancellationToken ct);
 
@@ -64,6 +74,30 @@ public sealed class InMemoryDocumentStore : IDocumentStore
             .Take(limit)
             .Select(Copy)
             .ToList());
+
+    public Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedAfterAsync(
+        string collection, string field, object value,
+        string orderByField, string? afterOrderValue, string? afterId,
+        int limit, CancellationToken ct)
+    {
+        var rows = Col(collection)
+            .Where(kv => kv.Value.TryGetValue(field, out var v) && Equals(v, value))
+            .Select(kv => (Id: kv.Key, Order: kv.Value.TryGetValue(orderByField, out var v) ? v?.ToString() : null))
+            .OrderByDescending(r => r.Order ?? string.Empty, StringComparer.Ordinal)
+            .ThenBy(r => r.Id, StringComparer.Ordinal)
+            .Where(r => afterOrderValue is null || string.IsNullOrEmpty(afterId) || IsAfter(r.Order, r.Id, afterOrderValue, afterId))
+            .Take(limit)
+            .Select(r => Copy(Col(collection)[r.Id]))
+            .ToList();
+        return Task.FromResult<IReadOnlyList<IDictionary<string, object?>>>(rows);
+    }
+
+    /// <summary>Order is orderValue DESC, then id ASC; a row is "after" the cursor when it sorts later.</summary>
+    private static bool IsAfter(string? orderValue, string id, string afterOrderValue, string afterId)
+    {
+        var cmp = string.CompareOrdinal(orderValue, afterOrderValue);
+        return cmp < 0 || (cmp == 0 && string.CompareOrdinal(id, afterId) > 0);
+    }
 
     public Task<IReadOnlyList<IDictionary<string, object?>>> ListAsync(string collection, string orderByField, int limit, CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<IDictionary<string, object?>>>(Col(collection).Values
@@ -122,6 +156,27 @@ public sealed class FirestoreDocumentStore(FirestoreDb db) : IDocumentStore
             .OrderByDescending(orderByField)
             .Limit(limit)
             .GetSnapshotAsync(ct);
+        return snap.Documents
+            .Select(d => (IDictionary<string, object?>)d.ToDictionary().ToDictionary(kv => kv.Key, kv => (object?)kv.Value))
+            .ToList();
+    }
+
+    public async Task<IReadOnlyList<IDictionary<string, object?>>> QueryOrderedAfterAsync(
+        string collection, string field, object value,
+        string orderByField, string? afterOrderValue, string? afterId,
+        int limit, CancellationToken ct)
+    {
+        // Same composite index as QueryOrderedAsync; __name__ (document id) ASC is implicit
+        // in every Firestore index and provides the deterministic tie-break for equal timestamps.
+        var query = db.Collection(collection)
+            .WhereEqualTo(field, value)
+            .OrderByDescending(orderByField)
+            .OrderBy(FieldPath.DocumentId);
+
+        if (afterOrderValue is not null && !string.IsNullOrEmpty(afterId))
+            query = query.StartAfter(afterOrderValue, db.Collection(collection).Document(afterId));
+
+        var snap = await query.Limit(limit).GetSnapshotAsync(ct);
         return snap.Documents
             .Select(d => (IDictionary<string, object?>)d.ToDictionary().ToDictionary(kv => kv.Key, kv => (object?)kv.Value))
             .ToList();

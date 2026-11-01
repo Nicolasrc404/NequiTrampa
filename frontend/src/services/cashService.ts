@@ -73,6 +73,7 @@ export interface CreateCashMovementInput {
 
 export interface CashListOptions {
   readonly limit?: number;
+  readonly cursor?: string;
   readonly signal?: AbortSignal;
 }
 
@@ -81,9 +82,15 @@ export interface CashCreateOptions {
   readonly signal?: AbortSignal;
 }
 
+export interface CashMovementsPageDto {
+  readonly items: readonly CashMovementDto[];
+  readonly nextCursor: string | null;
+}
+
 export interface CashService {
   getBalance(options?: { readonly signal?: AbortSignal }): Promise<CashBalanceDto>;
   listMovements(options?: CashListOptions): Promise<readonly CashMovementDto[]>;
+  listMovementsPage(options?: CashListOptions): Promise<CashMovementsPageDto>;
   createMovement(
     input: CreateCashMovementInput,
     options: CashCreateOptions,
@@ -168,22 +175,58 @@ export function createCashService(http: HttpClient): CashService {
       return parseBalance(payload);
     },
 
-    async listMovements(options = {}) {
+    async listMovementsPage(options = {}) {
       const limit = options.limit ?? CASH_DEFAULT_LIMIT;
       if (!Number.isInteger(limit) || limit < 1 || limit > CASH_MAX_LIMIT) {
         throw new RangeError(`limit debe estar entre 1 y ${CASH_MAX_LIMIT}.`);
       }
-      const payload = await http.get<unknown>('/v1/cash/movements', {
-        query: { limit },
-        signal: options.signal,
-      });
-      if (!Array.isArray(payload)) {
-        throw new ServiceContractError(
-          'El historial de efectivo no es una lista.',
-          'cashMovements',
-        );
+      const query: Record<string, string | number> = { limit };
+      if (options.cursor) query.cursor = options.cursor;
+
+      let payload: unknown;
+      let nextCursor: string | null = null;
+
+      if (typeof http.getWithResponse === 'function') {
+        const response = await http.getWithResponse<unknown>('/v1/cash/movements', {
+          query,
+          signal: options.signal,
+        });
+        payload = response.data;
+        nextCursor =
+          response.headers?.get?.('x-next-cursor') ??
+          response.headers?.get?.('X-Next-Cursor') ??
+          null;
+      } else {
+        payload = await http.get<unknown>('/v1/cash/movements', {
+          query,
+          signal: options.signal,
+        });
       }
-      return payload.map(parseMovement);
+
+      if (Array.isArray(payload)) {
+        return {
+          items: payload.map(parseMovement),
+          nextCursor,
+        };
+      }
+
+      if (typeof payload === 'object' && payload !== null && 'items' in payload) {
+        const record = payload as { items: unknown[]; nextCursor?: string | null };
+        return {
+          items: Array.isArray(record.items) ? record.items.map(parseMovement) : [],
+          nextCursor: nextCursor ?? (typeof record.nextCursor === 'string' ? record.nextCursor : null),
+        };
+      }
+
+      throw new ServiceContractError(
+        'El historial de efectivo no es una lista válida.',
+        'cashMovements',
+      );
+    },
+
+    async listMovements(options = {}) {
+      const page = await this.listMovementsPage(options);
+      return page.items;
     },
 
     async createMovement(input, options) {

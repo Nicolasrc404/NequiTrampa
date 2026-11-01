@@ -17,6 +17,10 @@ interface Movements01ScreenProps {
   sectionTitle?: string;
   readonly onRefresh?: () => void;
   readonly realMode?: boolean;
+  /** Hay más páginas disponibles en el backend. */
+  readonly hasMore?: boolean;
+  readonly loadingMore?: boolean;
+  readonly onLoadMore?: () => void;
 }
 
 export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
@@ -26,6 +30,9 @@ export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
   sectionTitle = 'Hoy',
   onRefresh,
   realMode = false,
+  hasMore = false,
+  loadingMore = false,
+  onLoadMore,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<MovementFilter>('TODOS');
   const source = movements ?? DEMO_MOVEMENTS;
@@ -64,15 +71,35 @@ export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
 
         {/* Transactions Card */}
         <View style={styles.card}>
-          {filteredMovements.map((item, index) => (
-            <TransactionItem
-              key={item.id}
-              item={item}
-              onPress={onSelectMovement}
-              showDivider={index < filteredMovements.length - 1}
-            />
-          ))}
+          {filteredMovements.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No tienes movimientos en esta sección.</Text>
+            </View>
+          ) : (
+            filteredMovements.map((item, index) => (
+              <TransactionItem
+                key={item.id}
+                item={item}
+                onPress={onSelectMovement}
+                showDivider={index < filteredMovements.length - 1}
+              />
+            ))
+          )}
         </View>
+
+        {realMode && hasMore && onLoadMore ? (
+          <TouchableOpacity
+            style={styles.loadMore}
+            onPress={onLoadMore}
+            disabled={loadingMore}
+            accessibilityRole="button"
+            accessibilityLabel="Cargar más movimientos"
+          >
+            <Text style={styles.loadMoreText}>
+              {loadingMore ? 'Cargando…' : 'Cargar más'}
+            </Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
 
       {/* Persistent Bottom Navigation */}
@@ -100,6 +127,17 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   refresh: { color: colors.magenta, fontSize: 13, fontWeight: '800' },
+  loadMore: {
+    marginHorizontal: 16,
+    marginTop: 14,
+    paddingVertical: 12,
+    borderRadius: 16,
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: 'rgba(240, 239, 245, 0.9)',
+  },
+  loadMoreText: { color: colors.magenta, fontSize: 14, fontWeight: '800' },
   realHint: { color: colors.graySub, fontSize: 12, lineHeight: 18, marginHorizontal: 20, marginBottom: 10 },
   sectionTitle: {
     fontSize: 20,
@@ -119,6 +157,16 @@ const styles = StyleSheet.create({
     elevation: 3,
     borderWidth: 1,
     borderColor: 'rgba(240, 239, 245, 0.7)',
+  },
+  emptyContainer: {
+    paddingVertical: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  emptyText: {
+    color: colors.graySub,
+    fontSize: 14,
+    fontWeight: '500',
   },
 });
 

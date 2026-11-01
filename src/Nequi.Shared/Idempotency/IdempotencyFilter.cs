@@ -44,6 +44,12 @@ public sealed class IdempotencyFilter : IEndpointFilter
                 return Problems.Problem(http, 409, "Idempotency key reused with a different body", code: "idempotency_key_conflict");
             case BeginOutcome.InProgress:
                 return Problems.Problem(http, 409, "A request with this Idempotency-Key is still in progress", code: "idempotency_in_progress");
+            case BeginOutcome.Stale:
+                // Abandoned IN_PROGRESS record: it may have committed. Never replay automatically.
+                return Problems.Problem(http, 409, "Idempotency key requires reconciliation",
+                    "This Idempotency-Key was left in progress after a possible commit. " +
+                    "Verify the operation against the ledger/movements before retrying with a new key.",
+                    code: "idempotency_stale");
             case BeginOutcome.Replay:
                 http.Response.Headers["Idempotent-Replayed"] = "true";
                 return Results.Content(record!.ResponseBody ?? "", record.ContentType ?? "application/json", Encoding.UTF8, record.StatusCode);
@@ -56,14 +62,29 @@ public sealed class IdempotencyFilter : IEndpointFilter
             string? body = null;
             if (result is IValueHttpResult { Value: not null } v)
                 body = JsonSerializer.Serialize(v.Value, JsonSerializerOptions.Web);
-            // Only cache definitive outcomes; a 5xx must stay retryable with the same key.
-            if (status >= 500) await store.AbandonAsync(uid, scope, key, CancellationToken.None);
-            else await store.CompleteAsync(uid, scope, key, status, body, "application/json", CancellationToken.None);
+            // Only cache definitive outcomes (< 500). Uncertain outcomes (>= 500) remain IN_PROGRESS
+            // to require reconciliation and prevent dangerous duplicate commits.
+            if (status < 500)
+            {
+                await store.CompleteAsync(uid, scope, key, status, body, "application/json", CancellationToken.None);
+            }
             return result;
+        }
+        catch (BadHttpRequestException ex) when (ex.StatusCode < 500)
+        {
+            var problemBody = JsonSerializer.Serialize(new
+            {
+                status = ex.StatusCode,
+                title = "Bad Request",
+                detail = ex.Message,
+                code = "bad_request"
+            });
+            await store.CompleteAsync(uid, scope, key, ex.StatusCode, problemBody, "application/problem+json", CancellationToken.None);
+            throw;
         }
         catch
         {
-            await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            // Do NOT abandon on unhandled exception: preserve IN_PROGRESS record for financial consistency.
             throw;
         }
     }

@@ -12,28 +12,31 @@ public sealed class SpannerDb(string database)
 }
 
 /// <summary>idempotency_records (PK actor_id, scope, idempotency_key). Begin is one read-write transaction: no double effects.</summary>
-public sealed class SpannerIdempotencyStore(SpannerDb db) : IIdempotencyStore
+public sealed class SpannerIdempotencyStore(SpannerDb db, IdempotencyOptions? options = null) : IIdempotencyStore
 {
-    public async Task<(BeginOutcome, IdempotencyRecord?)> BeginAsync(string actorId, string scope, string key, string requestHash, CancellationToken ct)
+    private readonly IdempotencyOptions _options = options ?? new IdempotencyOptions();
+
+    public async Task<(BeginOutcome Outcome, IdempotencyRecord? Record)> BeginAsync(string actorId, string scope, string key, string requestHash, CancellationToken ct)
     {
         await using var conn = db.Open();
         return await conn.RunWithRetriableTransactionAsync(async tx =>
         {
             var select = conn.CreateSelectCommand(
-                "SELECT request_hash, status, http_status, TO_JSON_STRING(response_body) FROM idempotency_records " +
+                "SELECT request_hash, status, http_status, TO_JSON_STRING(response_body), created_at FROM idempotency_records " +
                 "WHERE actor_id=@a AND scope=@s AND idempotency_key=@k");
             select.Transaction = tx;
             select.Parameters.Add("a", SpannerDbType.String, actorId);
             select.Parameters.Add("s", SpannerDbType.String, scope);
             select.Parameters.Add("k", SpannerDbType.String, key);
 
-            string? hash = null, status = null, body = null; long? http = null;
+            string? hash = null, status = null, body = null; long? http = null; DateTime? createdAt = null;
             await using (var r = await select.ExecuteReaderAsync(ct))
                 if (await r.ReadAsync(ct))
                 {
                     hash = r.GetString(0); status = r.GetString(1);
                     http = r.IsDBNull(2) ? null : r.GetInt64(2);
                     body = r.IsDBNull(3) ? null : r.GetString(3);
+                    createdAt = r.IsDBNull(4) ? null : r.GetDateTime(4);
                 }
 
             if (hash is null)
@@ -51,6 +54,16 @@ public sealed class SpannerIdempotencyStore(SpannerDb db) : IIdempotencyStore
 
             var rec = new IdempotencyRecord(actorId, scope, key, hash, (int?)http, body, "application/json");
             if (hash != requestHash) return (BeginOutcome.Conflict, rec);
+            if (status == "IN_PROGRESS")
+            {
+                // A record without created_at cannot be proven active: treat it as abandoned.
+                var age = createdAt is null
+                    ? TimeSpan.MaxValue
+                    : DateTime.UtcNow - createdAt.Value;
+                return age > _options.InProgressTimeout
+                    ? (BeginOutcome.Stale, rec)
+                    : (BeginOutcome.InProgress, rec);
+            }
             return status switch
             {
                 "COMPLETED" => (BeginOutcome.Replay, rec),

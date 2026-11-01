@@ -63,6 +63,15 @@ public sealed class IdempotencyActionFilter(IIdempotencyStore store, ILogger<Ide
                     "idempotency_in_progress", http);
                 return;
 
+            case BeginOutcome.Stale:
+                // Abandoned IN_PROGRESS record: it may have committed. Never replay automatically.
+                logger.LogWarning("Idempotency stale key={Key} scope={Scope} actor={Actor}", key, scope, uid);
+                context.Result = BuildProblem(409, "Idempotency key requires reconciliation",
+                    "This Idempotency-Key was left in progress after a possible commit. " +
+                    "Verify the operation against the ledger/movements before retrying with a new key.",
+                    "idempotency_stale", http);
+                return;
+
             case BeginOutcome.Replay:
                 http.Response.Headers["Idempotent-Replayed"] = "true";
                 context.Result = new ContentResult
@@ -75,40 +84,48 @@ public sealed class IdempotencyActionFilter(IIdempotencyStore store, ILogger<Ide
         }
 
         // BeginOutcome.Started — execute the action.
-        // Use a flag to guarantee AbandonAsync runs at most once on failure paths.
-        var abandoned = false;
-
         try
         {
             var executed = await next();
 
-            // Case: next() returned with a captured exception (not rethrown).
-            if (executed.Exception != null)
+            // When an exception filter (e.g. WalletExceptionFilter) handles an exception,
+            // executed.Exception is still populated, but ExceptionHandled is true and Result is set.
+            if (executed.Exception != null && !executed.ExceptionHandled)
             {
-                abandoned = true;
-                // Cleanup must not depend on RequestAborted — the same key must stay retryable
-                // even if the client disconnected (mirrors IdempotencyFilter minimal-API behavior).
-                await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+                if (executed.Exception is BadHttpRequestException badHttp && badHttp.StatusCode < 500)
+                {
+                    // Pre-execution validation/HTTP parse failure: record definitive 4xx rejection.
+                    var problemBody = JsonSerializer.Serialize(new
+                    {
+                        status = badHttp.StatusCode,
+                        title = "Bad Request",
+                        detail = badHttp.Message,
+                        code = "bad_request"
+                    });
+                    await store.CompleteAsync(uid, scope, key, badHttp.StatusCode, problemBody, "application/problem+json", CancellationToken.None);
+                    return;
+                }
+
+                // Unhandled exception (crash, timeout, Spanner commit uncertainty):
+                // keep IN_PROGRESS to prevent dangerous duplicate commits; do NOT abandon blindly.
                 throw executed.Exception;
             }
 
             var (status, body) = ExtractResult(executed.Result);
             if (status >= 500)
             {
-                abandoned = true;
-                await store.AbandonAsync(uid, scope, key, CancellationToken.None);
-            }
-            else
-            {
-                await store.CompleteAsync(uid, scope, key, status, body, "application/json", CancellationToken.None);
+                // Server-side failure: outcome is uncertain. Do NOT delete the idempotency key;
+                // keep it in progress so reconciliation is required instead of duplicate execution.
+                return;
             }
 
+            // Definite outcome (< 500): 2xx success or 4xx domain rejection.
+            await store.CompleteAsync(uid, scope, key, status, body, "application/json", CancellationToken.None);
             return;
         }
         catch
         {
-            if (!abandoned)
-                await store.AbandonAsync(uid, scope, key, CancellationToken.None);
+            // Do NOT abandon on unhandled exception: preserve IN_PROGRESS record for financial safety.
             throw;
         }
     }

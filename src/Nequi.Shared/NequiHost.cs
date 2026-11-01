@@ -31,6 +31,12 @@ public static class NequiHost
         cfg["Gcp:ProjectId"] = projectId;
         cfg["Firestore:ProjectId"] = firestoreProjectId;
 
+        // An IN_PROGRESS idempotency record older than this is reported as STALE (never replayed).
+        services.AddSingleton(new IdempotencyOptions
+        {
+            InProgressTimeout = TimeSpan.FromSeconds(cfg.GetValue("Idempotency:InProgressTimeoutSeconds", 300)),
+        });
+
         builder.Logging.ClearProviders();
         builder.Logging.AddConsole(o => o.FormatterName = GcpJsonConsoleFormatter.FormatterName);
         builder.Logging.AddConsoleFormatter<GcpJsonConsoleFormatter, Microsoft.Extensions.Logging.Console.ConsoleFormatterOptions>();

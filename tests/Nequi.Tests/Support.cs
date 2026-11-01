@@ -31,6 +31,17 @@ public static class Env
     public static WebApplicationFactory<Nequi.Wallet.WalletMarker> Wallet() =>
         new WebApplicationFactory<Nequi.Wallet.WalletMarker>().WithWebHostBuilder(b => { foreach (var (k, v) in Config) b.UseSetting(k, v); });
 
+    /// <summary>Backoffice host. El ledger exige Spanner:Database; los tests RBAC no abren conexión.</summary>
+    public static WebApplicationFactory<Nequi.Backoffice.BackofficeMarker> Backoffice()
+    {
+        var config = new Dictionary<string, string?>(Config)
+        {
+            ["Spanner:Database"] = "projects/test-project/instances/test/databases/test",
+        };
+        return new WebApplicationFactory<Nequi.Backoffice.BackofficeMarker>()
+            .WithWebHostBuilder(b => { foreach (var (k, v) in config) b.UseSetting(k, v); });
+    }
+
     public static WebApplicationFactory<Nequi.Finance.FinanceMarker> Finance() =>
         new WebApplicationFactory<Nequi.Finance.FinanceMarker>().WithWebHostBuilder(b => { foreach (var (k, v) in Config) b.UseSetting(k, v); });
 
