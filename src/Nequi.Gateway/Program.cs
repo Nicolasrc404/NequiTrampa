@@ -66,6 +66,18 @@ var oidcCache = new ConcurrentDictionary<string, OidcToken>();
 var useIdentityTokens = cfg.GetValue("Gateway:IdentityTokens", true);
 GoogleCredential? adc = null;
 
+async Task<string> GetIdentityTokenAsync(string audience)
+{
+    adc ??= await GoogleCredential.GetApplicationDefaultAsync();
+    var oidc = oidcCache.GetValueOrDefault(audience);
+    if (oidc is null)
+    {
+        oidc = await adc.GetOidcTokenAsync(OidcTokenOptions.FromTargetAudience(audience));
+        oidcCache[audience] = oidc;
+    }
+    return await oidc.GetAccessTokenAsync();
+}
+
 // Readiness = upstream services reachable (they probe Spanner/Firestore themselves).
 builder.Services.AddHttpClient("upstream-health", c => c.Timeout = TimeSpan.FromSeconds(3));
 builder.Services.AddSingleton(new GatewayUpstreams(
@@ -94,16 +106,7 @@ builder.Services.AddReverseProxy()
             }
 
             if (useIdentityTokens)
-            {
-                adc ??= await GoogleCredential.GetApplicationDefaultAsync();
-                var oidc = oidcCache.GetValueOrDefault(audience);
-                if (oidc is null)
-                {
-                    oidc = await adc.GetOidcTokenAsync(OidcTokenOptions.FromTargetAudience(audience));
-                    oidcCache[audience] = oidc;
-                }
-                headers.TryAddWithoutValidation("X-Serverless-Authorization", $"Bearer {await oidc.GetAccessTokenAsync()}");
-            }
+                headers.TryAddWithoutValidation("X-Serverless-Authorization", $"Bearer {await GetIdentityTokenAsync(audience)}");
         });
     });
 
@@ -112,7 +115,7 @@ var origins = (cfg["Cors:AllowedOrigins"] ?? "http://localhost:3000,http://local
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .WithOrigins(origins)
     .AllowAnyHeader().AllowAnyMethod()
-    .WithExposedHeaders("Idempotent-Replayed", "X-Request-Id", "Retry-After")
+    .WithExposedHeaders("Idempotent-Replayed", "X-Request-Id", "Retry-After", "X-Next-Cursor")
     .SetPreflightMaxAge(TimeSpan.FromHours(1))));
 
 builder.Services.AddRateLimiter(o =>

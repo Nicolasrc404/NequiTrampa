@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Microsoft.AspNetCore.WebUtilities;
+using Nequi.Finance.Common;
 using Nequi.Shared.Data;
 using Nequi.Shared.Http;
 using Nequi.Shared.Security;
@@ -117,8 +118,24 @@ public static class MovementsEndpoints
 {
     private const string FinancialMovements = "financial_movements";
     private const string OccurredAtField = "occurredAt";
+    private const string EventIdField = "eventId";
     private const int DefaultLimit = 50;
     private const int MaxLimit = 200;
+    // Cursor wire format: KeysetCursor, shared with the other Finance list endpoints.
+    // Cursors issued before this merge (MovementsCursor JSON payload) are still accepted.
+    private static string EncodeCursor(string occurredAt, string eventId) =>
+        KeysetCursor.Encode(occurredAt, eventId);
+
+    private static bool TryDecodeCursor(string cursor, out string occurredAt, out string eventId)
+    {
+        occurredAt = ""; eventId = "";
+        if (KeysetCursor.TryDecode(cursor, 2, out var parts))
+        {
+            occurredAt = parts[0]; eventId = parts[1];
+            return true;
+        }
+        return MovementsCursor.TryDecode(cursor, out occurredAt, out eventId);
+    }
 
     // Roles that may query movements for any clientId (investigation / backoffice).
     private static readonly HashSet<string> FinancialStaff =
@@ -198,7 +215,7 @@ public static class MovementsEndpoints
 
             string? afterOccurredAt = null, afterEventId = null;
             if (!string.IsNullOrWhiteSpace(cursor) &&
-                !MovementsCursor.TryDecode(cursor, out afterOccurredAt, out afterEventId))
+                !TryDecodeCursor(cursor, out afterOccurredAt, out afterEventId))
                 return Problems.Problem(ctx, 400, "Bad Request",
                     "cursor is not a valid pagination cursor returned by this endpoint.", "invalid_cursor");
 
@@ -216,10 +233,10 @@ public static class MovementsEndpoints
             {
                 var last = page[^1];
                 var occurredAt = last.TryGetValue(OccurredAtField, out var o) ? o?.ToString() : null;
-                var eventId = last.TryGetValue("eventId", out var e) ? e?.ToString() : null;
+                var eventId = last.TryGetValue(EventIdField, out var e) ? e?.ToString() : null;
                 // Legacy projections without eventId cannot be paginated deterministically.
                 if (!string.IsNullOrEmpty(occurredAt) && !string.IsNullOrEmpty(eventId))
-                    nextCursor = MovementsCursor.Encode(occurredAt, eventId);
+                    nextCursor = EncodeCursor(occurredAt, eventId);
             }
 
             var items = page.Select(MovementDto.From).ToList();
@@ -229,8 +246,8 @@ public static class MovementsEndpoints
                 clientId = owner,
                 count = items.Count,
                 limit = pageSize,
-                items,
                 nextCursor,
+                items,
             });
         }).RequireAuthorization();
     }

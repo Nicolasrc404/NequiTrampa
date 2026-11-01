@@ -3,6 +3,7 @@ using Google.Cloud.Spanner.V1;
 using Microsoft.Extensions.Logging;
 using Nequi.Shared.Data;
 using Nequi.Shared.Events;
+using Nequi.Shared.Financial;
 using Nequi.Wallet.DTOs;
 using Nequi.Wallet.Exceptions;
 using Nequi.Wallet.Interfaces;
@@ -27,7 +28,10 @@ namespace Nequi.Wallet.Services;
 ///   9. INSERT outbox_events x1 (aggregate_type='LEDGER_OPERATION', event_type='RECHARGE_COMPLETED', solo para el cliente).
 ///  10. Commit atómico.
 /// </summary>
-public sealed class SpannerRechargeService(SpannerDb db, ILogger<SpannerRechargeService> logger) : IRechargeService
+public sealed class SpannerRechargeService(
+    SpannerDb db,
+    ILogger<SpannerRechargeService> logger,
+    Func<SpannerConnection>? connectionFactory = null) : IRechargeService
 {
     // =========================================================================
     // PUBLIC INTERFACE
@@ -64,7 +68,7 @@ public sealed class SpannerRechargeService(SpannerDb db, ILogger<SpannerRecharge
             "Iniciando SIMULATED_RECHARGE auth_subject={AuthSubject} amount_minor={AmountMinor} method={Method} key={Key}",
             authSubject, amountMinor, request.PaymentMethod, idempotencyKey);
 
-        await using var conn = db.Open();
+        await using var conn = (connectionFactory ?? (() => db.Open()))();
         RechargeResponseDto result = null!;
 
         await conn.RunWithRetriableTransactionAsync(async tx =>
@@ -177,6 +181,194 @@ public sealed class SpannerRechargeService(SpannerDb db, ILogger<SpannerRecharge
     }
 
     /// <summary>
+    /// Executes a recharge effect under the shared financial-intent
+    /// transaction. This method is intentionally outside IRechargeService and
+    /// is not registered by production DI yet.
+    /// </summary>
+    public async Task<FinancialIntentExecutionResult<RechargeResponseDto>> CreateRechargeWithFinancialIntentAsync(
+        IFinancialIntentCoordinator coordinator,
+        string authenticatedActorId,
+        string idempotencyKey,
+        string requestHash,
+        CreateRechargeRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(coordinator);
+        ValidateRechargeRequestForCoordinator(request);
+
+        // Stable across retries of the same retriable transaction callback.
+        var artifacts = RechargeArtifacts.Create();
+        var execution = await coordinator.ExecuteAsync(
+            new FinancialIntentExecutionRequest(
+                authenticatedActorId,
+                "RECHARGE",
+                "POST:/v1/recharges",
+                idempotencyKey,
+                requestHash),
+            (context, ct) => ExecuteRechargeEffectInTransactionAsync(
+                context,
+                authenticatedActorId,
+                idempotencyKey,
+                request,
+                artifacts,
+                ct),
+            cancellationToken);
+
+        if (execution.Result.Kind == FinancialIntentResultKind.Confirmed &&
+            !execution.EffectExecuted &&
+            execution.Result.Intent?.OperationId is { } confirmedOperationId)
+        {
+            var replay = await ReadCommittedRechargeForReplayAsync(
+                authenticatedActorId,
+                idempotencyKey,
+                request,
+                confirmedOperationId,
+                cancellationToken);
+            if (replay is null)
+            {
+                return execution with
+                {
+                    Result = FinancialIntentResult.StorageError("confirmed_recharge_replay_not_verifiable")
+                };
+            }
+
+            return execution with { Value = replay };
+        }
+
+        return execution;
+    }
+
+    private async Task<RechargeResponseDto> ExecuteRechargeEffectInTransactionAsync(
+        FinancialIntentTransactionContext context,
+        string authenticatedActorId,
+        string idempotencyKey,
+        CreateRechargeRequestDto request,
+        RechargeArtifacts artifacts,
+        CancellationToken ct)
+    {
+        var conn = context.Connection;
+        var tx = context.Transaction;
+        var operationId = context.Intent.OperationId!;
+
+        var clientId = await ResolveClientByAuthSubjectInTxAsync(conn, tx, authenticatedActorId, ct);
+        var (clientAccountId, clientBalance, clientVersion) =
+            await ReadClientWalletInTxAsync(conn, tx, clientId, ct);
+        var (systemAccountId, systemBalance, systemVersion) =
+            await ReadSystemFundingWalletInTxAsync(conn, tx, ct);
+
+        var amountMinor = checked((long)(request.Amount * 100m));
+        var newSystemBalance = systemBalance - amountMinor;
+        var newClientBalance = clientBalance + amountMinor;
+
+        await InsertLedgerOperationAsync(
+            conn, tx, operationId, artifacts.PublicReference, clientId,
+            amountMinor, request.Currency, request.PaymentMethod, idempotencyKey, ct);
+        await InsertLedgerEntryAsync(
+            conn, tx, operationId, 1, systemAccountId, -amountMinor,
+            systemBalance, newSystemBalance, ct);
+        await InsertLedgerEntryAsync(
+            conn, tx, operationId, 2, clientAccountId, amountMinor,
+            clientBalance, newClientBalance, ct);
+        await UpdateWalletBalanceAsync(
+            conn, tx, systemAccountId, newSystemBalance, systemVersion, "SYSTEM_FUNDING", ct);
+        await UpdateWalletBalanceAsync(
+            conn, tx, clientAccountId, newClientBalance, clientVersion, "CLIENT_WALLET", ct);
+
+        var domainEvent = new DomainEvent(
+            artifacts.EventId,
+            EventTypes.RechargeCompleted,
+            operationId,
+            clientId,
+            artifacts.OccurredAt,
+            amountMinor,
+            request.Currency,
+            null,
+            $"Recarga simulada vía {request.PaymentMethod}",
+            newClientBalance);
+        await InsertOutboxEventAsync(conn, tx, artifacts.EventId, operationId, domainEvent, ct);
+
+        return new RechargeResponseDto(
+            artifacts.PublicReference,
+            clientId,
+            request.Amount,
+            amountMinor,
+            request.Currency,
+            request.PaymentMethod,
+            "COMPLETED",
+            operationId,
+            artifacts.OccurredAt);
+    }
+
+    private static void ValidateRechargeRequestForCoordinator(CreateRechargeRequestDto request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        if (request.Amount < 1_000m || request.Amount > 5_000_000m)
+            throw new InvalidTransferAmountException("El monto de la recarga está fuera de los límites permitidos.");
+        var amountMinor = request.Amount * 100m;
+        if (amountMinor % 1m != 0 || amountMinor <= 0)
+            throw new InvalidTransferAmountException("El monto de la recarga debe representar unidades menores enteras.");
+        if (!string.Equals(request.Currency, "COP", StringComparison.Ordinal))
+            throw new InvalidCurrencyException("La moneda debe ser exclusivamente COP.");
+        if (request.PaymentMethod is not ("SIMULATED_PSE" or "SIMULATED_CARD" or "SIMULATED_CORRESPONSAL"))
+            throw new InvalidOperationException("El método de recarga simulada no está permitido.");
+    }
+
+    private sealed record RechargeArtifacts(
+        string PublicReference,
+        string EventId,
+        DateTimeOffset OccurredAt)
+    {
+        public static RechargeArtifacts Create() => new(
+            $"RCG-{DateTime.UtcNow:yyyyMMdd}-{Guid.NewGuid():N}"[..29].ToUpperInvariant(),
+            Guid.NewGuid().ToString("N"),
+            DateTimeOffset.UtcNow);
+    }
+
+    private async Task<RechargeResponseDto?> ReadCommittedRechargeForReplayAsync(
+        string authenticatedActorId,
+        string idempotencyKey,
+        CreateRechargeRequestDto request,
+        string operationId,
+        CancellationToken ct)
+    {
+        await using var conn = (connectionFactory ?? (() => db.Open()))();
+        var clientId = await ResolveClientByAuthSubjectAsync(conn, authenticatedActorId, ct);
+        await using var command = conn.CreateSelectCommand(
+            "SELECT operation_id, public_reference, actor_id, amount_minor, currency, " +
+            "reason, status, created_at, confirmed_at " +
+            "FROM ledger_operations WHERE operation_id=@operation AND actor_id=@actor " +
+            "AND idempotency_key=@key AND type='SIMULATED_RECHARGE' AND status='COMPLETED'");
+        command.Parameters.Add("operation", SpannerDbType.String, operationId);
+        command.Parameters.Add("actor", SpannerDbType.String, clientId);
+        command.Parameters.Add("key", SpannerDbType.String, idempotencyKey);
+
+        await using var reader = await command.ExecuteReaderAsync(ct);
+        if (!await reader.ReadAsync(ct))
+            return null;
+
+        var amount = (decimal)reader.GetNumeric(3) / 100m;
+        var currency = reader.GetString(4);
+        var paymentMethod = reader.IsDBNull(5) ? string.Empty : reader.GetString(5);
+        if (amount != request.Amount ||
+            !string.Equals(currency, request.Currency, StringComparison.Ordinal) ||
+            !string.Equals(paymentMethod, request.PaymentMethod, StringComparison.Ordinal))
+            return null;
+
+        var createdAt = reader.GetFieldValue<DateTime>(7);
+        var confirmedAt = reader.IsDBNull(8) ? (DateTime?)null : reader.GetFieldValue<DateTime>(8);
+        return new RechargeResponseDto(
+            reader.GetString(1),
+            reader.GetString(2),
+            amount,
+            checked((long)((decimal)reader.GetNumeric(3))),
+            currency,
+            paymentMethod,
+            reader.GetString(6),
+            reader.GetString(0),
+            new DateTimeOffset(DateTime.SpecifyKind(confirmedAt ?? createdAt, DateTimeKind.Utc)));
+    }
+
+    /// <summary>
     /// Consulta el listado histórico de recargas simuladas del cliente autenticado.
     /// <paramref name="clientId"/> representa el auth_subject del token JWT.
     /// </summary>
@@ -185,7 +377,7 @@ public sealed class SpannerRechargeService(SpannerDb db, ILogger<SpannerRecharge
         CancellationToken cancellationToken = default)
     {
         var authSubject = clientId;
-        await using var conn = db.Open();
+        await using var conn = (connectionFactory ?? (() => db.Open()))();
         var clientDbId = await ResolveClientByAuthSubjectAsync(conn, authSubject, cancellationToken);
 
         var cmd = conn.CreateSelectCommand(

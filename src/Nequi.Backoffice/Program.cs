@@ -25,6 +25,7 @@ builder.Services.AddHttpClient();
 builder.Services.AddSingleton<Nequi.Backoffice.Services.LedgerReader>();
 builder.Services.AddSingleton<Nequi.Backoffice.Services.LedgerAdjuster>();
 builder.Services.AddSingleton<Nequi.Backoffice.Services.ReconciliationService>();
+builder.Services.AddSingleton<Nequi.Backoffice.Services.FinancialReconciliationClassifier>();
 builder.Services.AddSingleton<Nequi.Backoffice.Services.AuditLog>();
 builder.Services.AddSingleton<Nequi.Backoffice.Services.IdentityAdmin>();
 

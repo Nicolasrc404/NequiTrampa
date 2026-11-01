@@ -95,17 +95,49 @@ transacción se aborta completamente (**Rollback**), garantizando que jamás
 existan asientos contables huérfanos.
 
 La idempotencia HTTP se gestiona **fuera** de esa transacción con
-`IdempotencyActionFilter` sobre `idempotency_records`: `BeginAsync` reserva
-`IN_PROGRESS`, el movimiento financiero se confirma en su propia transacción y
-después `CompleteAsync` marca `COMPLETED` en otra transacción. El conflicto de
-clave/hash se detecta en `BeginAsync`. Como `CompleteAsync` **no comparte
-transacción** con el movimiento, si este ya hizo commit y `CompleteAsync` falla,
-el catch puede ejecutar `AbandonAsync` y eliminar el registro `IN_PROGRESS`:
-existe una **ventana de commit gap** en la que un retry con la misma
-`Idempotency-Key` podría volver a ejecutar el movimiento. El replay idéntico y
-el conflicto de payload están validados por Bruno, pero no hay garantía atómica
-end-to-end entre el efecto financiero y el `COMPLETED` del registro de
+`IdempotencyActionFilter`/`IdempotencyFilter` sobre `idempotency_records`:
+`BeginAsync` reserva `IN_PROGRESS`, el movimiento financiero se confirma en su
+propia transacción y después `CompleteAsync` marca `COMPLETED` en otra
+transacción. El conflicto de clave/hash se detecta en `BeginAsync`. Como
+`CompleteAsync` **no comparte transacción** con el movimiento, no hay garantía
+atómica end-to-end entre el efecto financiero y el `COMPLETED` del registro de
 idempotencia; su cierre atómico queda pendiente.
+
+Lo que sí está cerrado: una vez el handler devuelve un resultado no-5xx (el
+movimiento ya hizo commit), el filtro **nunca** llama a `AbandonAsync`, ni
+siquiera si `CompleteAsync` falla. Antes lo hacía (un `catch` genérico
+envolvía también la llamada a `CompleteAsync`), lo que borraba el registro
+`IN_PROGRESS` después de un efecto financiero ya aplicado y permitía que un
+retry con la misma `Idempotency-Key` volviera a ejecutar el movimiento. Ahora,
+si `CompleteAsync` falla, el registro se queda en `IN_PROGRESS`: un retry
+recibe 409 (bloqueado) en vez de duplicar el efecto.
+
+El otro caso — el proceso muere *antes* de llegar a `CompleteAsync`/`AbandonAsync`
+(no por un fallo de `CompleteAsync`, sino porque el contenedor se cae a mitad
+de la petición) — deja el registro en `IN_PROGRESS` para siempre, sin que
+nada lo marque como fallido. Esto sigue sin resolverse automáticamente **a
+propósito**: la tabla `idempotency_records` no guarda ninguna referencia a la
+operación de negocio resultante, así que no hay forma de saber desde ahí si
+el efecto financiero llegó a aplicarse antes de la caída. Borrar la clave a
+ciegas para "desatascarla" reintroduciría el mismo riesgo de doble ejecución
+que se acaba de cerrar arriba.
+
+Lo que sí existe para este caso es **detección + liberación manual
+auditada**, no una reconciliación automática:
+- `IdempotencyReconciliationWorker` (`Nequi.Workers`) escanea periódicamente
+  `idempotency_records` buscando filas `IN_PROGRESS` más viejas que
+  `IdempotencyReconciliation:StaleAfterMinutes` (default 10 min) y las deja en
+  el log como advertencia (`actor`, `scope`, `key`, antigüedad). También hay un
+  trigger manual (`POST /internal/idempotency/scan`, solo IAM) y una lectura
+  on-demand (`GET /v1/idempotency/stale`, staff).
+- `IdempotencyAdminController` (`Nequi.Backoffice`) expone
+  `GET /v1/admin/idempotency/stale` y `POST /v1/admin/idempotency/release`
+  para que un OPERADOR_FINANCIERO, después de verificar en el ledger que el
+  movimiento original **no** se aplicó, libere la clave explícitamente
+  (`AbandonAsync`) con motivo obligatorio y entrada de auditoría
+  (`IDEMPOTENCY_KEY_RELEASED`). Si el movimiento sí se aplicó, liberar la
+  clave es el error que hay que evitar: el camino correcto ahí es una
+  operación compensatoria (REVERSAL/ADJUSTMENT), no liberar y reintentar.
 
 #### C. Inmutabilidad y Correcciones Compensatorias
 De acuerdo con las reglas de negocio congeladas:

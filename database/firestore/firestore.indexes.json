@@ -5,7 +5,18 @@
       "queryScope": "COLLECTION",
       "fields": [
         { "fieldPath": "clientId", "order": "ASCENDING" },
-        { "fieldPath": "occurredOn", "order": "DESCENDING" }
+        { "fieldPath": "occurredOn", "order": "DESCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" },
+        { "fieldPath": "id", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "financial_movements",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "clientId", "order": "ASCENDING" },
+        { "fieldPath": "occurredAt", "order": "DESCENDING" },
+        { "fieldPath": "eventId", "order": "DESCENDING" }
       ]
     },
     {

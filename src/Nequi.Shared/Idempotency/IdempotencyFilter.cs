@@ -35,7 +35,7 @@ public sealed class IdempotencyFilter : IEndpointFilter
         using var ms = new MemoryStream();
         await http.Request.Body.CopyToAsync(ms, http.RequestAborted);
         http.Request.Body.Position = 0;
-        var hash = Convert.ToHexString(SHA256.HashData(ms.ToArray()));
+        var hash = IdempotencyRequestHash.Compute(ms.ToArray());
 
         var (outcome, record) = await store.BeginAsync(uid, scope, key, hash, http.RequestAborted);
         switch (outcome)
@@ -43,7 +43,25 @@ public sealed class IdempotencyFilter : IEndpointFilter
             case BeginOutcome.Conflict:
                 return Problems.Problem(http, 409, "Idempotency key reused with a different body", code: "idempotency_key_conflict");
             case BeginOutcome.InProgress:
-                return Problems.Problem(http, 409, "A request with this Idempotency-Key is still in progress", code: "idempotency_in_progress");
+                var recovery = http.RequestServices.GetService<IIdempotencyRecoveryHandler>();
+                if (recovery is not null)
+                {
+                    var recovered = await recovery.TryRecoverAsync(
+                        http, uid, scope, key, hash, http.RequestAborted);
+                    if (recovered is not null)
+                    {
+                        http.Response.Headers["Idempotent-Recovered"] = "true";
+                        return Results.Content(
+                            recovered.Body,
+                            recovered.ContentType,
+                            Encoding.UTF8,
+                            recovered.StatusCode);
+                    }
+                }
+                return Problems.Problem(http, 409,
+                    "The operation is pending confirmation or reconciliation",
+                    "Do not start an equivalent financial intention with a new Idempotency-Key until the original result is verified.",
+                    "idempotency_in_progress");
             case BeginOutcome.Stale:
                 // Abandoned IN_PROGRESS record: it may have committed. Never replay automatically.
                 return Problems.Problem(http, 409, "Idempotency key requires reconciliation",
@@ -55,20 +73,10 @@ public sealed class IdempotencyFilter : IEndpointFilter
                 return Results.Content(record!.ResponseBody ?? "", record.ContentType ?? "application/json", Encoding.UTF8, record.StatusCode);
         }
 
+        object? result;
         try
         {
-            var result = await next(ctx);
-            var status = (result as IStatusCodeHttpResult)?.StatusCode ?? 200;
-            string? body = null;
-            if (result is IValueHttpResult { Value: not null } v)
-                body = JsonSerializer.Serialize(v.Value, JsonSerializerOptions.Web);
-            // Only cache definitive outcomes (< 500). Uncertain outcomes (>= 500) remain IN_PROGRESS
-            // to require reconciliation and prevent dangerous duplicate commits.
-            if (status < 500)
-            {
-                await store.CompleteAsync(uid, scope, key, status, body, "application/json", CancellationToken.None);
-            }
-            return result;
+            result = await next(ctx);
         }
         catch (BadHttpRequestException ex) when (ex.StatusCode < 500)
         {
@@ -85,8 +93,28 @@ public sealed class IdempotencyFilter : IEndpointFilter
         catch
         {
             // Do NOT abandon on unhandled exception: preserve IN_PROGRESS record for financial consistency.
+            // The handler may have committed a financial effect before the exception escaped.
             throw;
         }
+
+        var status = (result as IStatusCodeHttpResult)?.StatusCode ?? 200;
+        if (status >= 500)
+        {
+            // The handler may have committed a financial effect before producing the
+            // 5xx. Keep the reservation until the outcome is reconciled safely.
+            return result;
+        }
+
+        // The endpoint already ran and succeeded (status < 500): any financial effect
+        // is already committed. AbandonAsync must never run from here on — deleting the
+        // IN_PROGRESS record now would let a retry with the same key re-execute an
+        // already-applied movement. If CompleteAsync itself fails, the record stays
+        // IN_PROGRESS so a retry is rejected with 409 instead of silently duplicating it.
+        string? body = null;
+        if (result is IValueHttpResult { Value: not null } v)
+            body = JsonSerializer.Serialize(v.Value, JsonSerializerOptions.Web);
+        await store.CompleteAsync(uid, scope, key, status, body, "application/json", CancellationToken.None);
+        return result;
     }
 }
 
