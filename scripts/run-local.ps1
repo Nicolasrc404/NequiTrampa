@@ -40,6 +40,7 @@ $services = [ordered]@{
     Assistant  = 8084
     Workers    = 8085
     Realtime   = 8086
+    Gateway    = 8087
 }
 
 if (Test-Path $pidFile) { & (Join-Path $PSScriptRoot 'stop-local.ps1') }
@@ -72,6 +73,15 @@ if ($Backend -eq 'gcp') {
     $env:Firestore__ProjectId = 'local'
     $env:Spanner__Database = ''
 }
+# Gateway config for local memory mode
+$env:Gateway__IdentityTokens = 'false'
+$env:Services__Wallet = "http://${hostName}:8080"
+$env:Services__Workers = "http://${hostName}:8085"
+$env:Services__Finance = "http://${hostName}:8082"
+$env:Services__Profile = "http://${hostName}:8081"
+$env:Services__Assistant = "http://${hostName}:8084"
+$env:Services__Backoffice = "http://${hostName}:8083"
+$env:Services__Realtime = "http://${hostName}:8086"
 
 $pids = @()
 foreach ($name in $services.Keys) {

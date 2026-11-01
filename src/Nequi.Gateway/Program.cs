@@ -110,7 +110,7 @@ builder.Services.AddReverseProxy()
         });
     });
 
-var origins = (cfg["Cors:AllowedOrigins"] ?? "http://localhost:3000,http://localhost:4200,http://localhost:5173")
+var origins = (cfg["Cors:AllowedOrigins"] ?? "http://localhost:3000,http://localhost:4200,http://localhost:5173,http://localhost:8081")
     .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 builder.Services.AddCors(o => o.AddDefaultPolicy(p => p
     .WithOrigins(origins)
