@@ -1,5 +1,6 @@
 using Nequi.Shared;
 using Nequi.Shared.OpenApi;
+using Nequi.Profile.Controllers;
 
 // =============================================================================
 // NequiTrampa — Nequi.Profile (core-api conceptual, dominio Profile)
@@ -15,8 +16,14 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddNequiCommon();
 
-if (builder.Configuration["Spanner:Database"] is not { Length: > 0 })
+if (string.Equals(builder.Configuration["Data:Backend"], "gcp", StringComparison.OrdinalIgnoreCase) &&
+    builder.Configuration["Spanner:Database"] is not { Length: > 0 })
     throw new InvalidOperationException("Spanner:Database is required for Nequi.Profile.");
+
+if (string.Equals(builder.Configuration["Data:Backend"], "memory", StringComparison.OrdinalIgnoreCase))
+    builder.Services.AddSingleton<IProfileDataStore, AcademicProfileDataStore>();
+else
+    builder.Services.AddSingleton<IProfileDataStore, SpannerProfileDataStore>();
 
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>

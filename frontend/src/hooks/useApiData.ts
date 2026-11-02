@@ -17,6 +17,7 @@ import type {
 import type { TransferDto, TransferReceiptDto } from '../services/transfersService';
 import { MOVEMENTS_DEFAULT_LIMIT } from '../services/movementsService';
 import { mapMovements } from '../services/mappers/movementMapper';
+import { loadAcademicMovementDtos } from '../services/academicMovementsService';
 import { mapTransfers } from '../services/mappers/transferMapper';
 import {
   mapRecharges,
@@ -79,6 +80,8 @@ export function useMovements(
   services: ApiServices | null,
   enabled: boolean,
   limit: number = MOVEMENTS_DEFAULT_LIMIT,
+  academicMode: boolean = false,
+  ownClientId: string | null = null,
 ): MovementsResource {
   const active = canLoad(services, enabled);
   const [status, setStatus] = useState<ApiResourceStatus>('idle');
@@ -110,8 +113,22 @@ export function useMovements(
     setError(null);
     setLoadingMore(false);
 
-    void services!.movements
-      .list({ limit, signal: controller.signal })
+    const loadPage = academicMode
+      ? loadAcademicMovementDtos(
+          {
+            wallet: services!.wallet,
+            transfers: services!.transfers,
+            recharges: services!.recharges,
+          },
+          ownClientId,
+          controller.signal,
+        ).then((items) => ({
+          items: items.slice(0, limit),
+          nextCursor: null,
+        }))
+      : services!.movements.list({ limit, signal: controller.signal });
+
+    void loadPage
       .then((page) => {
         if (current !== generation.current) return;
         setItems(dedupeMovements(mapMovements(page.items)));
@@ -129,12 +146,12 @@ export function useMovements(
       });
 
     return () => controller.abort();
-  }, [active, services, limit, reloadToken]);
+  }, [active, services, limit, reloadToken, academicMode, ownClientId]);
 
   useEffect(() => () => moreController.current?.abort(), []);
 
   const loadMore = useCallback(() => {
-    if (!active || cursor === null || loadingMore) return;
+    if (academicMode || !active || cursor === null || loadingMore) return;
     const controller = new AbortController();
     moreController.current?.abort();
     moreController.current = controller;
@@ -159,7 +176,7 @@ export function useMovements(
       .finally(() => {
         if (current === generation.current) setLoadingMore(false);
       });
-  }, [active, services, limit, cursor, loadingMore]);
+  }, [active, services, limit, cursor, loadingMore, academicMode]);
 
   const reload = useCallback(() => setReloadToken((token) => token + 1), []);
 

@@ -72,6 +72,9 @@ if ($Backend -eq 'gcp') {
     $env:Gcp__ProjectId = 'local'
     $env:Firestore__ProjectId = 'local'
     $env:Spanner__Database = ''
+    $env:Academic__Persist = 'true'
+    $env:Academic__StorePath = Join-Path $runDir 'academic-wallet.json'
+    $env:Gateway__AllowDemoHeaders = 'true'
 }
 # Gateway config for local memory mode
 $env:Gateway__IdentityTokens = 'false'

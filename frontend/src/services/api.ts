@@ -15,6 +15,8 @@ export const apiClient: HttpClient | null = appConfig.apiBaseUrl
       baseUrl: appConfig.apiBaseUrl,
       timeoutMs: appConfig.requestTimeoutMs,
       getAccessToken: () => sessionManager.getAccessToken(),
+      getDemoUserId: () =>
+        appConfig.academicModeEnabled ? sessionManager.getSnapshot().user?.uid ?? null : null,
       onUnauthorized: (_error, accessToken) => {
         void sessionManager.handleUnauthorized(accessToken);
       },

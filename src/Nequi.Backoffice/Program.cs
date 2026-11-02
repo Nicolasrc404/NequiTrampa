@@ -18,16 +18,22 @@ var builder = WebApplication.CreateBuilder(args);
 // 1. Configuración común de plataforma Nequi
 builder.AddNequiCommon();
 
-// Backoffice necesita el ledger autoritativo (Spanner) y Firestore (casos, auditoria, configuracion).
-if (builder.Configuration["Spanner:Database"] is not { Length: > 0 } spannerDb)
-    throw new InvalidOperationException("Spanner:Database is required for Nequi.Backoffice.");
-builder.Services.AddHttpClient();
-builder.Services.AddSingleton<Nequi.Backoffice.Services.LedgerReader>();
-builder.Services.AddSingleton<Nequi.Backoffice.Services.LedgerAdjuster>();
-builder.Services.AddSingleton<Nequi.Backoffice.Services.ReconciliationService>();
-builder.Services.AddSingleton<Nequi.Backoffice.Services.FinancialReconciliationClassifier>();
-builder.Services.AddSingleton<Nequi.Backoffice.Services.AuditLog>();
-builder.Services.AddSingleton<Nequi.Backoffice.Services.IdentityAdmin>();
+// Los servicios administrativos que leen el ledger solo se registran en GCP. En memory el
+// backoffice puede arrancar para health/docs, pero no expone operaciones financieras simuladas.
+var isGcp = string.Equals(builder.Configuration["Data:Backend"], "gcp", StringComparison.OrdinalIgnoreCase);
+var hasSpannerConfiguration = builder.Configuration["Spanner:Database"] is { Length: > 0 };
+if (isGcp || hasSpannerConfiguration)
+{
+    if (isGcp && !hasSpannerConfiguration)
+        throw new InvalidOperationException("Spanner:Database is required for Nequi.Backoffice.");
+    builder.Services.AddHttpClient();
+    builder.Services.AddSingleton<Nequi.Backoffice.Services.LedgerReader>();
+    builder.Services.AddSingleton<Nequi.Backoffice.Services.LedgerAdjuster>();
+    builder.Services.AddSingleton<Nequi.Backoffice.Services.ReconciliationService>();
+    builder.Services.AddSingleton<Nequi.Backoffice.Services.FinancialReconciliationClassifier>();
+    builder.Services.AddSingleton<Nequi.Backoffice.Services.AuditLog>();
+    builder.Services.AddSingleton<Nequi.Backoffice.Services.IdentityAdmin>();
+}
 
 // 2. Controladores MVC
 builder.Services.AddControllers()

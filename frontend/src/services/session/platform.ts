@@ -13,6 +13,7 @@ import * as SecureStore from 'expo-secure-store';
 
 import { appConfig } from '../../config/appConfig';
 import { idempotencyKeys } from '../../utils/idempotency';
+import { createAcademicIdentityPlatformClient } from './academicIdentityPlatform';
 import { createIdentityPlatformClient, unconfiguredIdentityClient } from './identityPlatform';
 import { SessionManager } from './sessionManager';
 import {
@@ -26,9 +27,11 @@ export const sessionStorage: SessionStorage =
     ? new MemorySessionStorage()
     : createSecureSessionStorage(SecureStore);
 
-export const identityPlatformClient = appConfig.identityApiKey
-  ? createIdentityPlatformClient({ apiKey: appConfig.identityApiKey })
-  : unconfiguredIdentityClient;
+export const identityPlatformClient = appConfig.academicModeEnabled
+  ? createAcademicIdentityPlatformClient()
+  : appConfig.identityApiKey
+    ? createIdentityPlatformClient({ apiKey: appConfig.identityApiKey })
+    : unconfiguredIdentityClient;
 
 /** Instancia única de sesión para toda la app. */
 export const sessionManager = new SessionManager({
