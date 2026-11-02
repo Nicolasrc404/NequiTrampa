@@ -9,11 +9,13 @@ import ErrorState from '../../components/common/states/ErrorState';
 interface Movements08ScreenProps {
   onRetryPress?: () => void;
   error?: unknown;
+  onTabPress?: (tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil') => void;
 }
 
 export const Movements08Screen: React.FC<Movements08ScreenProps> = ({
   onRetryPress,
   error,
+  onTabPress,
 }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -52,7 +54,7 @@ export const Movements08Screen: React.FC<Movements08ScreenProps> = ({
       </View>
 
       {/* Bottom Navigation */}
-      <BottomNav activeTab="movimientos" />
+      <BottomNav activeTab="movimientos" onTabPress={onTabPress} />
     </SafeAreaView>
   );
 };

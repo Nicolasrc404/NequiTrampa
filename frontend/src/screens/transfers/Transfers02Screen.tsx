@@ -47,7 +47,9 @@ export const Transfers02Screen: React.FC<Transfers02ScreenProps> = ({
   recipients: providedRecipients,
   realMode = false,
 }) => {
-  const [activeTab, setActiveTab] = useState<RecipientTab>('beneficiaries');
+  const [activeTab, setActiveTab] = useState<RecipientTab>(
+    realMode ? 'code' : 'beneficiaries',
+  );
   const [search, setSearch] = useState('');
   const [selectedId, setSelectedId] = useState(selectedRecipientId);
 

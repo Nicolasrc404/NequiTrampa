@@ -47,6 +47,7 @@ import {
 // ── Movements imports ──────────────────────────────────────
 import { MovementsState, MovementItem } from './src/types/movements';
 import { DEMO_MOVEMENTS } from './src/data/demoMovements';
+import { resolveBottomTab, type BottomTab } from './src/utils/bottomTabNavigation';
 
 import Movements01Screen from './src/screens/movements/Movements01Screen';
 import Movements02Screen from './src/screens/movements/Movements02Screen';
@@ -387,6 +388,18 @@ function MainApp() {
   );
   const realReady = !demoEnabled && sessionGate === 'ready' && services !== null;
 
+  const handleBottomTab = useCallback((tab: BottomTab) => {
+    const target = resolveBottomTab(tab);
+    if (target) {
+      setCurrentState(target);
+      return;
+    }
+    Alert.alert(
+      'Asistente no disponible',
+      'El asistente queda fuera del alcance del MVP académico y no ejecuta acciones en esta versión.',
+    );
+  }, []);
+
   const balance = useWalletBalance(services, realReady);
   const ownClientId = balance.data?.clientId ?? null;
   const movements = useMovements(
@@ -523,6 +536,14 @@ function MainApp() {
     let active = true;
     const unsubscribe = sessionManager.subscribe((snapshot) => {
       if (!active) return;
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.debug('[session] state', {
+          status: snapshot.status,
+          hasUser: Boolean(snapshot.user),
+          hasClientId: Boolean(snapshot.user?.clientId),
+          errorCode: snapshot.errorCode,
+        });
+      }
       switch (snapshot.status) {
         case 'authenticated':
           setSessionGate('ready');
@@ -2000,17 +2021,20 @@ function MainApp() {
             hasMore={demoEnabled ? false : movements.hasMore}
             loadingMore={demoEnabled ? false : movements.loadingMore}
             onLoadMore={demoEnabled ? undefined : movements.loadMore}
+            onTabPress={handleBottomTab}
           />
         )}
         {currentState === 'Movements_02' && (
           <Movements02Screen
             onOpenFilter={() => setCurrentState('Movements_04')}
             onRechargePress={() => setCurrentState('Recharges_01')}
+            onTabPress={handleBottomTab}
           />
         )}
         {currentState === 'Movements_03' && (
           <Movements03Screen
             onOpenFilter={() => setCurrentState('Movements_04')}
+            onTabPress={handleBottomTab}
           />
         )}
         {currentState === 'Movements_04' && (
@@ -2037,6 +2061,7 @@ function MainApp() {
           <Movements08Screen
             onRetryPress={() => setCurrentState('Movements_01')}
             error={movements.error}
+            onTabPress={handleBottomTab}
           />
         )}
 
@@ -3287,6 +3312,7 @@ function MainApp() {
             screenKey={currentState as Module1ScreenKey}
             onNavigate={(key) => setCurrentState(key)}
             onHome={() => setCurrentState('Movements_01')}
+            onTabPress={handleBottomTab}
             services={services}
             apiEnabled={realReady}
           />

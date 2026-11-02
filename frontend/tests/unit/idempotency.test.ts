@@ -70,3 +70,16 @@ test('clear descarta todas las claves (cierre de sesión)', () => {
   assert.equal(store.peek('transfer:draft-1'), undefined);
   assert.equal(store.peek('recharge:draft-1'), undefined);
 });
+
+test('sin crypto global ni proveedor Expo falla de forma controlada', () => {
+  const descriptor = Object.getOwnPropertyDescriptor(globalThis, 'crypto');
+  try {
+    Object.defineProperty(globalThis, 'crypto', { configurable: true, value: undefined });
+    assert.throws(
+      () => generateIdempotencyKey(),
+      /proveedor criptografico seguro para idempotencia financiera/,
+    );
+  } finally {
+    if (descriptor) Object.defineProperty(globalThis, 'crypto', descriptor);
+  }
+});

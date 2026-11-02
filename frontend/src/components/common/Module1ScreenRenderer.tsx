@@ -19,6 +19,7 @@ import { ErrorState } from './states/ErrorState';
 import { LoadingState } from './states/LoadingState';
 import { formatCopCents } from '../../utils/money';
 import { sessionManager } from '../../services/session/platform';
+import BottomNav from './BottomNav';
 
 export type { Module1ScreenKey } from '../../types/module1';
 
@@ -26,7 +27,7 @@ export interface Module1ScreenRendererProps extends Module1ScreenProps {
   readonly screenKey: Module1ScreenKey;
 }
 
-export default function Module1ScreenRenderer({ screenKey, onNavigate, onHome, services, apiEnabled = false }: Module1ScreenRendererProps) {
+export default function Module1ScreenRenderer({ screenKey, onNavigate, onHome, services, apiEnabled = false, onTabPress }: Module1ScreenRendererProps) {
   const section = getModule1Section(screenKey);
   const number = getModule1Number(screenKey);
   const demo = useModule1Demo(screenKey, onNavigate);
@@ -80,6 +81,7 @@ export default function Module1ScreenRenderer({ screenKey, onNavigate, onHome, s
       {isLiveDomain && !liveLoading && !liveError && !liveReady ? <EmptyState title={section === 'Wallet' ? 'Billetera no disponible' : 'Perfil no disponible'} description="No recibimos datos confirmados para esta sesión." actionLabel="Actualizar" onAction={reloadLive} /> : null}
       {isLiveDomain && !liveLoading && !liveError && liveReady && section === 'Wallet' ? <View style={styles.liveCard}><Text style={styles.cardTitle}>Billetera confirmada</Text><Text style={styles.muted}>Estado: {walletInfo.data?.status} · Moneda: {walletInfo.data?.currency}</Text><Text style={styles.muted}>Saldo: {wallet.data ? formatCopCents(wallet.data.availableBalanceCents) : '—'}</Text><Text style={styles.muted}>Fuente: {wallet.data?.sourceAuthority}</Text><Pressable onPress={reloadLive} style={styles.inlineAction}><Text style={styles.inlineActionText}>Actualizar datos</Text></Pressable></View> : null}
       {isLiveDomain && !liveLoading && !liveError && liveReady && section === 'Profile' ? <View style={styles.liveCard}><Text style={styles.cardTitle}>Perfil confirmado</Text><Text style={styles.muted}>{profile.data?.firstName} {profile.data?.lastName}</Text><Text style={styles.muted}>{profile.data?.email} · {profile.data?.timezone}</Text><Text style={styles.muted}>Estado: {profile.data?.status}</Text><Pressable onPress={profile.reload} style={styles.inlineAction}><Text style={styles.inlineActionText}>Actualizar datos</Text></Pressable></View> : null}
+      {section === 'Profile' && number === 1 ? <Pressable onPress={() => { void sessionManager.signOut(); }} style={styles.inlineAction}><Text style={styles.inlineActionText}>Cerrar sesión</Text></Pressable> : null}
       {isConfigurationLive && configurationLoading ? <LoadingState message="Cargando configuración…" hint="Solo ADMIN puede consultar la configuración de plataforma." /> : null}
       {isConfigurationLive && !configurationLoading && configurationError ? <ErrorState error={configurationError} onRetry={configuration.reload} onSecondary={onHome} /> : null}
       {apiEnabled && section === 'Configuration' && !canManageConfiguration ? <View style={styles.liveCard}><Text style={styles.cardTitle}>Configuración restringida</Text><Text style={styles.muted}>Esta configuración pertenece a la plataforma y requiere permisos ADMIN. No se aplicará ningún cambio local como si fuera real.</Text></View> : null}
@@ -96,6 +98,10 @@ export default function Module1ScreenRenderer({ screenKey, onNavigate, onHome, s
       <View style={styles.actions}><Pressable onPress={demo.submit} style={styles.primary}><Text style={styles.primaryText}>{section === 'Access' && number === 1 ? 'Entrar en DEMO' : section === 'Projection_Status' && number === 1 ? 'Consultar DEMO' : 'Continuar'}</Text></Pressable><Pressable onPress={() => onNavigate(getNextModule1Screen(screenKey))} style={styles.secondary}><Text style={styles.secondaryText}>Siguiente pantalla</Text></Pressable></View>
       <View style={styles.pager}><Text style={styles.pagerText}>{number} / {MODULE1_SCREEN_COUNTS[section]}</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.dots}>{Array.from({ length: MODULE1_SCREEN_COUNTS[section] }).map((_, index) => <Pressable key={index} onPress={() => onNavigate(`${section}_${String(index + 1).padStart(2, '0')}` as Module1ScreenKey)} style={[styles.dot, index + 1 === number && styles.dotActive]} />)}</ScrollView></View>
     </ScrollView>
+    <BottomNav
+      activeTab={section === 'Profile' ? 'perfil' : section === 'Wallet' ? 'inicio' : undefined}
+      onTabPress={onTabPress}
+    />
     <Modal visible={demo.modalOpen} transparent animationType="fade" onRequestClose={demo.closeModal}><Pressable style={styles.backdrop} onPress={demo.closeModal}><View style={styles.modal}><Text style={styles.cardTitle}>Opciones DEMO</Text><Text style={styles.muted}>Ninguna acción cambia datos reales ni llama al backend.</Text><Pressable onPress={() => { demo.closeModal(); Alert.alert('Simulación', 'La acción quedó aplicada solo en memoria.'); }} style={styles.primary}><Text style={styles.primaryText}>Aplicar localmente</Text></Pressable><Pressable onPress={demo.closeModal} style={styles.secondary}><Text style={styles.secondaryText}>Cerrar</Text></Pressable></View></Pressable></Modal>
   </View>;
 }

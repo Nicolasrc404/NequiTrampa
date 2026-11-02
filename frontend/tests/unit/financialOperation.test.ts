@@ -184,3 +184,21 @@ test('la operación exige un scope estable', () => {
     Error,
   );
 });
+
+test('un fallo del proveedor de idempotencia devuelve rechazo controlado', async () => {
+  class BrokenKeyStore extends IdempotencyKeyStore {
+    override rotate(): string {
+      throw new Error('secure provider unavailable');
+    }
+  }
+
+  const operation = new FinancialOperation({
+    scope: 'transfers.create',
+    keyStore: new BrokenKeyStore(),
+  });
+  const result = await operation.run('draft-crypto-error', async () => 'should-not-send');
+
+  assert.equal(result.status, 'rejected');
+  assert.equal(result.error?.kind, 'unexpected');
+  assert.equal(operation.isSubmitting, false);
+});

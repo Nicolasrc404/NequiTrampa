@@ -14,6 +14,7 @@ export interface Module1ScreenProps {
   readonly onHome?: () => void;
   readonly services?: ApiServices | null;
   readonly apiEnabled?: boolean;
+  readonly onTabPress?: (tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil') => void;
 }
 
 export interface Module1DemoState {

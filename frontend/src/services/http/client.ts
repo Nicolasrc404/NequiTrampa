@@ -61,6 +61,12 @@ export interface HttpClient {
 
 const DEFAULT_TIMEOUT_MS = 15_000;
 
+function diagnostic(event: string, details: Readonly<Record<string, unknown>>): void {
+  if (typeof __DEV__ !== 'undefined' && __DEV__) {
+    console.debug(`[http] ${event}`, details);
+  }
+}
+
 function isSuccessStatus(status: number): boolean {
   return status >= 200 && status < 300;
 }
@@ -160,6 +166,13 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
     }
 
     const url = buildUrl(resolvedBaseUrl, path, requestOptions.query);
+    const startedAt = Date.now();
+    diagnostic('start', {
+      method,
+      url,
+      timeoutMs: requestOptions.timeoutMs ?? defaultTimeoutMs,
+      hasExternalSignal: Boolean(requestOptions.signal),
+    });
     const accessToken = requestOptions.skipAuth
       ? null
       : (await resolveToken(options.getAccessToken)) ?? null;
@@ -202,10 +215,20 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
       });
     } catch (error) {
       if (error instanceof ApiError) throw error;
-      if (timedOut) throw ApiError.fromTransport('timeout', error);
-      if (externallyAborted) throw ApiError.fromTransport('aborted', error);
+      if (timedOut) {
+        diagnostic('timeout', { method, url, durationMs: Date.now() - startedAt });
+        throw ApiError.fromTransport('timeout', error);
+      }
+      if (externallyAborted) {
+        diagnostic('aborted', { method, url, durationMs: Date.now() - startedAt });
+        throw ApiError.fromTransport('aborted', error);
+      }
       const name = (error as { name?: string } | null)?.name;
-      if (name === 'AbortError') throw ApiError.fromTransport('aborted', error);
+      if (name === 'AbortError') {
+        diagnostic('aborted', { method, url, durationMs: Date.now() - startedAt });
+        throw ApiError.fromTransport('aborted', error);
+      }
+      diagnostic('network-error', { method, url, durationMs: Date.now() - startedAt });
       throw ApiError.fromTransport('network', error);
     } finally {
       clearTimeout(timer);
@@ -219,6 +242,12 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
 
     const raw = await readBody(response);
     const status = response.status;
+    diagnostic('response', {
+      method,
+      url,
+      status,
+      durationMs: Date.now() - startedAt,
+    });
 
     if (!isSuccessStatus(status)) {
       const error = ApiError.fromResponse(status, raw, response.headers);

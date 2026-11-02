@@ -17,7 +17,23 @@ function randomHex(bytes: number): string {
     cryptoObject.getRandomValues(buffer);
     return Array.from(buffer, (value) => value.toString(16).padStart(2, '0')).join('');
   }
-  throw new Error('La plataforma no proporciona crypto.getRandomValues para idempotencia financiera.');
+
+  // Expo Go/Hermes puede no exponer globalThis.crypto. Se carga de forma
+  // perezosa para usar el proveedor nativo de Expo sin introducir un fallback
+  // inseguro en otros entornos.
+  try {
+    const expoCrypto = typeof require === 'function' ? require('expo-crypto') : null;
+    if (expoCrypto && typeof expoCrypto.getRandomValues === 'function') {
+      const buffer = new Uint8Array(bytes);
+      expoCrypto.getRandomValues(buffer);
+      return Array.from(buffer, (value) => value.toString(16).padStart(2, '0')).join('');
+    }
+  } catch {
+    // Se informa abajo; nunca se sustituye por Math.random().
+  }
+  throw new Error(
+    'La plataforma no proporciona un proveedor criptografico seguro para idempotencia financiera.',
+  );
 }
 
 /** Genera una clave compatible con el backend (UUID v4 en formato estándar). */
