@@ -25,9 +25,10 @@ export type { Module1ScreenKey } from '../../types/module1';
 
 export interface Module1ScreenRendererProps extends Module1ScreenProps {
   readonly screenKey: Module1ScreenKey;
+  readonly onTransfer?: () => void;
 }
 
-export default function Module1ScreenRenderer({ screenKey, onNavigate, onHome, services, apiEnabled = false, onTabPress }: Module1ScreenRendererProps) {
+export default function Module1ScreenRenderer({ screenKey, onNavigate, onHome, services, apiEnabled = false, onTabPress, onTransfer }: Module1ScreenRendererProps) {
   const section = getModule1Section(screenKey);
   const number = getModule1Number(screenKey);
   const demo = useModule1Demo(screenKey, onNavigate);
@@ -92,7 +93,7 @@ export default function Module1ScreenRenderer({ screenKey, onNavigate, onHome, s
       {section === 'Access' && number === 1 ? <AccessForm {...demo} /> : null}
       {section === 'Profile' && number === 3 && (!isLiveDomain || liveReady) ? <ProfileForm {...demo} profile={apiEnabled ? profile.data : undefined} onSave={apiEnabled ? () => { void profile.update.execute({ alias: demo.value }).then((result) => { if (result) profile.reload(); }); } : undefined} onCancel={apiEnabled ? () => demo.setValue(profile.data?.alias ?? '') : undefined} saving={profile.update.isSubmitting} saveError={profile.update.error?.toUserMessage().message ?? null} /> : null}
       {section === 'Configuration' && number <= 5 && (!isConfigurationLive || configuration.data !== null) ? <ConfigurationPreferences enabled={configuration.data?.notificationsEnabled ?? demo.enabled} setEnabled={(value) => { if (isConfigurationLive) void configuration.update.execute({ notificationsEnabled: value }).then((result) => { if (result) configuration.reload(); }); else demo.setEnabled(value); }} configuration={isConfigurationLive ? configuration.data : undefined} saving={configuration.update.isSubmitting} saveError={configuration.update.error?.toUserMessage().message ?? null} /> : null}
-      {section === 'Wallet' && number === 1 && (!isLiveDomain || liveReady) ? <WalletBalanceCard onDetail={() => onNavigate('Wallet_06')} onOptions={demo.openModal} balanceCents={wallet.data?.availableBalanceCents} isDemo={!apiEnabled} onRefresh={reloadLive} /> : null}
+      {section === 'Wallet' && number === 1 && (!isLiveDomain || liveReady) ? <WalletBalanceCard onTransfer={onTransfer} onDetail={() => onNavigate('Wallet_06')} onOptions={demo.openModal} balanceCents={wallet.data?.availableBalanceCents} isDemo={!apiEnabled} onRefresh={reloadLive} /> : null}
       {section === 'Projection_Status' && number === 5 ? <ProjectionReferenceForm value={demo.value} setValue={demo.setValue} onSubmit={isProjectionLive ? () => setProjectionReference(demo.value) : undefined} submitLabel={isProjectionLive ? 'Consultar estado' : undefined} /> : null}
       {((section !== 'Access' || number !== 1) && (section !== 'Profile' || number !== 3) && (section !== 'Configuration' || number > 5) && (section !== 'Wallet' || number !== 1) && !isLiveDomain && !isConfigurationLive && !isProjectionLive && (section !== 'Projection_Status' || number !== 5)) ? <View style={[styles.statusCard, isError && styles.statusError, isSuccess && styles.statusSuccess]}><Text style={styles.statusIcon}>{isSuccess ? '✓' : isError ? '!' : section === 'Projection_Status' && number === 1 ? '…' : '◉'}</Text><Text style={styles.cardTitle}>{isSuccess ? 'Listo en modo DEMO' : isError ? 'Estado simulado' : 'Información de la pantalla'}</Text><Text style={styles.muted}>{isError ? 'Este estado reproduce la variante oficial sin realizar solicitudes de red.' : 'Puedes recorrer esta variante y probar los controles disponibles.'}</Text></View> : null}
       <View style={styles.actions}><Pressable onPress={demo.submit} style={styles.primary}><Text style={styles.primaryText}>{section === 'Access' && number === 1 ? 'Entrar en DEMO' : section === 'Projection_Status' && number === 1 ? 'Consultar DEMO' : 'Continuar'}</Text></Pressable><Pressable onPress={() => onNavigate(getNextModule1Screen(screenKey))} style={styles.secondary}><Text style={styles.secondaryText}>Siguiente pantalla</Text></Pressable></View>

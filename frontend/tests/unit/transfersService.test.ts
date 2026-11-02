@@ -5,6 +5,7 @@ import { ServiceContractError } from '../../src/services/contract';
 import {
   createTransfersService,
   DEFAULT_TRANSFER_PAGE_SIZE,
+  isTransferAmountValid,
   MAX_TRANSFER_CENTS,
   MAX_TRANSFER_DESCRIPTION_LENGTH,
   MIN_TRANSFER_CENTS,
@@ -38,6 +39,14 @@ const RECEIPT = {
   authorizationCode: 'AUTH-01',
   status: 'COMPLETED',
 };
+
+test('valida importes de transferencia en centavos y saldo disponible', () => {
+  assert.equal(isTransferAmountValid(0), false);
+  assert.equal(isTransferAmountValid(100), true);
+  assert.equal(isTransferAmountValid(200_000_001), false);
+  assert.equal(isTransferAmountValid(100_001, 100_000), false);
+  assert.equal(isTransferAmountValid(100_000, 100_000), true);
+});
 
 test('create envía el monto como decimal COP, la clave y ningún clientId', async () => {
   const fake = createFakeHttp(() => TRANSFER);

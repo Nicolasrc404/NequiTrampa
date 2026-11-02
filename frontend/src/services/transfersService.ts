@@ -35,6 +35,17 @@ export const MAX_TRANSFER_CODE_LENGTH = 20;
 export const MAX_TRANSFER_DESCRIPTION_LENGTH = 140;
 export const DEFAULT_TRANSFER_PAGE_SIZE = 20;
 
+/** Valida el importe del formulario sin convertir COP a punto flotante. */
+export function isTransferAmountValid(
+  amountCents: number,
+  availableBalanceCents: number | null = null,
+): boolean {
+  return Number.isSafeInteger(amountCents)
+    && amountCents >= MIN_TRANSFER_CENTS
+    && amountCents <= MAX_TRANSFER_CENTS
+    && (availableBalanceCents === null || amountCents <= availableBalanceCents);
+}
+
 const DESTINATION_CODE_PATTERN = /^[A-Za-z0-9_-]+$/;
 
 export interface TransferDto {
@@ -177,7 +188,7 @@ function validateAmountCents(amountCents: number): number {
   if (!Number.isSafeInteger(amountCents)) {
     throw new Error('El monto debe ser un entero de centavos.');
   }
-  if (amountCents < MIN_TRANSFER_CENTS || amountCents > MAX_TRANSFER_CENTS) {
+  if (!isTransferAmountValid(amountCents)) {
     throw new Error('El monto debe estar entre $1 y $2.000.000 COP.');
   }
   return amountCents;
