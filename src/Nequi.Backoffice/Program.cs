@@ -22,7 +22,8 @@ builder.AddNequiCommon();
 // backoffice puede arrancar para health/docs, pero no expone operaciones financieras simuladas.
 var isGcp = string.Equals(builder.Configuration["Data:Backend"], "gcp", StringComparison.OrdinalIgnoreCase);
 var hasSpannerConfiguration = builder.Configuration["Spanner:Database"] is { Length: > 0 };
-if (isGcp || hasSpannerConfiguration)
+var ledgerServicesAvailable = isGcp || hasSpannerConfiguration;
+if (ledgerServicesAvailable)
 {
     if (isGcp && !hasSpannerConfiguration)
         throw new InvalidOperationException("Spanner:Database is required for Nequi.Backoffice.");
@@ -63,6 +64,27 @@ var app = builder.Build();
 app.UseNequiSwagger(); // antes de UseNequiCommon: deny-by-default bloquearía la UI
 // 4. Pipeline HTTP estándar Nequi
 app.UseNequiCommon();
+
+// En memory los servicios de ledger no existen: los endpoints que los necesitan responden 503
+// explícito (con autenticación y autorización ya aplicadas) en lugar de un 500 por DI.
+if (!ledgerServicesAvailable)
+{
+    app.Use(async (context, next) =>
+    {
+        try { await next(); }
+        catch (InvalidOperationException ex) when (!context.Response.HasStarted &&
+            ex.Message.StartsWith("Unable to resolve service for type", StringComparison.Ordinal))
+        {
+            context.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await context.Response.WriteAsJsonAsync(new Microsoft.AspNetCore.Mvc.ProblemDetails
+            {
+                Status = StatusCodes.Status503ServiceUnavailable,
+                Title = "Operación no disponible en el backend de memoria",
+                Detail = "Esta operación de Backoffice requiere el ledger (Data:Backend=gcp).",
+            }, options: null, contentType: "application/problem+json");
+        }
+    });
+}
 
 app.UseHttpsRedirection();
 app.MapControllers();
