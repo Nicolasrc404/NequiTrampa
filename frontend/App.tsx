@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Alert, SafeAreaView, StyleSheet, View } from 'react-native';
+import { Alert, BackHandler, SafeAreaView, StyleSheet, View } from 'react-native';
 import colors from './src/theme/colors';
 import { appConfig } from './src/config/appConfig';
 import BackofficeApp from './src/navigation/BackofficeApp';
@@ -48,6 +48,7 @@ import {
 import { MovementsState, MovementItem } from './src/types/movements';
 import { DEMO_MOVEMENTS } from './src/data/demoMovements';
 import { resolveBottomTab, type BottomTab } from './src/utils/bottomTabNavigation';
+import { resolveTransferCompletionTarget } from './src/utils/transferCompletionNavigation';
 
 import Movements01Screen from './src/screens/movements/Movements01Screen';
 import Movements02Screen from './src/screens/movements/Movements02Screen';
@@ -592,6 +593,36 @@ function MainApp() {
     }
     setCurrentState('Transfers_01');
   };
+
+  const leaveAcademicTransferCompletion = useCallback(
+    (action: 'home' | 'movements' | 'back') => {
+      setTransferSubmitRequested(false);
+      if (appConfig.academicModeEnabled) {
+        setTransferDraft({
+          recipient: { id: '', name: '', code: '', initialLetter: '?' },
+          amountCents: 0,
+          message: '',
+        });
+        setTransferAmountText('');
+      }
+      setCurrentState(resolveTransferCompletionTarget(action));
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!appConfig.academicModeEnabled || currentState !== 'Transfers_22') {
+      return undefined;
+    }
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        leaveAcademicTransferCompletion('back');
+        return true;
+      },
+    );
+    return () => subscription.remove();
+  }, [currentState, leaveAcademicTransferCompletion]);
 
   const handleCategoryDraft = async (
     name: string,
@@ -2399,7 +2430,9 @@ function MainApp() {
             amountCents={transferDraft.amountCents}
             reference={selectedTransfer.reference}
             onViewReceipt={() => setCurrentState('Transfers_22')}
-            onGoHome={() => setCurrentState('Movements_01')}
+            onGoHome={() => appConfig.academicModeEnabled
+              ? leaveAcademicTransferCompletion('home')
+              : setCurrentState('Movements_01')}
             balanceAfterCents={demoEnabled ? undefined : null}
             demoMode={demoEnabled}
           />
@@ -2517,14 +2550,24 @@ function MainApp() {
           (demoEnabled ? (
             <Transfers22Screen
               transfer={selectedTransfer}
-              onBack={() => setCurrentState('Transfers_19')}
+              onBack={() => appConfig.academicModeEnabled
+                ? leaveAcademicTransferCompletion('back')
+                : setCurrentState('Transfers_19')}
+              onGoHome={() => leaveAcademicTransferCompletion('home')}
+              onViewMovements={() => leaveAcademicTransferCompletion('movements')}
               demoMode
+              academicMode={appConfig.academicModeEnabled}
             />
           ) : receipt.status === 'success' && receipt.data ? (
             <Transfers22Screen
               receipt={receipt.data}
-              onBack={() => setCurrentState('Transfers_19')}
+              onBack={() => appConfig.academicModeEnabled
+                ? leaveAcademicTransferCompletion('back')
+                : setCurrentState('Transfers_19')}
+              onGoHome={() => leaveAcademicTransferCompletion('home')}
+              onViewMovements={() => leaveAcademicTransferCompletion('movements')}
               demoMode={false}
+              academicMode={appConfig.academicModeEnabled}
             />
           ) : receipt.status === 'error' ? (
             receiptFailure === 'not_found' ? (
