@@ -17,13 +17,7 @@ function randomHex(bytes: number): string {
     cryptoObject.getRandomValues(buffer);
     return Array.from(buffer, (value) => value.toString(16).padStart(2, '0')).join('');
   }
-  let output = '';
-  for (let index = 0; index < bytes; index += 1) {
-    output += Math.floor(Math.random() * 256)
-      .toString(16)
-      .padStart(2, '0');
-  }
-  return output;
+  throw new Error('La plataforma no proporciona crypto.getRandomValues para idempotencia financiera.');
 }
 
 /** Genera una clave compatible con el backend (UUID v4 en formato estándar). */

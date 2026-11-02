@@ -389,7 +389,13 @@ function MainApp() {
 
   const balance = useWalletBalance(services, realReady);
   const ownClientId = balance.data?.clientId ?? null;
-  const movements = useMovements(services, realReady);
+  const movements = useMovements(
+    services,
+    realReady,
+    undefined,
+    appConfig.academicModeEnabled,
+    ownClientId,
+  );
   const transfers = useTransfers(services, realReady, ownClientId);
   const recharges = useRecharges(services, realReady);
   const receipt = useTransferReceipt(

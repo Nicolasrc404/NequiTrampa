@@ -17,6 +17,7 @@ import type {
 import type { TransferDto, TransferReceiptDto } from '../services/transfersService';
 import { MOVEMENTS_DEFAULT_LIMIT } from '../services/movementsService';
 import { mapMovements } from '../services/mappers/movementMapper';
+import { buildAcademicMovementDtos } from '../services/mappers/academicMovementMapper';
 import { mapTransfers } from '../services/mappers/transferMapper';
 import {
   mapRecharges,
@@ -79,8 +80,11 @@ export function useMovements(
   services: ApiServices | null,
   enabled: boolean,
   limit: number = MOVEMENTS_DEFAULT_LIMIT,
+  academicMode: boolean = false,
+  ownClientId: string | null = null,
 ): MovementsResource {
-  const active = canLoad(services, enabled);
+  const active =
+    canLoad(services, enabled) && (!academicMode || Boolean(ownClientId));
   const [status, setStatus] = useState<ApiResourceStatus>('idle');
   const [items, setItems] = useState<readonly MovementItem[]>([]);
   const [error, setError] = useState<ApiError | null>(null);
@@ -110,8 +114,21 @@ export function useMovements(
     setError(null);
     setLoadingMore(false);
 
-    void services!.movements
-      .list({ limit, signal: controller.signal })
+    const loadPage = academicMode
+      ? Promise.all([
+          services!.transfers.list({ page: 1, pageSize: 100, signal: controller.signal }),
+          services!.recharges.list({ signal: controller.signal }),
+        ]).then(([transfers, recharges]) => ({
+          items: buildAcademicMovementDtos(
+            transfers,
+            recharges,
+            ownClientId as string,
+          ).slice(0, limit),
+          nextCursor: null,
+        }))
+      : services!.movements.list({ limit, signal: controller.signal });
+
+    void loadPage
       .then((page) => {
         if (current !== generation.current) return;
         setItems(dedupeMovements(mapMovements(page.items)));
@@ -129,12 +146,12 @@ export function useMovements(
       });
 
     return () => controller.abort();
-  }, [active, services, limit, reloadToken]);
+  }, [active, services, limit, reloadToken, academicMode, ownClientId]);
 
   useEffect(() => () => moreController.current?.abort(), []);
 
   const loadMore = useCallback(() => {
-    if (!active || cursor === null || loadingMore) return;
+    if (academicMode || !active || cursor === null || loadingMore) return;
     const controller = new AbortController();
     moreController.current?.abort();
     moreController.current = controller;

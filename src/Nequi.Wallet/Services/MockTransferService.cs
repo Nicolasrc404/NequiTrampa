@@ -4,163 +4,52 @@ using Nequi.Wallet.Interfaces;
 
 namespace Nequi.Wallet.Services;
 
-/// <summary>
-/// Implementación simulada de ITransferService con validaciones de límites y saldo.
-/// Estado: MOCK — en la fase productiva se reemplaza por SpannerTransferService con transacciones
-/// atómicas en Spanner y publicación al Transactional Outbox (TO-BE).
-/// Idempotencia: delegada al IdempotencyActionFilter (Nequi.Shared) en la capa MVC.
-///
-/// LIMITACIÓN DEL MOCK: el saldo es fijo ($1.250.000) y NO se reduce tras una transferencia.
-/// Las recargas no aumentan el saldo. La autoridad financiera real (Spanner ledger) es TO-BE.
-/// </summary>
-public sealed class MockTransferService : ITransferService
+/// <summary>Academic transfer service backed by the atomic local wallet store.</summary>
+public sealed class MockTransferService(AcademicWalletStore? store = null) : ITransferService
 {
-    private const decimal MaxTransferAmount = 2_000_000m;
-    private const decimal MaxDailyAmount = 5_000_000m;
+    private readonly AcademicWalletStore _store = store ?? AcademicWalletStore.Shared;
 
-    // In-memory state; se usa solo en modo MOCK. No thread-safe para concurrencia real.
-    private static readonly List<TransferResponseDto> Transfers = [];
-
-    public Task<TransferResponseDto> CreateTransferAsync(
-        string originClientId,
-        string idempotencyKey,
-        CreateTransferRequestDto request,
-        CancellationToken cancellationToken = default)
+    public Task<TransferResponseDto> CreateTransferAsync(string originClientId, string idempotencyKey, CreateTransferRequestDto request, CancellationToken cancellationToken = default)
     {
-        // Idempotencia: delegada al IdempotencyActionFilter (Nequi.Shared → IIdempotencyStore).
-        // Este servicio no debe duplicar la lógica de idempotencia.
+        if (request.DestinationTransferCode == "TRF-INACTIVE-0000") throw new InactiveDestinationException();
+        return Task.FromResult(_store.CreateTransfer(originClientId, request));
+    }
 
-        // Reglas financieras
-        if (request.Amount > MaxTransferAmount)
-            throw new TransferLimitExceededException($"El monto de la transferencia supera el límite individual permitido (${MaxTransferAmount:N0} COP).");
+    public Task<IReadOnlyList<TransferResponseDto>> GetTransfersByClientIdAsync(string clientId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default) =>
+        Task.FromResult(_store.GetTransfers(clientId, page, pageSize));
 
-        decimal transferredToday;
-
-        lock (Transfers)
-        {
-            var todayUtc = DateTimeOffset.UtcNow.UtcDateTime.Date;
-
-            transferredToday = Transfers
-                .Where(t =>
-                    t.OriginClientId == originClientId &&
-                    t.Status == "COMPLETED" &&
-                    t.Timestamp.UtcDateTime.Date == todayUtc)
-                .Sum(t => t.Amount);
-        }
-
-        if (transferredToday + request.Amount > MaxDailyAmount)
-            throw new TransferLimitExceededException(
-                $"El monto acumulado diario supera el límite permitido (${MaxDailyAmount:N0} COP).");
-
-        // Saldo simulado fijo; en producción: leer wallet.balance de Spanner
-        // LIMITACIÓN DEL MOCK: el saldo no disminuye tras la transferencia (TO-BE: ledger Spanner).
-        const decimal mockBalance = 1_250_000m;
-        if (request.Amount > mockBalance)
-            throw new InsufficientFundsException();
-
-        // Destino simulado inactivo
-        if (request.DestinationTransferCode == "TRF-INACTIVE-0000")
-            throw new InactiveDestinationException();
-
-        var transfer = new TransferResponseDto(
-            TransferId: $"trf_{Guid.NewGuid():N}"[..18],
-            OriginClientId: originClientId,
-            DestinationClientId: $"cli_dest_{request.DestinationTransferCode[..Math.Min(8, request.DestinationTransferCode.Length)]}",
-            DestinationTransferCode: request.DestinationTransferCode,
-            Amount: request.Amount,
-            AmountCents: (long)(request.Amount * 100),
-            Currency: request.Currency,
-            Status: "COMPLETED",
-            LedgerOperationId: $"led_op_{Guid.NewGuid():N}"[..18],
-            Timestamp: DateTimeOffset.UtcNow,
-            Description: request.Description
-        );
-
-        lock (Transfers) { Transfers.Add(transfer); }
-
+    public Task<TransferResponseDto> GetTransferByIdAsync(string clientId, string transferId, CancellationToken cancellationToken = default)
+    {
+        var transfer = _store.FindTransfer(transferId)
+            ?? throw new WalletNotFoundException($"La transferencia con identificador '{transferId}' no fue encontrada.");
+        EnsureParticipant(clientId, transfer);
         return Task.FromResult(transfer);
     }
 
-    public Task<IReadOnlyList<TransferResponseDto>> GetTransfersByClientIdAsync(
-        string clientId,
-        int page = 1,
-        int pageSize = 20,
-        CancellationToken cancellationToken = default)
+    public Task<TransferReceiptDto> GetTransferReceiptAsync(string clientId, string transferId, CancellationToken cancellationToken = default)
     {
-        lock (Transfers)
-        {
-            IReadOnlyList<TransferResponseDto> result = Transfers
-                .Where(t => t.OriginClientId == clientId || t.DestinationClientId == clientId)
-                .Skip((page - 1) * pageSize)
-                .Take(pageSize)
-                .ToList();
-
-            return Task.FromResult(result);
-        }
+        var transfer = _store.FindTransfer(transferId)
+            ?? throw new WalletNotFoundException($"No se encontró la transferencia '{transferId}' para generar el comprobante.");
+        EnsureParticipant(clientId, transfer);
+        var receipt = new TransferReceiptDto(
+            $"REC-{DateTime.UtcNow:yyyyMMdd}-{transferId[..6].ToUpperInvariant()}", transfer.TransferId,
+            MaskTransferCode(transfer.OriginClientId), MaskTransferCode(transfer.DestinationTransferCode),
+            transfer.Amount, transfer.Currency, transfer.Timestamp,
+            $"AUTH-{Guid.NewGuid():N}"[..10].ToUpperInvariant(), transfer.Status);
+        return Task.FromResult(receipt);
     }
 
-    public Task<TransferResponseDto> GetTransferByIdAsync(
-        string clientId,
-        string transferId,
-        CancellationToken cancellationToken = default)
+    private static void EnsureParticipant(string clientId, TransferResponseDto transfer)
     {
-        lock (Transfers)
-        {
-            var transfer = Transfers.FirstOrDefault(t => t.TransferId == transferId)
-                ?? throw new WalletNotFoundException($"La transferencia con identificador '{transferId}' no fue encontrada.");
-
-            // Resource-based authorization: un cliente solo ve sus propias transferencias
-            if (transfer.OriginClientId != clientId && transfer.DestinationClientId != clientId)
-                throw new UnauthorizedAccessException("No tiene autorización para visualizar una transferencia que no le pertenece.");
-
-            return Task.FromResult(transfer);
-        }
+        if (transfer.OriginClientId != clientId && transfer.DestinationClientId != clientId)
+            throw new UnauthorizedAccessException("No tiene autorización para acceder a una transferencia ajena.");
     }
 
-    public Task<TransferReceiptDto> GetTransferReceiptAsync(
-        string clientId,
-        string transferId,
-        CancellationToken cancellationToken = default)
-    {
-        lock (Transfers)
-        {
-            var transfer = Transfers.FirstOrDefault(t => t.TransferId == transferId)
-                ?? throw new WalletNotFoundException($"No se encontró la transferencia '{transferId}' para generar el comprobante.");
-
-            // Resource-based authorization: mismo chequeo que GetTransferByIdAsync.
-            // Un cliente solo obtiene el comprobante si es origen o destino de la transferencia.
-            if (transfer.OriginClientId != clientId && transfer.DestinationClientId != clientId)
-                throw new UnauthorizedAccessException("No tiene autorización para obtener el comprobante de una transferencia que no le pertenece.");
-
-            var receipt = new TransferReceiptDto(
-                ReceiptNumber: $"REC-{DateTime.UtcNow:yyyyMMdd}-{transferId[..6].ToUpper()}",
-                TransferId: transfer.TransferId,
-                OriginMaskedTransferCode: MaskTransferCode(transfer.OriginClientId),
-                DestinationMaskedTransferCode: MaskTransferCode(transfer.DestinationTransferCode),
-                Amount: transfer.Amount,
-                Currency: transfer.Currency,
-                CompletedAt: transfer.Timestamp,
-                AuthorizationCode: $"AUTH-{Guid.NewGuid():N}"[..10].ToUpper(),
-                Status: transfer.Status
-            );
-
-            return Task.FromResult(receipt);
-        }
-    }
-
-    /// <summary>
-    /// Enmascara un código público de transferencia.
-    /// Formato: primeros 3 caracteres + *** + últimos 4 caracteres.
-    /// Ejemplo: TRF-ALE-0001 → TRF***0001
-    /// Para códigos cortos no lanza IndexOutOfRangeException.
-    /// </summary>
     private static string MaskTransferCode(string? code)
     {
         if (string.IsNullOrWhiteSpace(code)) return "***";
-        if (code.Length >= 7)
-            return $"{code[..3]}***{code[^4..]}";
-        if (code.Length >= 4)
-            return $"{code[..1]}***{code[^2..]}";
+        if (code.Length >= 7) return $"{code[..3]}***{code[^4..]}";
+        if (code.Length >= 4) return $"{code[..1]}***{code[^2..]}";
         return $"{code}***";
     }
 }

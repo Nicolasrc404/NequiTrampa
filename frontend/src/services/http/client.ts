@@ -23,6 +23,8 @@ export interface HttpClientOptions {
   readonly fetchImpl?: typeof fetch;
   /** Devuelve el ID token vigente o `null` si no hay sesión. */
   readonly getAccessToken?: () => string | null | Promise<string | null>;
+  /** Usuario demo local, solo para el backend académico con Auth:DemoHeaders. */
+  readonly getDemoUserId?: () => string | null;
   /** Se invoca una sola vez por respuesta 401 (excepto con `skipAuth`). */
   readonly onUnauthorized?: (error: ApiError, accessToken: string | null) => void;
   readonly defaultHeaders?: Readonly<Record<string, string>>;
@@ -92,6 +94,7 @@ function composeHeaders(
   defaults: Readonly<Record<string, string>> | undefined,
   options: RequestOptions,
   accessToken: string | null,
+  demoUserId: string | null,
 ): Record<string, string> {
   const headers: Record<string, string> = {
     Accept: 'application/json',
@@ -110,6 +113,10 @@ function composeHeaders(
   }
   if (accessToken && !options.skipAuth) {
     headers.Authorization = `Bearer ${accessToken}`;
+  }
+  if (demoUserId && !options.skipAuth) {
+    headers['X-Demo-User'] = demoUserId;
+    headers['X-Demo-Role'] = 'CLIENTE';
   }
   if (options.idempotencyKey) {
     headers['Idempotency-Key'] = options.idempotencyKey;
@@ -164,7 +171,8 @@ export function createHttpClient(options: HttpClientOptions): HttpClient {
       throw ApiError.fromTransport('aborted');
     }
 
-    const headers = composeHeaders(options.defaultHeaders, requestOptions, accessToken);
+    const demoUserId = options.getDemoUserId?.() ?? null;
+    const headers = composeHeaders(options.defaultHeaders, requestOptions, accessToken, demoUserId);
 
     const controller = new AbortController();
     let timedOut = false;

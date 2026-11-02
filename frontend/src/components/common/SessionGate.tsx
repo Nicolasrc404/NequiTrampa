@@ -39,8 +39,8 @@ function copyFor(reason: SessionGateReason): GateCopy {
     default:
       return {
         badge: 'SESIÓN REQUERIDA',
-        title: 'Inicia sesión para continuar',
-        body: 'Esta versión todavía no incluye la pantalla de inicio de sesión. Por seguridad, la app no muestra movimientos ni permite operaciones sin una sesión válida.',
+        title: 'Inicia sesion academica para continuar',
+        body: 'Usa datos ficticios de desarrollo. En modo academico local no existe una cuenta productiva: cualquier correo y una contrasena no vacia crean una sesion local temporal.',
         action: 'Volver a comprobar',
       };
   }

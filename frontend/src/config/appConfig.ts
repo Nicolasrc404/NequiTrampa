@@ -32,6 +32,9 @@ export interface AppRuntimeConfig {
   readonly demoModeEnabled: boolean;
   /** El entorno pidió DEMO pero fue bloqueado por no ser build de desarrollo. */
   readonly demoModeBlockedInProduction: boolean;
+  /** Sesión local académica: solo desarrollo, nunca Identity Platform/GCP. */
+  readonly academicModeEnabled: boolean;
+  readonly academicModeBlockedInProduction: boolean;
   readonly isDev: boolean;
   readonly environmentLabel: 'development' | 'production';
 }
@@ -85,6 +88,9 @@ export function resolveAppConfig({
   const demoRequested = readBoolean(env.EXPO_PUBLIC_DEMO_MODE) ?? isDev;
   const demoModeBlockedInProduction = !isDev && demoRequested;
   const demoModeEnabled = isDev && demoRequested;
+  const academicRequested = readBoolean(env.EXPO_PUBLIC_ACADEMIC_MODE) ?? false;
+  const academicModeBlockedInProduction = !isDev && academicRequested;
+  const academicModeEnabled = isDev && academicRequested;
 
   return {
     apiBaseUrl,
@@ -93,6 +99,8 @@ export function resolveAppConfig({
     requestTimeoutMs: parseTimeout(env.EXPO_PUBLIC_API_TIMEOUT_MS),
     demoModeEnabled,
     demoModeBlockedInProduction,
+    academicModeEnabled,
+    academicModeBlockedInProduction,
     isDev,
     environmentLabel: isDev ? 'development' : 'production',
   };
@@ -108,6 +116,7 @@ function readExpoPublicEnv(): EnvSource {
     EXPO_PUBLIC_DEMO_MODE: process.env.EXPO_PUBLIC_DEMO_MODE,
     EXPO_PUBLIC_API_TIMEOUT_MS: process.env.EXPO_PUBLIC_API_TIMEOUT_MS,
     EXPO_PUBLIC_IDENTITY_API_KEY: process.env.EXPO_PUBLIC_IDENTITY_API_KEY,
+    EXPO_PUBLIC_ACADEMIC_MODE: process.env.EXPO_PUBLIC_ACADEMIC_MODE,
   };
 }
 

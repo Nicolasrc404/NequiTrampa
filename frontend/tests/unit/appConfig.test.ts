@@ -121,3 +121,10 @@ test('la API key pública de Identity Platform se recorta y admite ausencia', ()
   );
   assert.equal(resolveAppConfig({ isDev: true, env: {} }).identityApiKey, null);
 });
+
+test('el modo académico solo se activa explícitamente en desarrollo', () => {
+  assert.equal(resolveAppConfig({ isDev: true, env: { EXPO_PUBLIC_ACADEMIC_MODE: 'true' } }).academicModeEnabled, true);
+  const production = resolveAppConfig({ isDev: false, env: { EXPO_PUBLIC_ACADEMIC_MODE: 'true' } });
+  assert.equal(production.academicModeEnabled, false);
+  assert.equal(production.academicModeBlockedInProduction, true);
+});

@@ -77,6 +77,12 @@ builder.Services.AddControllers(options =>
 
 // 3. Inyección de Dependencias — Servicios de Dominio Wallet
 builder.Services.AddSingleton<BeneficiaryService>();
+var academicPersistenceEnabled = builder.Configuration.GetValue<bool>("Academic:Persist");
+var academicStorePath = builder.Configuration["Academic:StorePath"];
+if (academicPersistenceEnabled && string.IsNullOrWhiteSpace(academicStorePath))
+    academicStorePath = Path.Combine(Path.GetTempPath(), "nequitrampa-academic-wallet.json");
+builder.Services.AddSingleton(_ => new AcademicWalletStore(
+    academicPersistenceEnabled ? academicStorePath : null));
 // Deny-by-default gate for simulated payment methods (SIMULATED_PSE, SIMULATED_CARD,
 // SIMULATED_CORRESPONSAL). Only deployments that explicitly opt in accept them.
 builder.Services.AddSingleton<RechargePolicy>();

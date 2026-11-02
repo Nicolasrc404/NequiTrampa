@@ -37,16 +37,18 @@ export const Movements08Screen: React.FC<Movements08ScreenProps> = ({
           </Text>
         </View>}
 
-        {/* Retry Button */}
-        <View style={styles.actionContainer}>
-          <TouchableOpacity
-            style={styles.retryButton}
-            activeOpacity={0.85}
-            onPress={onRetryPress}
-          >
-            <Text style={styles.retryButtonText}>Reintentar</Text>
-          </TouchableOpacity>
-        </View>
+        {/* ErrorState ya renderiza el único botón de reintento cuando aplica. */}
+        {!error ? (
+          <View style={styles.actionContainer}>
+            <TouchableOpacity
+              style={styles.retryButton}
+              activeOpacity={0.85}
+              onPress={onRetryPress}
+            >
+              <Text style={styles.retryButtonText}>Reintentar</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
       </View>
 
       {/* Bottom Navigation */}

@@ -91,6 +91,11 @@ public sealed class WalletTests
         var service = new MockTransferService();
         var clientId = $"daily-{Guid.NewGuid():N}";
 
+        await new MockRechargeService().CreateRechargeAsync(
+            clientId,
+            Guid.NewGuid().ToString(),
+            new CreateRechargeRequestDto(4_000_000m, "SIMULATED_PSE", "COP"));
+
         for (var i = 0; i < 4; i++)
         {
             var request = new CreateTransferRequestDto(
@@ -118,6 +123,40 @@ public sealed class WalletTests
                 clientId,
                 Guid.NewGuid().ToString(),
                 exceedingRequest));
+    }
+
+    [Fact]
+    public async Task AcademicTransfer_UpdatesBothWalletBalances()
+    {
+        var origin = $"origin-{Guid.NewGuid():N}";
+        var transfer = await new MockTransferService().CreateTransferAsync(
+            origin,
+            Guid.NewGuid().ToString(),
+            new CreateTransferRequestDto("TRF-DEST-0001", 50_000m, "Prueba", "COP"));
+        var wallet = new MockWalletService();
+
+        var originBalance = await wallet.GetOfficialBalanceAsync(origin);
+        var destinationBalance = await wallet.GetOfficialBalanceAsync(transfer.DestinationClientId);
+
+        Assert.Equal(1_200_000m, originBalance.AvailableBalance);
+        Assert.Equal(1_300_000m, destinationBalance.AvailableBalance);
+    }
+
+    [Fact]
+    public async Task AcademicRecharge_IncreasesWalletBalance()
+    {
+        var clientId = $"recharge-{Guid.NewGuid():N}";
+        var before = await new MockWalletService().GetOfficialBalanceAsync(clientId);
+
+        await new MockRechargeService().CreateRechargeAsync(
+            clientId,
+            Guid.NewGuid().ToString(),
+            new CreateRechargeRequestDto(75_000m, "SIMULATED_PSE", "COP"));
+
+        var after = await new MockWalletService().GetOfficialBalanceAsync(clientId);
+
+        Assert.Equal(1_250_000m, before.AvailableBalance);
+        Assert.Equal(1_325_000m, after.AvailableBalance);
     }
 }
 
@@ -275,6 +314,26 @@ public sealed class WalletIntegrationTests : IDisposable
         Assert.Equal(HttpStatusCode.Forbidden, receiptResponse.StatusCode);
         var problem = await receiptResponse.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal("FORBIDDEN", problem.GetProperty("code").GetString());
+    }
+
+    [Fact]
+    public async Task FinancialOperations_UpdateBalanceThroughHttp()
+    {
+        var clientId = $"http-wallet-{Guid.NewGuid():N}";
+        var client = _factory.CreateClient().As(clientId);
+        var walletBefore = await client.GetFromJsonAsync<JsonElement>("/v1/wallet/balance");
+
+        var transfer = new CreateTransferRequestDto("TRF-HTTP-0001", 100_000m, "Flujo MVP", "COP");
+        var transferResponse = await client.SendAsync(PostJson("/v1/transfers", transfer, Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.Created, transferResponse.StatusCode);
+
+        var recharge = new CreateRechargeRequestDto(50_000m, "SIMULATED_PSE", "COP");
+        var rechargeResponse = await client.SendAsync(PostJson("/v1/recharges", recharge, Guid.NewGuid().ToString()));
+        Assert.Equal(HttpStatusCode.Created, rechargeResponse.StatusCode);
+
+        var walletAfter = await client.GetFromJsonAsync<JsonElement>("/v1/wallet/balance");
+        Assert.Equal(125_000_000, walletBefore.GetProperty("availableBalanceCents").GetInt64());
+        Assert.Equal(120_000_000, walletAfter.GetProperty("availableBalanceCents").GetInt64());
     }
 }
 
