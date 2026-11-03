@@ -344,3 +344,10 @@ Una operación no conectada nunca debe simular éxito ni error de servidor; debe
 
 **Prevención futura:**
 Para verificación visual, no iniciar Metro con `CI=1`. Las pruebas de errores HTTP deben originarse en el servidor simulado cuando la validación local impide construir la solicitud.
+
+## Auditoría del MVP académico (2026-11-02)
+
+| Fecha | Capa | Problema | Causa | Solución |
+|---|---|---|---|---|
+| 2026-11-02 | Backend / Wallet | Transferencia de `1.999` devolvía 201 con `amount: 1.999` pero debitaba 199 centavos; el saldo mostraba `1289998.01` | `AcademicWalletStore` trunca `(long)(Amount*100m)` y `[Range]` no valida decimales | Atributo `MaxDecimalPlaces(2)` en `CreateTransferRequestDto` y `CreateRechargeRequestDto`; ahora responde 422. Prueba `Post_AmountWithMoreThanTwoDecimals_Returns422` |
+| 2026-11-02 | Backend / Backoffice | `GET /v1/reconciliation/financial` devolvía 500 con `Data:Backend=memory` | Los servicios de ledger solo se registran en GCP, pero los controladores seguían mapeados (`Unable to resolve service…`) | Middleware que responde 503 ProblemDetails explícito cuando faltan esos servicios; la autorización (403) se aplica antes |
