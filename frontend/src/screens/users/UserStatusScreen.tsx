@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { adminApi } from '../../api/backoffice';
-import { useAction, useAsync } from '../../hooks/useAsync';
+import { requireBackoffice } from '../../services/api';
+import { useApiResource } from '../../hooks/useApiResource';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useNav } from '../../navigation/nav';
 import { Remote } from '../../components/backoffice/Remote';
 import { BoButton, BoScreen, Card, InlineError, KeyValue, ReadOnlyNote, Segmented, SectionTitle, SuccessBanner } from '../../components/backoffice/ui';
@@ -10,19 +11,19 @@ const NEW_STATUSES = ['ACTIVE', 'SUSPENDED', 'CLOSED'] as const;
 
 export function UserStatusScreen({ id }: { id: string }) {
   const nav = useNav();
-  const { state, reload } = useAsync(() => adminApi.user(id), [id]);
+  const state = useApiResource((signal) => requireBackoffice().admin.getUser(id, { signal }), [id]);
   const [next, setNext] = useState<string>('');
-  const action = useAction(adminApi.setStatus);
+  const action = useAsyncAction((id: string, status: string) => requireBackoffice().admin.setUserStatus(id, status));
   const [done, setDone] = useState<{ previousStatus: string; status: string } | null>(null);
 
   const apply = async () => {
-    const r = await action.run(id, next);
+    const r = await action.execute(id, next);
     if (r) setDone(r);
   };
 
   return (
     <BoScreen title="Cambiar estado" onBack={nav.back}>
-      <Remote state={state} resource="Usuario" onRetry={reload} onBack={nav.back}>
+      <Remote state={state} resource="Usuario" onBack={nav.back}>
         {({ user }) =>
           done ? (
             <>
@@ -47,7 +48,7 @@ export function UserStatusScreen({ id }: { id: string }) {
                 onChange={setNext}
               />
               <InlineError error={action.error} />
-              <BoButton label="Confirmar cambio" onPress={apply} busy={action.busy} disabled={!next} />
+              <BoButton label="Confirmar cambio" onPress={apply} busy={action.isSubmitting} disabled={!next} />
               <ReadOnlyNote>Suspender o cerrar congela la billetera. No elimina ni modifica el saldo.</ReadOnlyNote>
             </>
           )

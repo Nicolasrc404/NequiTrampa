@@ -7,7 +7,9 @@ export interface Nav {
   replace: (route: BoRoute) => void;
   back: () => void;
   home: () => void;
-  roles: string[];
+  roles: readonly string[];
+  /** Identificador visible de la sesión (correo si se inició en esta sesión; si no, el uid). */
+  who: string;
 }
 
 export const NavContext = createContext<Nav | null>(null);

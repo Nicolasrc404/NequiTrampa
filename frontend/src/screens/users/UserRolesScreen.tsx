@@ -2,8 +2,9 @@ import React, { useState } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
-import { adminApi } from '../../api/backoffice';
-import { useAction, useAsync } from '../../hooks/useAsync';
+import { requireBackoffice } from '../../services/api';
+import { useApiResource } from '../../hooks/useApiResource';
+import { useAsyncAction } from '../../hooks/useAsyncAction';
 import { useNav } from '../../navigation/nav';
 import { Remote } from '../../components/backoffice/Remote';
 import { BoButton, BoScreen, Card, InlineError, KeyValue, SectionTitle, SuccessBanner } from '../../components/backoffice/ui';
@@ -11,17 +12,21 @@ import { ROLE_INFO } from '../../utils/format';
 
 export function UserRolesScreen({ id }: { id: string }) {
   const nav = useNav();
-  const { state, reload } = useAsync(async () => {
-    const [available, current] = await Promise.all([adminApi.roles(), adminApi.userRoles(id)]);
-    return { available: available.roles, current: current.roles, uid: current.userId };
+  const state = useApiResource(async (signal) => {
+    const admin = requireBackoffice().admin;
+    const [available, current] = await Promise.all([
+      admin.listRoles({ signal }),
+      admin.getUserRoles(id, { signal }),
+    ]);
+    return { available, current: [...current.roles], uid: current.userId };
   }, [id]);
   const [selected, setSelected] = useState<string[] | null>(null);
-  const action = useAction(adminApi.setRoles);
-  const [done, setDone] = useState<{ before: string[]; after: string[] } | null>(null);
+  const action = useAsyncAction((id: string, roles: string[]) => requireBackoffice().admin.setUserRoles(id, roles));
+  const [done, setDone] = useState<{ before: readonly string[]; after: readonly string[] } | null>(null);
 
   return (
     <BoScreen title="Asignar roles" onBack={nav.back}>
-      <Remote state={state} resource="Roles" onRetry={reload} onBack={nav.back}>
+      <Remote state={state} resource="Roles" onBack={nav.back}>
         {({ available, current, uid }) => {
           const value = selected ?? current;
           if (done)
@@ -65,10 +70,10 @@ export function UserRolesScreen({ id }: { id: string }) {
               <InlineError error={action.error} />
               <BoButton
                 label="Guardar roles"
-                busy={action.busy}
+                busy={action.isSubmitting}
                 disabled={value.length === 0}
                 onPress={async () => {
-                  const r = await action.run(uid, value);
+                  const r = await action.execute(uid, value);
                   if (r) setDone({ before: current, after: r.roles });
                 }}
               />
