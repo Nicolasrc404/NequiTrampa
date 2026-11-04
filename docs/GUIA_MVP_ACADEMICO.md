@@ -49,10 +49,11 @@ Usa la rama del MVP, no main:
 
     git clone https://github.com/Nicolasrc404/NequiTrampa.git
     cd NequiTrampa
-    git switch feature/mvp-academico
+    git switch feature/mvp-academico-estable
     git rev-parse HEAD
 
-El HEAD documentado aquí es 39e089f2fdc6582688f48622fff7f9ea191ee0fe.
+Comprueba el HEAD actual de `feature/mvp-academico-estable`; esta guía no fija un SHA para evitar
+confundir una versión histórica con la revisión académica vigente.
 
 ## D. Ejecutar backend local sin GCP
 
@@ -173,7 +174,7 @@ Estas credenciales son solo un ejemplo. El token es sintético y el backend loca
 7. Abre Movimientos.
 8. Vuelve a Inicio y pulsa Transferir.
 9. Escribe 10000 y verifica que se muestre 10.000 COP.
-10. Selecciona un destinatario permitido, por ejemplo DEST0001, verificando primero que exista en ese entorno.
+10. Selecciona un destinatario permitido, por ejemplo `CARL-9941`; también están disponibles `LAUR-5120`, `SOFI-3307` y la cuenta inactiva `ANA-3092` para comprobar rechazos.
 11. Revisa la confirmación y confirma una sola vez.
 12. Comprueba éxito, saldo y movimiento.
 13. Abre el comprobante. En modo académico, Volver al inicio lleva a Wallet y Ver movimientos lleva a Movements_01.
@@ -182,7 +183,7 @@ Estas credenciales son solo un ejemplo. El token es sintético y el backend loca
 16. Cierra sesión.
 
 10.000 COP equivalen a 1.000.000 de centavos. Los importes usan enteros de centavos; no trates el saldo inicial como valor universal.
-El historial académico actual consulta la primera página de hasta 100 transferencias y combina las recargas del endpoint académico; esto no demuestra paginación completa ni sustituye la proyección Firestore de la arquitectura ampliada.
+El historial académico recorre páginas de hasta 100 transferencias y combina las recargas del endpoint académico; no sustituye la proyección Firestore de la arquitectura ampliada.
 
 ## K. Compilación y pruebas automáticas
 
@@ -193,7 +194,7 @@ Frontend — **Terminal 4**, una terminal nueva abierta en la raíz del reposito
     npm.cmd run test:unit
     Pop-Location
 
-El último resultado reportado tras la navegación del comprobante fue 268 pruebas aprobadas, 0 fallidas y 0 omitidas. Incluye contratos, sesión, idempotencia, movimientos académicos y navegación.
+El resultado local de la última validación frontend de esta rama fue typecheck correcto y 292 pruebas unitarias aprobadas, 0 fallidas y 0 omitidas. Incluye contratos, sesión, idempotencia, movimientos académicos y navegación.
 
 Backend — **Terminal 5**, una terminal nueva abierta en la raíz del repositorio:
 
@@ -247,7 +248,7 @@ No ejecutes Bruno/Newman con entorno GCP. No se incluyen pruebas automatizadas i
 ## N. Checklist de aceptación
 
 - [ ] Repositorio clonado.
-- [ ] Rama feature/mvp-academico seleccionada.
+- [ ] Rama feature/mvp-academico-estable seleccionada.
 - [ ] npm ci completado.
 - [ ] Backend memory iniciado.
 - [ ] Gateway healthy.

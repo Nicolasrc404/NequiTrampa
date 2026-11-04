@@ -1234,6 +1234,19 @@ La compilación completa del backend puede quedar bloqueada en Windows si un pro
 
 Los riesgos RES-F1-001 a RES-F1-010 continúan conservados y no quedan cerrados por el MVP memory. En particular, el MVP no demuestra DDL Spanner, FinancialIntent productivo, recuperación ante commit incierto, reconciliación durable, CAS administrativo ni seguridad GCP. La implementación académica garantiza coherencia local e idempotencia básica para el flujo de demostración, no garantías bancarias de producción.
 
+## Seguimiento 2026-11-03 — cierre MVP académico estable
+
+La rama `feature/mvp-academico-estable` incorpora validación monetaria de precisión, persistencia
+JSON fail-closed, idempotencia académica durable, catálogo local de destinatarios, mensajes de
+error específicos, historial paginado y comprobantes estables. Los commits son `c235b93`,
+`138c0c8`, `9391758`, `c60f2cf` y `c9adb01`. El typecheck y las pruebas unitarias frontend
+actuales pasaron (292/292). La compilación backend completa quedó pendiente por bloqueo de permisos
+de MSBuild en `obj`; no se debe interpretar como fallo funcional ni como validación productiva.
+
+Estas mejoras solo cubren el backend `memory` y dinero ficticio. No modifican ni certifican la
+arquitectura Spanner/GCP; permanecen fuera de alcance la validación Android manual, la durabilidad
+multiinstancia y la preparación de producción.
+
 ## Historial relevante de la rama
 
 | Commit | Cambio |

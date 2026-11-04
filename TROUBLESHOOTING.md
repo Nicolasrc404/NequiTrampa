@@ -320,6 +320,13 @@ Las pruebas de contrato deben derivarse de las rutas realmente registradas; si u
 
 ---
 
+## 2026-11-03 — cierre MVP académico estable
+
+| Capa | Problema | Causa | Solución |
+|---|---|---|---|
+| Backend memory | La compilación local quedó bloqueada durante la regresión | MSBuild no pudo escribir archivos temporales en `obj`; procesos/artefactos locales mantuvieron archivos bloqueados | No se modificaron permisos ni se presentó la compilación como aprobada; repetir desde PowerShell normal tras detener solo procesos propios |
+| Frontend académico | El historial podía limitarse a la primera página y los comprobantes podían variar entre lecturas | El cargador consultaba una sola página y generaba autorización con un valor nuevo | Se recorren páginas hasta la última y los identificadores del comprobante derivan de la operación persistida |
+
 ## 2026-10-26 — Fase 7: endpoints no conectados y estados simulados engañosos
 
 | Fecha | Capa | Problema | Causa | Solución |

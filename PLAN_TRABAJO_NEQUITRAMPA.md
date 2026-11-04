@@ -918,9 +918,19 @@ Las referencias históricas a `10.0.2.2:8087` corresponden al diagnóstico de co
 - [ ] Suite backend completa sin el fallo ambiental de Windows Event Log.
 - [ ] iOS, Expo Web y GCP real: fuera del MVP académico.
 
+## Seguimiento 2026-11-03 — rama MVP académico estable
+
+La implementación académica se continúa en `feature/mvp-academico-estable`, sobre `origin/main`
+en el commit base `dba42784`. Quedaron registrados commits separados para validaciones monetarias
+(`c235b93`), persistencia e idempotencia JSON (`138c0c8`), catálogo de destinatarios
+(`9391758`), errores del frontend (`c60f2cf`) e historial/comprobantes (`c9adb01`). La fase final
+de documentación y regresión queda condicionada a una compilación backend ejecutada fuera del
+bloqueo de permisos de `obj`; el frontend sí pasó typecheck y 292 pruebas unitarias. El uso de
+Spanner/GCP y la producción permanecen fuera del cierre académico.
+
 ## Flujo de demostración para el equipo
 
-1. Clonar el repositorio y cambiar a feature/mvp-academico.
+1. Clonar el repositorio y cambiar a feature/mvp-academico-estable.
 2. Ejecutar npm ci dentro de frontend.
 3. Ejecutar run-local.ps1 -Backend memory desde la raíz.
 4. Comprobar health/live y health/ready del Gateway.
