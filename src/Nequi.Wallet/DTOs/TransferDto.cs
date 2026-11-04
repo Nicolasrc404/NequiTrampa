@@ -14,6 +14,7 @@ public record CreateTransferRequestDto(
 
     [Required]
     [Range(1, 2000000, ErrorMessage = "El monto debe ser superior a 0 y no exceder $2.000.000 COP por transferencia.")]
+    [MaxDecimalPlaces(2)]
     decimal Amount,
 
     [MaxLength(140, ErrorMessage = "La descripción no puede exceder los 140 caracteres.")]
