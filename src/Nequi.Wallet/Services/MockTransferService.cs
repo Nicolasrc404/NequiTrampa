@@ -38,10 +38,10 @@ public sealed class MockTransferService(
             ?? throw new WalletNotFoundException($"No se encontró la transferencia '{transferId}' para generar el comprobante.");
         EnsureParticipant(clientId, transfer);
         var receipt = new TransferReceiptDto(
-            $"REC-{DateTime.UtcNow:yyyyMMdd}-{transferId[..6].ToUpperInvariant()}", transfer.TransferId,
+            $"REC-{transfer.Timestamp:yyyyMMdd}-{transferId[..6].ToUpperInvariant()}", transfer.TransferId,
             MaskTransferCode(transfer.OriginClientId), MaskTransferCode(transfer.DestinationTransferCode),
             transfer.Amount, transfer.Currency, transfer.Timestamp,
-            $"AUTH-{Guid.NewGuid():N}"[..10].ToUpperInvariant(), transfer.Status);
+            $"AUTH-{transfer.LedgerOperationId[..6].ToUpperInvariant()}", transfer.Status);
         return Task.FromResult(receipt);
     }
 
