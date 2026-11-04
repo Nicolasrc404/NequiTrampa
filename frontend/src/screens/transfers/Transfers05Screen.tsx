@@ -20,11 +20,13 @@ import { DEMO_TRANSFER_DRAFT, formatCopFromCents } from '../../data/demoTransfer
 export interface Transfers05ScreenProps {
   readonly onBack?: () => void;
   readonly onContinue?: () => void;
+  readonly errorMessage?: string;
 }
 
 export const Transfers05Screen: React.FC<Transfers05ScreenProps> = ({
   onBack,
   onContinue,
+  errorMessage,
 }) => {
   return (
     <KeyboardAvoidingView
@@ -45,7 +47,7 @@ export const Transfers05Screen: React.FC<Transfers05ScreenProps> = ({
             color={colors.transfersError}
           />
           <Text style={styles.bannerText}>
-            Revisa los datos marcados antes de continuar.
+            {errorMessage ?? 'Revisa los datos marcados antes de continuar.'}
           </Text>
         </View>
 

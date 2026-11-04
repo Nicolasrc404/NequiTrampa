@@ -298,6 +298,7 @@ function MainApp() {
         },
   );
   const [transferSubmitRequested, setTransferSubmitRequested] = useState(false);
+  const [transferValidationError, setTransferValidationError] = useState<string | null>(null);
   const [transferAmountText, setTransferAmountText] = useState('');
   const [selectedTransfer, setSelectedTransfer] =
     useState<TransferItem>(DEMO_TRANSFER_DETAIL);
@@ -583,6 +584,7 @@ function MainApp() {
 
   const openTransferFlow = () => {
     setTransferSubmitRequested(false);
+    setTransferValidationError(null);
     setTransferAmountText('');
     if (!demoEnabled) {
       setTransferDraft({
@@ -971,6 +973,7 @@ function MainApp() {
       && (availableBalanceCents === null || transferDraft.amountCents <= availableBalanceCents);
     if (!amountIsValid || transferDraft.recipient.code.trim().length === 0) {
       setTransferSubmitRequested(false);
+      setTransferValidationError('Revisa el destinatario y el monto antes de continuar.');
       setCurrentState('Transfers_05');
       return;
     }
@@ -1063,6 +1066,13 @@ function MainApp() {
           break;
         case 'validation':
           setTransferSubmitRequested(false);
+          setTransferValidationError(
+            outcome.error?.problem.code === 'DESTINATION_ACCOUNT_INACTIVE'
+              ? 'La cuenta de destino está inactiva y no puede recibir transferencias.'
+              : outcome.error?.problem.code === 'SELF_TRANSFER_NOT_ALLOWED'
+                ? 'No puedes transferir dinero a tu propia cuenta.'
+                : outcome.error?.problem.detail ?? 'Revisa los datos de la transferencia.',
+          );
           setCurrentState('Transfers_05');
           break;
         case 'unavailable':
@@ -2439,8 +2449,9 @@ function MainApp() {
         )}
         {currentState === 'Transfers_05' && (
           <Transfers05Screen
-            onBack={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_01'); }}
-            onContinue={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_02'); }}
+            errorMessage={transferValidationError ?? undefined}
+            onBack={() => { setTransferSubmitRequested(false); setTransferValidationError(null); setCurrentState('Transfers_01'); }}
+            onContinue={() => { setTransferSubmitRequested(false); setTransferValidationError(null); setCurrentState('Transfers_02'); }}
           />
         )}
         {currentState === 'Transfers_06' && (
