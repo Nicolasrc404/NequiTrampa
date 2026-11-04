@@ -2,21 +2,25 @@
 // Recharges_01 — Recargar
 // Fuente visual: Stitch screen d461575caee4428886a0331bb24dc92e
 // ============================================================
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import colors from '../../theme/colors';
 import TransfersHeader from '../../components/transfers/TransfersHeader';
 import RechargeAmountPills from '../../components/recharges/RechargeAmountPills';
+import { formatRechargeAmount } from '../../data/demoRecharges';
 import {
-  DEMO_RECHARGE_MAX_CENTS,
-  formatRechargeAmount,
-} from '../../data/demoRecharges';
+  MIN_RECHARGE_CENTS,
+  MAX_RECHARGE_CENTS,
+} from '../../services/rechargesService';
 
 export interface Recharges01ScreenProps {
   readonly amountCents: number;
@@ -34,12 +38,46 @@ export const Recharges01Screen: React.FC<Recharges01ScreenProps> = ({
   onContinue,
   submitting = false,
 }) => {
+  const [customText, setCustomText] = useState('');
+
+  const handleCustomChange = (text: string) => {
+    const digits = text.replace(/\D/g, '');
+    setCustomText(digits);
+    const cop = digits.length > 0 ? parseInt(digits, 10) : 0;
+    onAmountChange?.(cop * 100);
+  };
+
+  const handlePillSelect = (presetCents: number) => {
+    setCustomText('');
+    onAmountChange?.(presetCents);
+  };
+
+  const isValidAmount =
+    Number.isSafeInteger(amountCents) &&
+    amountCents >= MIN_RECHARGE_CENTS &&
+    amountCents <= MAX_RECHARGE_CENTS;
+
+  let validationError: string | null = null;
+  if (amountCents > 0) {
+    if (amountCents < MIN_RECHARGE_CENTS) {
+      validationError = `El monto mínimo es ${formatRechargeAmount(MIN_RECHARGE_CENTS)}.`;
+    } else if (amountCents > MAX_RECHARGE_CENTS) {
+      validationError = `El monto máximo es ${formatRechargeAmount(MAX_RECHARGE_CENTS)}.`;
+    }
+  } else {
+    validationError = 'Ingresa un monto para continuar.';
+  }
+
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      style={styles.root}
+    >
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
           <TransfersHeader title="Recargar" onBack={onBack} titleSize={22} />
@@ -51,32 +89,59 @@ export const Recharges01Screen: React.FC<Recharges01ScreenProps> = ({
             {formatRechargeAmount(amountCents)}
           </Text>
           <Text style={styles.note}>
-            Recarga simulada · Máximo {formatRechargeAmount(DEMO_RECHARGE_MAX_CENTS)}
+            Mínimo {formatRechargeAmount(MIN_RECHARGE_CENTS)} · Máximo {formatRechargeAmount(MAX_RECHARGE_CENTS)}
           </Text>
         </View>
 
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Montos sugeridos</Text>
+        </View>
+
         <RechargeAmountPills
-          selectedAmountCents={amountCents}
-          onChange={onAmountChange}
+          selectedAmountCents={customText.length > 0 ? 0 : amountCents}
+          onChange={handlePillSelect}
         />
+
+        <View style={styles.customCard}>
+          <Text style={styles.customLabel}>O escribe otro valor en COP</Text>
+          <View style={styles.inputWrapper}>
+            <Text style={styles.currencyPrefix}>$</Text>
+            <TextInput
+              style={styles.customInput}
+              keyboardType="number-pad"
+              placeholder="0"
+              placeholderTextColor={colors.rechargesMuted}
+              value={customText}
+              onChangeText={handleCustomChange}
+              accessibilityLabel="Monto personalizado en COP"
+              maxLength={10}
+            />
+          </View>
+          {validationError ? (
+            <Text style={styles.errorText}>{validationError}</Text>
+          ) : null}
+        </View>
       </ScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.primaryButton, submitting ? styles.primaryButtonBusy : null]}
+          style={[
+            styles.primaryButton,
+            submitting || !isValidAmount ? styles.primaryButtonDisabled : null,
+          ]}
           activeOpacity={0.85}
           onPress={onContinue}
-          disabled={submitting}
+          disabled={submitting || !isValidAmount}
           accessibilityRole="button"
           accessibilityLabel="Continuar con la recarga"
-          accessibilityState={{ disabled: submitting, busy: submitting }}
+          accessibilityState={{ disabled: submitting || !isValidAmount, busy: submitting }}
         >
           <Text style={styles.primaryButtonText}>
             {submitting ? 'Procesando…' : 'Continuar'}
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -91,7 +156,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 32,
-    paddingBottom: 20,
+    paddingBottom: 24,
   },
   header: {
     marginBottom: 24,
@@ -102,7 +167,7 @@ const styles = StyleSheet.create({
     paddingVertical: 28,
     paddingHorizontal: 16,
     alignItems: 'center',
-    marginBottom: 24,
+    marginBottom: 20,
     shadowColor: colors.rechargesShadow,
     shadowOpacity: 0.02,
     shadowRadius: 12,
@@ -131,6 +196,58 @@ const styles = StyleSheet.create({
     letterSpacing: -0.2,
     textAlign: 'center',
   },
+  sectionHeader: {
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: colors.rechargesMuted,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  customCard: {
+    backgroundColor: colors.rechargesWhite,
+    borderRadius: 20,
+    padding: 16,
+    marginTop: 20,
+    borderWidth: 1,
+    borderColor: colors.grayBorder,
+  },
+  customLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: colors.navy,
+    marginBottom: 8,
+  },
+  inputWrapper: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    height: 50,
+  },
+  currencyPrefix: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: colors.navy,
+    marginRight: 6,
+  },
+  customInput: {
+    flex: 1,
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.navy,
+    padding: 0,
+  },
+  errorText: {
+    color: '#C83232',
+    fontSize: 12,
+    fontWeight: '600',
+    marginTop: 8,
+  },
   footer: {
     paddingHorizontal: 20,
     paddingTop: 12,
@@ -153,8 +270,8 @@ const styles = StyleSheet.create({
     fontSize: 17,
     fontWeight: '600',
   },
-  primaryButtonBusy: {
-    opacity: 0.6,
+  primaryButtonDisabled: {
+    opacity: 0.5,
   },
 });
 

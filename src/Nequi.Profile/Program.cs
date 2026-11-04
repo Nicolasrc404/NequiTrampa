@@ -48,3 +48,8 @@ app.UseNequiCommon(); // ya incluye /v1/me/access y /health/*
 app.UseHttpsRedirection();
 app.MapControllers();
 app.Run();
+
+namespace Nequi.Profile
+{
+    public sealed class ProfileMarker;
+}

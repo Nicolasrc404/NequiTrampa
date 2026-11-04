@@ -15,6 +15,8 @@ import type { IdentityTokens } from './types';
 
 export const IDENTITY_SIGN_IN_URL =
   'https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword';
+export const IDENTITY_SIGN_UP_URL =
+  'https://identitytoolkit.googleapis.com/v1/accounts:signUp';
 export const IDENTITY_REFRESH_URL = 'https://securetoken.googleapis.com/v1/token';
 const DEFAULT_TIMEOUT_MS = 15_000;
 
@@ -24,15 +26,17 @@ export interface IdentityPlatformOptions {
   readonly fetchImpl?: typeof fetch;
   readonly timeoutMs?: number;
   readonly signInUrl?: string;
+  readonly signUpUrl?: string;
   readonly refreshUrl?: string;
 }
 
 export interface IdentityPlatformClient {
   signInWithPassword(email: string, password: string): Promise<IdentityTokens>;
+  signUp(email: string, password: string): Promise<IdentityTokens>;
   refresh(refreshToken: string): Promise<IdentityTokens>;
 }
 
-type ErrorContext = 'sign-in' | 'refresh';
+type ErrorContext = 'sign-in' | 'sign-up' | 'refresh';
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === 'object' && !Array.isArray(value);
@@ -87,6 +91,12 @@ function mapProviderError(
     return make('too_many_attempts', 60_000);
   }
   if (code.includes('USER_DISABLED')) return make('user_disabled');
+  if (code.includes('EMAIL_EXISTS')) {
+    return new AuthError('invalid_credentials', 'Este correo electrónico ya está registrado.', { status });
+  }
+  if (code.includes('WEAK_PASSWORD')) {
+    return new AuthError('invalid_credentials', 'La contraseña debe tener al menos 6 caracteres.', { status });
+  }
   if (
     code.includes('API_KEY_INVALID') ||
     code.includes('API KEY NOT VALID') ||
@@ -148,6 +158,7 @@ export function createIdentityPlatformClient(
     });
 
   const signInUrl = options.signInUrl ?? IDENTITY_SIGN_IN_URL;
+  const signUpUrl = options.signUpUrl ?? IDENTITY_SIGN_UP_URL;
   const refreshUrl = options.refreshUrl ?? IDENTITY_REFRESH_URL;
 
   async function post(
@@ -236,6 +247,30 @@ export function createIdentityPlatformClient(
       };
     },
 
+    async signUp(
+      email: string,
+      password: string,
+    ): Promise<IdentityTokens> {
+      const data = await post(
+        `${signUpUrl}?key=${encodeURIComponent(apiKey)}`,
+        JSON.stringify({ email, password, returnSecureToken: true }),
+        'application/json',
+        'sign-up',
+      );
+
+      const idToken = readString(data.idToken);
+      const refreshToken = readString(data.refreshToken);
+      if (!idToken || !refreshToken) {
+        throw new AuthError('unknown', messageFor('unknown'));
+      }
+
+      return {
+        idToken,
+        refreshToken,
+        expiresInSeconds: readPositiveNumber(data.expiresIn),
+      };
+    },
+
     async refresh(refreshToken: string): Promise<IdentityTokens> {
       if (!refreshToken) {
         throw new AuthError('invalid_session', messageFor('invalid_session'));
@@ -271,6 +306,9 @@ export function createIdentityPlatformClient(
 /** Cliente inerte cuando no hay `EXPO_PUBLIC_IDENTITY_API_KEY`. */
 export const unconfiguredIdentityClient: IdentityPlatformClient = {
   async signInWithPassword(): Promise<IdentityTokens> {
+    throw new AuthError('configuration', messageFor('configuration'));
+  },
+  async signUp(): Promise<IdentityTokens> {
     throw new AuthError('configuration', messageFor('configuration'));
   },
   async refresh(): Promise<IdentityTokens> {

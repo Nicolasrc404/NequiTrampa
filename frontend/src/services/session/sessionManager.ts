@@ -171,6 +171,35 @@ export class SessionManager {
     return this.getSnapshot();
   }
 
+  /**
+   * Registra un nuevo usuario con correo y contraseña.
+   * Persiste el refresh token y emite la sesión autenticada.
+   */
+  async signUp(email: string, password: string): Promise<SessionSnapshot> {
+    const generation = ++this.generation;
+    const tokens = await this.identity.signUp(email, password);
+    if (generation !== this.generation) {
+      throw new AuthError(
+        'invalid_session',
+        'La sesión cambió durante el registro.',
+      );
+    }
+    const session = buildSession({
+      idToken: tokens.idToken,
+      refreshToken: tokens.refreshToken,
+      expiresInSeconds: tokens.expiresInSeconds,
+      now: this.now(),
+    });
+
+    await this.persistRefreshToken(session.tokens.refreshToken);
+    this.session = session;
+    this.errorCode = null;
+    this.setStatus('authenticated');
+    await this.notifySessionCleared();
+
+    return this.getSnapshot();
+  }
+
   /** Cierre de sesión local. No llama al backend. */
   async signOut(): Promise<void> {
     await this.clearSession('anonymous', null);

@@ -34,6 +34,16 @@ export async function signIn(email: string, password: string): Promise<void> {
   }
 }
 
+export async function signUp(email: string, password: string): Promise<void> {
+  try {
+    await sessionManager.signUp(email, password);
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    const message = error instanceof Error ? error.message : 'No pudimos registrar la cuenta.';
+    throw new ApiError(400, message, 'registration_error');
+  }
+}
+
 export function signOut(): Promise<void> {
   return sessionManager.signOut();
 }

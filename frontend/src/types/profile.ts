@@ -20,3 +20,12 @@ export interface UpdateProfileInput {
   readonly timezone?: string;
   readonly alias?: string;
 }
+
+export interface ProvisionProfileInput {
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly email?: string;
+  readonly username?: string;
+  readonly alias?: string;
+  readonly timezone?: string;
+}
