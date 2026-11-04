@@ -49,6 +49,17 @@ public static class Env
     public static WebApplicationFactory<Nequi.Finance.FinanceMarker> Finance() =>
         new WebApplicationFactory<Nequi.Finance.FinanceMarker>().WithWebHostBuilder(b => { foreach (var (k, v) in Config) b.UseSetting(k, v); });
 
+    /// <summary>Profile host con Spanner:Database sintético (apunta a emulador local si SPANNER_EMULATOR_HOST está definido, o a cadena dummy para pruebas de autenticación/validación que no ejecutan DML).</summary>
+    public static WebApplicationFactory<Nequi.Profile.ProfileMarker> Profile(string? spannerDb = null)
+    {
+        var config = new Dictionary<string, string?>(Config)
+        {
+            ["Spanner:Database"] = spannerDb ?? "projects/test-project/instances/test/databases/test",
+        };
+        return new WebApplicationFactory<Nequi.Profile.ProfileMarker>()
+            .WithWebHostBuilder(b => { foreach (var (k, v) in config) b.UseSetting(k, v); });
+    }
+
     /// <summary>Gateway host with synthetic upstreams and no GCP identity tokens (route-map tests).</summary>
     public static WebApplicationFactory<Nequi.Gateway.GatewayMarker> Gateway()
     {

@@ -8,7 +8,6 @@ namespace Nequi.Workers.Projection;
 
 public static class Collections
 {
-    // Finance, Budgets and Analytics read this canonical academic projection.
     public const string Movements = "financial_movements";
     public const string Notifications = "notifications";
     public const string Reports = "reports";

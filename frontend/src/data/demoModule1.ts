@@ -6,6 +6,7 @@ export const MODULE1_SCREEN_COUNTS: Record<Module1Section, number> = {
   Profile: 9,
   Configuration: 9,
   Projection_Status: 5,
+  Assistant: 1,
 };
 
 export const MODULE1_SECTION_LABELS: Record<Module1Section, string> = {
@@ -14,6 +15,7 @@ export const MODULE1_SECTION_LABELS: Record<Module1Section, string> = {
   Profile: 'Perfil',
   Configuration: 'Configuración',
   Projection_Status: 'Estado de proyección',
+  Assistant: 'Asistente IA',
 };
 
 export const MODULE1_STATUS_LABELS: Record<Module1Section, readonly string[]> = {
@@ -22,6 +24,7 @@ export const MODULE1_STATUS_LABELS: Record<Module1Section, readonly string[]> = 
   Profile: ['Mi perfil', 'Cargando perfil…', 'Editar información', 'Cambios guardados', 'Revisa los campos', 'Acceso requerido', 'No se pudo guardar', 'Seguridad de acceso', 'Sesión expirada'],
   Configuration: ['Preferencias', 'Notificaciones', 'Apariencia', 'Seguridad', 'Idioma', 'No se pudo actualizar', 'Preferencias guardadas', 'Sin preferencias', 'Acceso requerido'],
   Projection_Status: ['Procesando proyección…', 'Proyección disponible', 'No se pudo cargar', 'Sin datos para mostrar', 'Detalle de proyección'],
+  Assistant: ['Listo para consultas'],
 };
 
 export const getModule1Section = (key: Module1ScreenKey): Module1Section => {

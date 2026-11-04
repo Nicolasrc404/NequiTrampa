@@ -9,13 +9,11 @@ import ErrorState from '../../components/common/states/ErrorState';
 interface Movements08ScreenProps {
   onRetryPress?: () => void;
   error?: unknown;
-  onTabPress?: (tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil') => void;
 }
 
 export const Movements08Screen: React.FC<Movements08ScreenProps> = ({
   onRetryPress,
   error,
-  onTabPress,
 }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -39,22 +37,22 @@ export const Movements08Screen: React.FC<Movements08ScreenProps> = ({
           </Text>
         </View>}
 
-        {/* ErrorState ya renderiza el único botón de reintento cuando aplica. */}
-        {!error ? (
-          <View style={styles.actionContainer}>
-            <TouchableOpacity
-              style={styles.retryButton}
-              activeOpacity={0.85}
-              onPress={onRetryPress}
-            >
-              <Text style={styles.retryButtonText}>Reintentar</Text>
-            </TouchableOpacity>
-          </View>
-        ) : null}
+        {/* Retry Button - only when no ErrorState (which has its own retry) */}
+        {!error && (
+        <View style={styles.actionContainer}>
+          <TouchableOpacity
+            style={styles.retryButton}
+            activeOpacity={0.85}
+            onPress={onRetryPress}
+          >
+            <Text style={styles.retryButtonText}>Reintentar</Text>
+          </TouchableOpacity>
+        </View>
+        )}
       </View>
 
       {/* Bottom Navigation */}
-      <BottomNav activeTab="movimientos" onTabPress={onTabPress} />
+      <BottomNav activeTab="movimientos" />
     </SafeAreaView>
   );
 };
