@@ -50,6 +50,7 @@ import { MovementsState, MovementItem } from './src/types/movements';
 import { DEMO_MOVEMENTS } from './src/data/demoMovements';
 import { resolveBottomTab, type BottomTab } from './src/utils/bottomTabNavigation';
 import { resolveTransferCompletionTarget } from './src/utils/transferCompletionNavigation';
+import { RECHARGE_ENTRY_STATE } from './src/utils/rechargeNavigation';
 
 import Movements01Screen from './src/screens/movements/Movements01Screen';
 import Movements02Screen from './src/screens/movements/Movements02Screen';
@@ -2126,7 +2127,7 @@ function MainApp() {
         {currentState === 'Movements_02' && (
           <Movements02Screen
             onOpenFilter={() => setCurrentState('Movements_04')}
-            onRechargePress={() => setCurrentState('Recharges_01')}
+            onRechargePress={() => setCurrentState(RECHARGE_ENTRY_STATE)}
             onTabPress={handleBottomTab}
           />
         )}
@@ -3447,6 +3448,7 @@ function MainApp() {
             onHome={() => setCurrentState('Movements_01')}
             onTabPress={handleBottomTab}
             onTransfer={openTransferFlow}
+            onRecharge={() => setCurrentState(RECHARGE_ENTRY_STATE)}
             services={services}
             apiEnabled={realReady}
           />
