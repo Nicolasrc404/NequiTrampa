@@ -47,13 +47,16 @@ public sealed class AcademicWalletStore : IIdempotencyStore
             if (_idempotency.TryGetValue(identity, out var existing) && existing.StatusCode is not null && existing.ResponseBody is not null)
                 return JsonSerializer.Deserialize<TransferResponseDto>(existing.ResponseBody, JsonOptions)!;
 
-            if (request.Amount <= 0 || request.Amount > 2_000_000m || decimal.Round(request.Amount, 2) != request.Amount)
-                throw new InvalidTransferAmountException("El monto debe ser positivo, no superar $2.000.000 COP y usar máximo dos decimales.");
+            if (request.Amount <= 0 || request.Amount > 2_000_000m)
+                throw new TransferLimitExceededException("El monto de la transferencia supera el límite individual permitido.");
+            var amountCentsDecimal = request.Amount * 100m;
+            if (amountCentsDecimal % 1m != 0)
+                throw new InvalidTransferAmountException("El monto en COP debe representar unidades menores enteras (máximo 2 decimales).");
             if (!string.Equals(request.Currency, "COP", StringComparison.Ordinal))
                 throw new InvalidCurrencyException();
             if (string.IsNullOrWhiteSpace(destinationClientId))
                 throw new DestinationNotFoundException(request.DestinationTransferCode);
-            var amountCents = checked((long)(request.Amount * 100m));
+            var amountCents = checked((long)amountCentsDecimal);
             if (amountCents > 200_000_000)
                 throw new TransferLimitExceededException("El monto de la transferencia supera el límite individual permitido.");
 
