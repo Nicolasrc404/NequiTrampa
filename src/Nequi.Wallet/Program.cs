@@ -87,6 +87,8 @@ builder.Services.AddSingleton(_ => new AcademicWalletStore(
 // SIMULATED_CORRESPONSAL). Only deployments that explicitly opt in accept them.
 builder.Services.AddSingleton<RechargePolicy>();
 var isGcp = string.Equals(builder.Configuration["Data:Backend"], "gcp", StringComparison.OrdinalIgnoreCase);
+if (!isGcp)
+    builder.Services.AddSingleton<IIdempotencyStore>(sp => sp.GetRequiredService<AcademicWalletStore>());
 var enableConfirmedTransferRecovery =
     isGcp && !builder.Environment.IsProduction() &&
     builder.Configuration.GetValue<bool>("FinancialRecovery:EnableConfirmedTransferRecovery");

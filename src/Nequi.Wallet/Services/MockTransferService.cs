@@ -12,7 +12,7 @@ public sealed class MockTransferService(AcademicWalletStore? store = null) : ITr
     public Task<TransferResponseDto> CreateTransferAsync(string originClientId, string idempotencyKey, CreateTransferRequestDto request, CancellationToken cancellationToken = default)
     {
         if (request.DestinationTransferCode == "TRF-INACTIVE-0000") throw new InactiveDestinationException();
-        return Task.FromResult(_store.CreateTransfer(originClientId, request));
+        return Task.FromResult(_store.CreateTransfer(originClientId, idempotencyKey, request));
     }
 
     public Task<IReadOnlyList<TransferResponseDto>> GetTransfersByClientIdAsync(string clientId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default) =>

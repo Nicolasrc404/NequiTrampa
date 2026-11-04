@@ -9,7 +9,7 @@ public sealed class MockRechargeService(AcademicWalletStore? store = null) : IRe
     private readonly AcademicWalletStore _store = store ?? AcademicWalletStore.Shared;
 
     public Task<RechargeResponseDto> CreateRechargeAsync(string clientId, string idempotencyKey, CreateRechargeRequestDto request, CancellationToken cancellationToken = default) =>
-        Task.FromResult(_store.CreateRecharge(clientId, request));
+        Task.FromResult(_store.CreateRecharge(clientId, idempotencyKey, request));
 
     public Task<IReadOnlyList<RechargeResponseDto>> GetRechargesByClientIdAsync(string clientId, CancellationToken cancellationToken = default) =>
         Task.FromResult(_store.GetRecharges(clientId));
