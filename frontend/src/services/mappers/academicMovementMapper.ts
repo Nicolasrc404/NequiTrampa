@@ -1,6 +1,7 @@
 import type { MovementDto } from '../movementsService';
 import type { RechargeDto } from '../rechargesService';
 import type { TransferDto } from '../transfersService';
+import { ACADEMIC_DEMO_USERS } from '../academicCatalog';
 
 /**
  * Adapta los historiales del backend académico al contrato común de Movimientos.
@@ -21,28 +22,33 @@ export function buildAcademicMovementDtos(
         transfer.originClientId === normalizedClientId ||
         transfer.destinationClientId === normalizedClientId,
     )
-    .map((transfer) => ({
+    .map((transfer) => {
+      const isSent = transfer.originClientId === normalizedClientId;
+      const counterpartyClientId = isSent
+        ? transfer.destinationClientId
+        : transfer.originClientId;
+      const counterparty = ACADEMIC_DEMO_USERS.find(
+        (user) => user.uid === counterpartyClientId,
+      );
+
+      return {
       eventId: transfer.transferId,
       operationId: transfer.ledgerOperationId,
-      type:
-        transfer.originClientId === normalizedClientId
-          ? 'TRANSFER_SENT'
-          : 'TRANSFER_RECEIVED',
+      type: isSent ? 'TRANSFER_SENT' : 'TRANSFER_RECEIVED',
       amountCents:
-        transfer.originClientId === normalizedClientId
-          ? -transfer.amountCents
-          : transfer.amountCents,
+        isSent ? -transfer.amountCents : transfer.amountCents,
       currency: transfer.currency,
-      counterpartyClientId:
-        transfer.originClientId === normalizedClientId
-          ? transfer.destinationClientId
-          : transfer.originClientId,
+      counterpartyClientId,
+      counterpartyName: counterparty?.displayName ?? null,
+      counterpartyCode:
+        counterparty?.transferCode ?? (isSent ? transfer.destinationTransferCode : null),
       description: transfer.description,
       balanceAfterCents: null,
       occurredAt: transfer.timestamp,
       syncStatus: 'LOCAL_ACADEMIC',
       status: transfer.status,
-    }));
+      };
+    });
 
   const rechargeItems: MovementDto[] = recharges
     .filter((recharge) => recharge.clientId === normalizedClientId)
@@ -53,6 +59,8 @@ export function buildAcademicMovementDtos(
       amountCents: recharge.amountCents,
       currency: recharge.currency,
       counterpartyClientId: null,
+      counterpartyName: null,
+      counterpartyCode: null,
       description: 'Recarga simulada',
       balanceAfterCents: null,
       occurredAt: recharge.timestamp,

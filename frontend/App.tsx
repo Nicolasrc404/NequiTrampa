@@ -738,6 +738,10 @@ function MainApp() {
 
   const handleSelectMovement = (item: MovementItem) => {
     setSelectedMovement(item);
+    const transfer = item.sourceId
+      ? transfers.data?.find((candidate) => candidate.id === item.sourceId)
+      : undefined;
+    if (transfer) setSelectedTransfer(transfer);
     setCurrentState('Movements_05');
   };
 
@@ -2147,6 +2151,12 @@ function MainApp() {
           <Movements05Screen
             movement={selectedMovement}
             onBack={() => setCurrentState('Movements_01')}
+            onViewReceipt={
+              selectedMovement.sourceId &&
+              transfers.data?.some((transfer) => transfer.id === selectedMovement.sourceId)
+                ? () => setCurrentState('Transfers_22')
+                : undefined
+            }
           />
         )}
         {currentState === 'Movements_06' && (

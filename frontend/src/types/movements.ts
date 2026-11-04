@@ -8,6 +8,8 @@ export type MovementFilter = 'TODOS' | 'ENVIADOS' | 'RECIBIDOS' | 'RECARGAS';
 
 export interface MovementItem {
   id: string;
+  /** TransferId/eventId usado para enlazar el comprobante cuando existe. */
+  sourceId?: string | null;
   reference: string;
   title: string;
   type: MovementType;
@@ -22,6 +24,9 @@ export interface MovementItem {
   balanceAfterCents?: number | null;
   status: 'Completada' | 'Pendiente' | 'Fallida' | 'Desconocido';
   initialLetter?: string;
+  counterpartyName?: string | null;
+  counterpartyCode?: string | null;
+  description?: string | null;
 }
 
 export type MovementsState = 
