@@ -12,8 +12,10 @@ namespace Nequi.Wallet.Services;
 /// LIMITACIÓN DEL MOCK: el saldo es fijo ($1.250.000) y no refleja movimientos reales.
 /// La autoridad financiera real (Spanner ledger) es TO-BE.
 /// </summary>
-public sealed class MockWalletService : IWalletService
+public sealed class MockWalletService(AcademicWalletStore? store = null) : IWalletService
 {
+    private readonly AcademicWalletStore _store = store ?? AcademicWalletStore.Shared;
+
     public Task<WalletResponseDto> GetWalletByClientIdAsync(string clientId, CancellationToken cancellationToken = default)
     {
         var wallet = new WalletResponseDto(
@@ -34,8 +36,8 @@ public sealed class MockWalletService : IWalletService
         var balance = new WalletBalanceResponseDto(
             WalletId: $"wlt_{clientId[..Math.Min(8, clientId.Length)]}",
             ClientId: clientId,
-            AvailableBalance: 1_250_000.00m,
-            AvailableBalanceCents: 125_000_000L,
+            AvailableBalance: _store.GetBalanceCents(clientId) / 100m,
+            AvailableBalanceCents: _store.GetBalanceCents(clientId),
             Currency: "COP",
             AsOfTimestamp: DateTimeOffset.UtcNow,
             SourceAuthority: "MOCK_IN_MEMORY"

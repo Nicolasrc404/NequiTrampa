@@ -17,6 +17,10 @@ public static class Env
         ["Gcp:ProjectId"] = "test-project",
         ["Data:Backend"] = "memory",
         ["Auth:DemoHeaders"] = "true",
+        // Los hosts de integraciÃ³n usan identidades sintÃ©ticas aisladas por test.
+        // No deben heredar la allowlist del proceso local levantado por run-local.ps1;
+        // los tests que necesiten una allowlist estricta la configuran explÃ­citamente.
+        ["Auth:DemoAllowedUsers"] = "",
         // Test host is an expressly authorized environment for simulated payment methods.
         ["Recharges:AllowSimulatedPaymentMethods"] = "true",
         ["Outbox:Enabled"] = "false",

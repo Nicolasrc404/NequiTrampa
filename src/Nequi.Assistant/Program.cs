@@ -5,7 +5,8 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.AddNequiCommon();
 
-if (builder.Configuration["Spanner:Database"] is not { Length: > 0 })
+if (string.Equals(builder.Configuration["Data:Backend"], "gcp", StringComparison.OrdinalIgnoreCase) &&
+    builder.Configuration["Spanner:Database"] is not { Length: > 0 })
     throw new InvalidOperationException("Spanner:Database is required for Nequi.Assistant (read-only balance lookup).");
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<Nequi.Assistant.Services.VertexClient>();

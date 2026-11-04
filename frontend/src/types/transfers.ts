@@ -36,6 +36,8 @@ export interface TransferRecipient {
   name: string;
   code: string;
   initialLetter: string;
+  /** `false` solo cuando el catálogo verificó que la cuenta está inactiva. */
+  isActive?: boolean;
 }
 
 export interface TransferItem {

@@ -103,13 +103,21 @@ public static class AuthExtensions
 }
 
 /// <summary>Smoke-test scheme. Registered only when Auth:DemoHeaders=true; keep the Cloud Run service private (IAM) when on.</summary>
-public sealed class DemoHeaderHandler(IOptionsMonitor<AuthenticationSchemeOptions> options, ILoggerFactory logger, UrlEncoder encoder)
+public sealed class DemoHeaderHandler(
+    IOptionsMonitor<AuthenticationSchemeOptions> options,
+    ILoggerFactory logger,
+    UrlEncoder encoder,
+    IConfiguration configuration)
     : AuthenticationHandler<AuthenticationSchemeOptions>(options, logger, encoder)
 {
     protected override Task<AuthenticateResult> HandleAuthenticateAsync()
     {
         var uid = Request.Headers["X-Demo-User"].FirstOrDefault();
         if (string.IsNullOrWhiteSpace(uid)) return Task.FromResult(AuthenticateResult.NoResult());
+        var allowedUsers = configuration["Auth:DemoAllowedUsers"]?
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        if (allowedUsers is { Length: > 0 } && !allowedUsers.Contains(uid, StringComparer.Ordinal))
+            return Task.FromResult(AuthenticateResult.Fail("La identidad demo no está autorizada."));
         var claims = new List<Claim> { new("user_id", uid) };
         foreach (var r in (Request.Headers["X-Demo-Role"].FirstOrDefault() ?? Roles.Cliente).Split(','))
             if (Roles.All.Contains(r.Trim())) claims.Add(new Claim(ClaimTypes.Role, r.Trim()));

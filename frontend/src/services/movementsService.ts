@@ -33,6 +33,8 @@ export interface MovementDto {
   readonly amountCents: number;
   readonly currency: string | null;
   readonly counterpartyClientId: string | null;
+  readonly counterpartyName?: string | null;
+  readonly counterpartyCode?: string | null;
   readonly description: string | null;
   readonly balanceAfterCents: number | null;
   readonly occurredAt: string | null;
@@ -70,6 +72,8 @@ function parseMovement(payload: unknown): MovementDto {
     amountCents: requireSafeInteger(dto, 'amountCents'),
     currency: optionalString(dto, 'currency'),
     counterpartyClientId: optionalString(dto, 'counterpartyClientId'),
+    counterpartyName: optionalString(dto, 'counterpartyName'),
+    counterpartyCode: optionalString(dto, 'counterpartyCode'),
     description: optionalString(dto, 'description'),
     balanceAfterCents: optionalSafeInteger(dto, 'balanceAfterCents'),
     occurredAt: optionalString(dto, 'occurredAt'),

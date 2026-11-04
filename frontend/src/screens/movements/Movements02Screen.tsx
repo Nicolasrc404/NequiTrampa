@@ -10,11 +10,13 @@ import { MovementFilter } from '../../types/movements';
 interface Movements02ScreenProps {
   onOpenFilter?: () => void;
   onRechargePress?: () => void;
+  onTabPress?: (tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil') => void;
 }
 
 export const Movements02Screen: React.FC<Movements02ScreenProps> = ({
   onOpenFilter,
   onRechargePress,
+  onTabPress,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<MovementFilter>('TODOS');
 
@@ -54,7 +56,7 @@ export const Movements02Screen: React.FC<Movements02ScreenProps> = ({
       </View>
 
       {/* Bottom Navigation */}
-      <BottomNav activeTab="movimientos" />
+      <BottomNav activeTab="movimientos" onTabPress={onTabPress} />
     </SafeAreaView>
   );
 };

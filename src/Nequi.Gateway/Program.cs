@@ -64,6 +64,7 @@ var clusters = services.Select(s => new ClusterConfig
 
 var oidcCache = new ConcurrentDictionary<string, OidcToken>();
 var useIdentityTokens = cfg.GetValue("Gateway:IdentityTokens", true);
+var allowDemoHeaders = cfg.GetValue<bool>("Gateway:AllowDemoHeaders") && !builder.Environment.IsProduction();
 GoogleCredential? adc = null;
 
 async Task<string> GetIdentityTokenAsync(string audience)
@@ -93,8 +94,9 @@ builder.Services.AddReverseProxy()
         ctx.AddRequestTransform(async t =>
         {
             var headers = t.ProxyRequest.Headers;
-            foreach (var h in headers.Where(h => h.Key.StartsWith("X-Demo-", StringComparison.OrdinalIgnoreCase)).Select(h => h.Key).ToList())
-                headers.Remove(h);
+            if (!allowDemoHeaders)
+                foreach (var h in headers.Where(h => h.Key.StartsWith("X-Demo-", StringComparison.OrdinalIgnoreCase)).Select(h => h.Key).ToList())
+                    headers.Remove(h);
             headers.Remove("X-Serverless-Authorization");
 
             // WebSocket from the browser: JWT travels as ?access_token=

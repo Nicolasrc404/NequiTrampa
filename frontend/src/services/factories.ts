@@ -40,6 +40,10 @@ import {
 } from './analyticsService';
 import { createConfigurationService, type ConfigurationService } from './configurationService';
 import { createProjectionStatusService, type ProjectionStatusService } from './projectionStatusService';
+import {
+  createBackofficeService,
+  type BackofficeService,
+} from './backofficeService';
 
 export interface ApiServices {
   readonly wallet: WalletService;
@@ -56,6 +60,8 @@ export interface ApiServices {
   readonly analytics: AnalyticsService;
   readonly configuration: ConfigurationService;
   readonly projectionStatus: ProjectionStatusService;
+  /** Solo para personal (SOPORTE / OPERADOR_FINANCIERO / ADMIN). */
+  readonly backoffice: BackofficeService;
 }
 
 export function createApiServices(http: HttpClient): ApiServices {
@@ -74,5 +80,6 @@ export function createApiServices(http: HttpClient): ApiServices {
     analytics: createAnalyticsService(http),
     configuration: createConfigurationService(http),
     projectionStatus: createProjectionStatusService(http),
+    backoffice: createBackofficeService(http),
   };
 }

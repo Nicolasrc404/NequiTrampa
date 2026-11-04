@@ -23,6 +23,7 @@ import {
 } from '../../data/demoTransfers';
 import { TransferRecipient } from '../../types/transfers';
 import { parseCopInput } from '../../utils/money';
+import { isTransferAmountValid, MAX_TRANSFER_CENTS } from '../../services/transfersService';
 
 export interface Transfers01ScreenProps {
   readonly recipient: TransferRecipient;
@@ -35,6 +36,9 @@ export interface Transfers01ScreenProps {
   readonly realMode?: boolean;
   readonly availableBalanceCents?: number | null;
   readonly onAmountChange?: (amountCents: number) => void;
+  /** Texto crudo del campo, separado del valor monetario normalizado. */
+  readonly amountText?: string;
+  readonly onAmountTextChange?: (text: string) => void;
 }
 
 export const Transfers01Screen: React.FC<Transfers01ScreenProps> = ({
@@ -48,9 +52,29 @@ export const Transfers01Screen: React.FC<Transfers01ScreenProps> = ({
   realMode = false,
   availableBalanceCents = null,
   onAmountChange,
+  amountText,
+  onAmountTextChange,
 }) => {
-  const [amountText, setAmountText] = useState(realMode ? '' : formatCopFromCents(amountCents));
-  const amountValid = amountCents >= 100 && (availableBalanceCents === null || amountCents <= availableBalanceCents);
+  const [localAmountText, setLocalAmountText] = useState('');
+  const controlledAmountText = amountText ?? localAmountText;
+  const amountValid = isTransferAmountValid(amountCents, availableBalanceCents);
+  const amountError = controlledAmountText.trim().length === 0
+    ? 'Ingresa un monto.'
+    : !amountValid
+      ? amountCents > (availableBalanceCents ?? Number.MAX_SAFE_INTEGER)
+        ? 'El monto supera tu saldo disponible.'
+        : amountCents > MAX_TRANSFER_CENTS
+          ? 'El monto supera el límite de $ 2.000.000 COP.'
+          : 'Ingresa un monto entre $ 1 y $ 2.000.000 COP.'
+      : null;
+
+  const handleAmountTextChange = (text: string) => {
+    setLocalAmountText(text);
+    onAmountTextChange?.(text);
+    // El borrado o una entrada inválida también actualiza el borrador a cero.
+    // Así no queda un importe válido oculto detrás de un campo vacío.
+    onAmountChange?.(parseCopInput(text, { maxCents: MAX_TRANSFER_CENTS }) ?? 0);
+  };
   return (
     <KeyboardAvoidingView
       style={styles.root}
@@ -68,17 +92,15 @@ export const Transfers01Screen: React.FC<Transfers01ScreenProps> = ({
           <Text style={styles.amountQuestion}>¿Cuánto quieres enviar?</Text>
           {realMode ? <TextInput
             style={styles.amountInput}
-            value={amountText}
-            onChangeText={(text) => {
-              setAmountText(text);
-              const parsed = parseCopInput(text);
-              if (parsed !== null) onAmountChange?.(parsed);
-            }}
-            placeholder="$ 0"
+            value={controlledAmountText}
+            editable={true}
+            onChangeText={handleAmountTextChange}
+            placeholder="Ingresa el monto"
             placeholderTextColor={colors.grayPlaceholder}
             keyboardType="decimal-pad"
             accessibilityLabel="Monto de la transferencia"
           /> : <Text style={styles.amountValue}>{formatCopFromCents(amountCents)}</Text>}
+          {realMode && amountError ? <Text style={styles.amountError}>{amountError}</Text> : null}
           <Text style={styles.amountMeta}>
             Disponible {realMode ? (typeof availableBalanceCents === 'number' ? formatCopFromCents(availableBalanceCents) : 'consultando…') : formatCopFromCents(DEMO_TRANSFER_BALANCE_CENTS)} ·
             Límite por operación {formatCopFromCents(DEMO_TRANSFER_LIMIT_CENTS)}
@@ -188,6 +210,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 19,
     color: colors.transfersMuted,
+    textAlign: 'center',
+  },
+  amountError: {
+    marginTop: 8,
+    color: colors.transfersMagenta,
+    fontSize: 13,
     textAlign: 'center',
   },
   form: {

@@ -21,6 +21,7 @@ interface Movements01ScreenProps {
   readonly hasMore?: boolean;
   readonly loadingMore?: boolean;
   readonly onLoadMore?: () => void;
+  readonly onTabPress?: (tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil') => void;
 }
 
 export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
@@ -33,6 +34,7 @@ export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
   hasMore = false,
   loadingMore = false,
   onLoadMore,
+  onTabPress,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<MovementFilter>('TODOS');
   const source = movements ?? DEMO_MOVEMENTS;
@@ -103,7 +105,7 @@ export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
       </ScrollView>
 
       {/* Persistent Bottom Navigation */}
-      <BottomNav activeTab="movimientos" />
+      <BottomNav activeTab="movimientos" onTabPress={onTabPress} />
     </SafeAreaView>
   );
 };

@@ -3,6 +3,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
@@ -30,6 +31,8 @@ export interface TransferStatusScreenProps {
   readonly onPrimary?: () => void;
   readonly secondaryLabel?: string;
   readonly onSecondary?: () => void;
+  readonly tertiaryLabel?: string;
+  readonly onTertiary?: () => void;
   readonly children?: ReactNode;
   readonly systemBar?: boolean;
   readonly demoHint?: string;
@@ -53,6 +56,8 @@ export const TransferStatusScreen: React.FC<TransferStatusScreenProps> = ({
   onPrimary,
   secondaryLabel,
   onSecondary,
+  tertiaryLabel,
+  onTertiary,
   children,
   systemBar = false,
   demoHint,
@@ -123,6 +128,16 @@ export const TransferStatusScreen: React.FC<TransferStatusScreenProps> = ({
             secondaryLabel={secondaryLabel}
             onSecondary={onSecondary}
           />
+          {tertiaryLabel ? (
+            <TouchableOpacity
+              style={styles.tertiary}
+              onPress={onTertiary}
+              accessibilityRole="button"
+              accessibilityLabel={tertiaryLabel}
+            >
+              <Text style={styles.tertiaryText}>{tertiaryLabel}</Text>
+            </TouchableOpacity>
+          ) : null}
           {demoHint ? <Text style={styles.demoHint}>{demoHint}</Text> : null}
         </View>
       ) : null}
@@ -215,6 +230,15 @@ const styles = StyleSheet.create({
     letterSpacing: 0.4,
     color: colors.transfersNavInactive,
     textTransform: 'uppercase',
+  },
+  tertiary: {
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  tertiaryText: {
+    color: colors.transfersMagenta,
+    fontSize: 15,
+    fontWeight: '600',
   },
   systemBar: {
     height: 28,

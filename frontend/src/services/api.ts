@@ -7,29 +7,21 @@
 
 import { appConfig } from '../config/appConfig';
 import { createHttpClient, type HttpClient } from './http';
+import { createBackofficeService, type BackofficeService } from './backofficeService';
 import { sessionManager } from './session/platform';
-import { configureHttp } from '../api/http';
 
 export const apiClient: HttpClient | null = appConfig.apiBaseUrl
   ? createHttpClient({
       baseUrl: appConfig.apiBaseUrl,
       timeoutMs: appConfig.requestTimeoutMs,
       getAccessToken: () => sessionManager.getAccessToken(),
+      getDemoUserId: () =>
+        appConfig.academicModeEnabled ? sessionManager.getSnapshot().user?.uid ?? null : null,
       onUnauthorized: (_error, accessToken) => {
         void sessionManager.handleUnauthorized(accessToken);
       },
     })
   : null;
-
-// api/http.ts es un adaptador heredado que siguen usando Backoffice y
-// servicios antiguos; sin esto su tokenProvider se queda en `null` y esas
-// peticiones viajan sin Authorization.
-configureHttp({
-  getToken: () => sessionManager.getAccessToken(),
-  onUnauthorized: () => {
-    void sessionManager.handleUnauthorized();
-  },
-});
 
 /** Falla explícitamente si no hay `EXPO_PUBLIC_API_URL` configurada. */
 export function requireApiClient(): HttpClient {
@@ -39,4 +31,12 @@ export function requireApiClient(): HttpClient {
     );
   }
   return apiClient;
+}
+
+let backofficeService: BackofficeService | null = null;
+
+/** Servicio del backoffice sobre el mismo cliente (y la misma sesión) de la app. */
+export function requireBackoffice(): BackofficeService {
+  backofficeService ??= createBackofficeService(requireApiClient());
+  return backofficeService;
 }

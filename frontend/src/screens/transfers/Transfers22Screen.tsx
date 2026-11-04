@@ -28,15 +28,22 @@ export interface Transfers22ScreenProps {
   /** Comprobante autoritativo de `GET /v1/transfers/{id}/receipt`. */
   readonly receipt?: TransferReceiptDto | null;
   readonly onBack?: () => void;
+  readonly onGoHome?: () => void;
+  readonly onViewMovements?: () => void;
   /** `false` cuando los datos provienen de la API real. */
   readonly demoMode?: boolean;
+  /** Sustituye acciones no implementadas por la navegación del MVP académico. */
+  readonly academicMode?: boolean;
 }
 
 export const Transfers22Screen: React.FC<Transfers22ScreenProps> = ({
   transfer = DEMO_TRANSFER_DETAIL,
   receipt = null,
   onBack,
+  onGoHome,
+  onViewMovements,
   demoMode = true,
+  academicMode = false,
 }) => {
   const showUnavailable = (action: string) => {
     if (demoMode) {
@@ -131,12 +138,21 @@ export const Transfers22Screen: React.FC<Transfers22ScreenProps> = ({
       </ScrollView>
 
       <View style={styles.footer}>
-        <TransferActionButtons
-          primaryLabel="Descargar comprobante"
-          onPrimary={() => showUnavailable('Descargar comprobante')}
-          secondaryLabel="Compartir"
-          onSecondary={() => showUnavailable('Compartir')}
-        />
+        {academicMode ? (
+          <TransferActionButtons
+            primaryLabel="Volver al inicio"
+            onPrimary={onGoHome}
+            secondaryLabel="Ver movimientos"
+            onSecondary={onViewMovements}
+          />
+        ) : (
+          <TransferActionButtons
+            primaryLabel="Descargar comprobante"
+            onPrimary={() => showUnavailable('Descargar comprobante')}
+            secondaryLabel="Compartir"
+            onSecondary={() => showUnavailable('Compartir')}
+          />
+        )}
       </View>
     </View>
   );

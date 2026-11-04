@@ -9,6 +9,7 @@ verdad correspondiente; **no** se duplican contenidos aquí.
 
 | Documento | Alcance |
 |---|---|
+| [Guía del MVP académico](GUIA_MVP_ACADEMICO.md) | Instalación y demostración local en Windows/Android sin GCP |
 | [README principal](../README.md) | Visión general, estado por componente, proyectos GCP, reglas de dominio |
 | [Arquitectura](../ARCHITECTURE.md) | Justificación técnica y análisis arquitectónico profundo |
 | [Guía de despliegue y validación en GCP](despliegue-y-validacion-gcp.md) | Flujo E2E, multi-proyecto, IAM/OIDC, scripts, resultados Bruno |

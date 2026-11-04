@@ -8,11 +8,13 @@ import { formatCopCents } from '../../utils/money';
 interface Movements05ScreenProps {
   movement?: MovementItem;
   onBack?: () => void;
+  onViewReceipt?: () => void;
 }
 
 export const Movements05Screen: React.FC<Movements05ScreenProps> = ({
   movement,
   onBack,
+  onViewReceipt,
 }) => {
   // Default fallback data matching Stitch mockup if none passed
   const item: MovementItem = movement || {
@@ -43,6 +45,14 @@ export const Movements05Screen: React.FC<Movements05ScreenProps> = ({
       : item.balanceAfter === null
         ? null
         : formatCopCents(Math.round(item.balanceAfter * 100));
+  const isTransfer =
+    item.type === 'TRANSFER_SENT' || item.type === 'TRANSFER_RECEIVED';
+  const isSent = item.type === 'TRANSFER_SENT';
+  const counterpartyName =
+    item.counterpartyName?.trim() ||
+    (isSent ? 'Destinatario no disponible' : 'Remitente no disponible');
+  const counterpartyCode = item.counterpartyCode?.trim() || null;
+  const description = item.description?.trim() || null;
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -75,6 +85,22 @@ export const Movements05Screen: React.FC<Movements05ScreenProps> = ({
               <Text style={styles.detailValueBold}>{item.reference}</Text>
             </View>
 
+            {isTransfer ? (
+              <View style={[styles.detailRow, styles.rowBorder]}>
+                <Text style={styles.detailLabel}>{isSent ? 'Para' : 'De'}</Text>
+                <Text style={styles.detailValue}>{counterpartyName}</Text>
+              </View>
+            ) : null}
+
+            {isTransfer && counterpartyCode ? (
+              <View style={[styles.detailRow, styles.rowBorder]}>
+                <Text style={styles.detailLabel}>
+                  {isSent ? 'Código destino' : 'Código origen'}
+                </Text>
+                <Text style={styles.detailValue}>{counterpartyCode}</Text>
+              </View>
+            ) : null}
+
             {/* Row 2: Fecha */}
             <View style={[styles.detailRow, styles.rowBorder]}>
               <Text style={styles.detailLabel}>Fecha</Text>
@@ -92,6 +118,13 @@ export const Movements05Screen: React.FC<Movements05ScreenProps> = ({
               <Text style={styles.detailValue}>{item.categoryLabel}</Text>
             </View>
 
+            {description ? (
+              <View style={[styles.detailRow, formattedBalance ? styles.rowBorder : null]}>
+                <Text style={styles.detailLabel}>Concepto</Text>
+                <Text style={styles.detailValue}>{description}</Text>
+              </View>
+            ) : null}
+
             {/* Row 4: Saldo después — solo si el backend lo expone */}
             {formattedBalance ? (
               <View style={styles.detailRow}>
@@ -104,6 +137,15 @@ export const Movements05Screen: React.FC<Movements05ScreenProps> = ({
 
         {/* Bottom Action Button */}
         <View style={styles.footerAction}>
+          {onViewReceipt ? (
+            <TouchableOpacity
+              style={styles.receiptButton}
+              activeOpacity={0.85}
+              onPress={onViewReceipt}
+            >
+              <Text style={styles.receiptButtonText}>Ver comprobante</Text>
+            </TouchableOpacity>
+          ) : null}
           <TouchableOpacity
             style={styles.returnButton}
             activeOpacity={0.85}
@@ -228,6 +270,21 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 24,
     paddingTop: 12,
+  },
+  receiptButton: {
+    borderColor: colors.magenta,
+    borderRadius: 18,
+    borderWidth: 1,
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 10,
+  },
+  receiptButtonText: {
+    color: colors.magenta,
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: -0.2,
   },
   returnButton: {
     backgroundColor: colors.magenta,

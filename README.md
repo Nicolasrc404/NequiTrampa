@@ -1,10 +1,20 @@
 # NequiTrampa
 
-**MVP de una billetera financiera digital** construido como proyecto académico full stack.
-Es un clon educativo inspirado en aplicaciones tipo Nequi: permite registrar clientes,
-manejar un saldo digital, hacer transferencias y recargas simuladas, llevar el control de
-gastos en efectivo, presupuestos y categorías, y consultar todo mediante un asistente de
-IA y comandos de voz.
+**MVP académico de una billetera digital ficticia** construido como proyecto full stack.
+El repositorio también conserva una arquitectura ampliada con clientes, gastos en efectivo,
+presupuestos, categorías, asistente de IA y comandos de voz; esas capacidades no deben
+interpretarse como parte funcional del recorrido Android mínimo.
+
+> **Rama académica:** en `feature/mvp-academico-estable`, la demostración operativa recomendada usa
+> `scripts/run-local.ps1 -Backend memory`, autenticación académica local y Expo Go. No requiere
+> GCP ni dinero real. La arquitectura GCP descrita más abajo conserva el contexto ampliado y no
+> debe confundirse con un sistema listo para producción. Consulta la [guía de ejecución del MVP](docs/GUIA_MVP_ACADEMICO.md).
+
+El cierre académico vigente se trabaja en `feature/mvp-academico-estable`. En modo `memory`,
+`AcademicWalletStore` conserva saldos, operaciones y evidencia de idempotencia en JSON; el
+catálogo local valida `LAUR-5120`, `CARL-9941`, `SOFI-3307` y la cuenta inactiva `ANA-3092`.
+Los comprobantes se reconstruyen con identificadores estables. Esto no cambia ni certifica la
+implementación Spanner/GCP descrita en la arquitectura ampliada.
 
 
 ---
@@ -181,7 +191,9 @@ El proyecto superó la fase puramente mock y cuenta con persistencia financiera 
 | **`Nequi.Backoffice`** | ✅ AS-IS Verificado | Casos de soporte, investigación de operaciones, **reversos y ajustes formales en el ledger** (Spanner, transaccionales e idempotentes), reconciliación (`reconciliation_issues`), administración de usuarios/roles (claims de Identity Platform), configuración y auditoría (Firestore) |
 | **`Nequi.Gateway` (API Gateway / BFF)** | ✅ AS-IS Verificado | Único servicio público: CORS, rate limit, reenvío a los servicios privados con identity token; nunca expone `/internal/**`. Ver [docs/guia-frontend-api.md](docs/guia-frontend-api.md) |
 | **Autenticación Identity Platform** | ✅ AS-IS Verificado | JWT RS256 (roles + `client_id` como custom claims) validado por cada servicio con `Auth__DemoHeaders=false`; usuarios de prueba con `infra/seed-identity.sh` |
-| **App Móvil (React Native / Expo + SQLite)** | ⚪ TO-BE (Pendiente) | Cliente móvil y persistencia local SQLite pendientes de consolidación/documentación en este repositorio |
+| **App Android académica (React Native / Expo + Gateway memory)** | ✅ MVP académico funcional | Login académico local, Wallet, transferencias y recargas ficticias, movimientos y comprobante; no utiliza GCP |
+| **SQLite / offline / sincronización** | ⚪ TO-BE (Pendiente) | No forma parte del flujo académico validado; queda como evolución futura |
+| **App móvil ampliada (iOS/Web y capacidades comerciales)** | ⚪ TO-BE (Pendiente) | Fuera del alcance del MVP académico actual |
 
 ---
 
@@ -217,6 +229,8 @@ El despliegue en la región `southamerica-west1` está dividido en dos proyectos
 
 ### 3. Documentación Técnica del Repositorio
 
+* [Guía compartida del MVP académico](docs/GUIA_MVP_ACADEMICO.md) — instalación en Windows, backend memory, Android Studio, Expo Go y recorrido funcional sin GCP.
+
 Para profundizar en cada subsistema, consulte las guías especializadas:
 
 * [Índice General de Documentación](docs/README.md)
@@ -230,21 +244,34 @@ Para profundizar en cada subsistema, consulte las guías especializadas:
 
 ### 4. Ejecución local con Swagger
 
-`scripts/run-local.ps1` compila y levanta los 7 servicios con Swagger UI en `http://localhost:<puerto>/swagger`:
+`scripts/run-local.ps1` compila y levanta 8 procesos (7 servicios más Gateway) con Swagger UI en `http://localhost:<puerto>/swagger`:
 
-| Servicio | Puerto | | Servicio | Puerto |
-|---|---|---|---|---|
-| Wallet | 8080 | | Assistant | 8084 |
-| Profile | 8081 | | Workers | 8085 |
-| Finance | 8082 | | Realtime | 8086 |
-| Backoffice | 8083 | | | |
+| Servicio | Puerto |
+|---|---:|
+| Wallet | 8080 |
+| Profile | 8081 |
+| Finance | 8082 |
+| Backoffice | 8083 |
+| Assistant | 8084 |
+| Workers | 8085 |
+| Realtime | 8086 |
+| Gateway | 8087 |
 
 ```powershell
-gcloud auth application-default login   # una vez; necesario para -Backend gcp
-.\scripts\run-local.ps1                  # contra GCP (Spanner, Pub/Sub, Firestore de full-stack-2026)
-.\scripts\run-local.ps1 -Backend memory  # sin credenciales, datos en memoria
-.\scripts\run-local.ps1 -Lan             # además accesible desde otros equipos de la red
+## MVP académico seguro: no requiere credenciales GCP
+.\scripts\run-local.ps1 -Backend memory
+.\scripts\run-local.ps1 -Backend memory -Lan # solo si se necesita acceso LAN controlado
 .\scripts\stop-local.ps1
+```
+
+El parámetro `-Backend memory` es obligatorio para la demostración académica. Si se omite,
+el script usa `gcp` por defecto y puede acceder a Spanner, Pub/Sub y Firestore reales.
+Los comandos siguientes pertenecen únicamente a la arquitectura GCP histórica; no los ejecutes
+para el MVP académico ni con credenciales productivas:
+
+```powershell
+gcloud auth application-default login
+.\scripts\run-local.ps1 -Backend gcp
 ```
 
 En Swagger, **Authorize** acepta headers demo (`X-Demo-User: idp-sub-alejandro`, `X-Demo-Role: CLIENTE`) en lugar de un JWT;

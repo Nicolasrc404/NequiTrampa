@@ -85,11 +85,18 @@ export class FinancialOperation {
       throw new Error('La intención financiera requiere una huella no vacía.');
     }
 
-    if (this.fingerprint !== fingerprint) {
-      this.keyStore.rotate(this.scope);
-      this.fingerprint = fingerprint;
+    let key: string;
+    try {
+      if (this.fingerprint !== fingerprint) {
+        this.keyStore.rotate(this.scope);
+        this.fingerprint = fingerprint;
+      }
+      key = this.keyStore.acquire(this.scope);
+    } catch (cause) {
+      // No se realiza HTTP si no existe una clave segura y el formulario
+      // recibe un resultado controlado, sin promesa rechazada.
+      return { status: 'rejected', error: asApiError(cause) };
     }
-    const key = this.keyStore.acquire(this.scope);
 
     this.submitting = true;
     try {

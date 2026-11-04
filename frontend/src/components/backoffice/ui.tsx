@@ -14,7 +14,7 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import colors from '../../theme/colors';
-import { ApiError } from '../../api/http';
+import type { ApiError } from '../../services/http';
 import { Tone } from '../../utils/format';
 
 // ───────── Estructura de pantalla ─────────
@@ -216,15 +216,15 @@ export const EmptyState: React.FC<{ title: string; message: string }> = ({ title
   <StateCard icon="file-tray-outline" iconBg={colors.boPinkSoft} iconColor={colors.boPink} title={title} message={message} />
 );
 
-/** Error por código HTTP: 401, 403, 404, 5xx/red (usa el copy de Stitch). */
+/** Error por clasificación de la capa HTTP: sesión, permisos, no encontrado, conflicto o servidor. */
 export const ErrorState: React.FC<{
   error: ApiError;
   resource: string;
   onRetry?: () => void;
   onBack?: () => void;
 }> = ({ error, resource, onRetry, onBack }) => {
-  switch (error.status) {
-    case 401:
+  switch (error.kind) {
+    case 'unauthorized':
       return (
         <StateCard
           icon="lock-closed-outline"
@@ -234,7 +234,7 @@ export const ErrorState: React.FC<{
           message="Tu sesión expiró. Vuelve a iniciar sesión para continuar."
         />
       );
-    case 403:
+    case 'forbidden':
       return (
         <StateCard
           icon="shield-outline"
@@ -244,7 +244,7 @@ export const ErrorState: React.FC<{
           onAction={onBack}
         />
       );
-    case 404:
+    case 'not_found':
       return (
         <StateCard
           icon="search-outline"
@@ -256,36 +256,58 @@ export const ErrorState: React.FC<{
           onAction={onBack}
         />
       );
-    case 409:
-    case 422:
-    case 400:
-      return <StateCard icon="alert-circle-outline" title="Solicitud no válida" message={error.message} actionLabel={onBack ? 'Volver' : undefined} onAction={onBack} />;
-    default:
+    case 'bad_request':
+    case 'conflict':
+    case 'unprocessable':
+    case 'client_error':
+      return (
+        <StateCard
+          icon="alert-circle-outline"
+          title="Solicitud no válida"
+          message={error.toUserMessage().message}
+          actionLabel={onBack ? 'Volver' : undefined}
+          onAction={onBack}
+        />
+      );
+    default: {
+      const offline = error.kind === 'network' || error.kind === 'timeout' || error.kind === 'unavailable';
       return (
         <StateCard
           icon="cloud-offline-outline"
           title={`No pudimos cargar ${resource.toLowerCase()}`}
-          message={error.status === 503 ? 'El servicio no está disponible. Intenta nuevamente en unos minutos.' : 'Es un problema de nuestro lado. Intenta nuevamente en unos minutos.'}
+          message={
+            offline
+              ? 'El servicio no está disponible. Revisa tu conexión e intenta nuevamente en unos minutos.'
+              : 'Es un problema de nuestro lado. Intenta nuevamente en unos minutos.'
+          }
           actionLabel={onRetry ? 'Intentar nuevamente' : undefined}
           onAction={onRetry}
         />
       );
+    }
   }
 };
 
-export const InlineError: React.FC<{ error: ApiError | null }> = ({ error }) =>
-  error ? (
+export const InlineMessage: React.FC<{ message: string | null }> = ({ message }) =>
+  message ? (
     <View style={s.inlineError} accessibilityRole="alert">
       <Ionicons name="alert-circle" size={18} color="#BE123C" />
-      <Text style={s.inlineErrorText}>{messageFor(error)}</Text>
+      <Text style={s.inlineErrorText}>{message}</Text>
     </View>
   ) : null;
 
+export const InlineError: React.FC<{ error: ApiError | null }> = ({ error }) => (
+  <InlineMessage message={error ? messageFor(error) : null} />
+);
+
+/** Mensaje de una acción fallida: 4xx muestra el motivo del servidor; 5xx y red, un texto seguro. */
 function messageFor(e: ApiError): string {
-  if (e.status === 403) return 'Sin permisos para realizar esta acción.';
-  if (e.status === 401) return 'Sesión vencida. Inicia sesión de nuevo.';
-  if (e.status >= 500) return 'No pudimos completar la acción. Intenta nuevamente.';
-  return e.message;
+  if (e.kind === 'forbidden') return 'Sin permisos para realizar esta acción.';
+  if (e.kind === 'unauthorized') return 'Sesión vencida. Inicia sesión de nuevo.';
+  if (e.kind === 'conflict' || e.kind === 'unprocessable' || e.kind === 'bad_request' || e.kind === 'not_found') {
+    return e.toUserMessage().message;
+  }
+  return 'No pudimos completar la acción. Intenta nuevamente.';
 }
 
 export const SuccessBanner: React.FC<{ title: string; message: string }> = ({ title, message }) => (

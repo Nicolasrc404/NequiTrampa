@@ -8,10 +8,12 @@ import BottomNav from '../../components/common/BottomNav';
 
 interface Movements03ScreenProps {
   onOpenFilter?: () => void;
+  onTabPress?: (tab: 'inicio' | 'movimientos' | 'asistente' | 'perfil') => void;
 }
 
 export const Movements03Screen: React.FC<Movements03ScreenProps> = ({
   onOpenFilter,
+  onTabPress,
 }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -41,7 +43,7 @@ export const Movements03Screen: React.FC<Movements03ScreenProps> = ({
       </ScrollView>
 
       {/* Persistent Bottom Navigation */}
-      <BottomNav activeTab="movimientos" />
+      <BottomNav activeTab="movimientos" onTabPress={onTabPress} />
     </SafeAreaView>
   );
 };

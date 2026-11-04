@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Alert, SafeAreaView, StyleSheet, View } from 'react-native';
+import { Alert, BackHandler, SafeAreaView, StyleSheet, View } from 'react-native';
 import colors from './src/theme/colors';
 import { appConfig } from './src/config/appConfig';
 import BackofficeApp from './src/navigation/BackofficeApp';
@@ -29,6 +29,7 @@ import {
 } from './src/hooks/useApiData';
 import { useWalletBalance } from './src/hooks/useWallet';
 import { FinancialOperation } from './src/services/financialOperation';
+import { ACADEMIC_TRANSFER_RECIPIENTS } from './src/services/academicCatalog';
 import { classifyOperationFailure } from './src/services/operationFailure';
 import { asApiError } from './src/services/http';
 import { routeCategoryFailure } from './src/services/categorySubmission';
@@ -47,6 +48,9 @@ import {
 // ── Movements imports ──────────────────────────────────────
 import { MovementsState, MovementItem } from './src/types/movements';
 import { DEMO_MOVEMENTS } from './src/data/demoMovements';
+import { resolveBottomTab, type BottomTab } from './src/utils/bottomTabNavigation';
+import { resolveTransferCompletionTarget } from './src/utils/transferCompletionNavigation';
+import { RECHARGE_ENTRY_STATE } from './src/utils/rechargeNavigation';
 
 import Movements01Screen from './src/screens/movements/Movements01Screen';
 import Movements02Screen from './src/screens/movements/Movements02Screen';
@@ -295,10 +299,14 @@ function MainApp() {
           message: '',
         },
   );
+  const [transferSubmitRequested, setTransferSubmitRequested] = useState(false);
+  const [transferValidationError, setTransferValidationError] = useState<string | null>(null);
+  const [transferAmountText, setTransferAmountText] = useState('');
   const [selectedTransfer, setSelectedTransfer] =
     useState<TransferItem>(DEMO_TRANSFER_DETAIL);
   const [rechargeDraft, setRechargeDraft] =
     useState<RechargeDraft>(DEMO_RECHARGE_DRAFT);
+  const [rechargeAttempt, setRechargeAttempt] = useState(0);
   const [categorySubmitting, setCategorySubmitting] = useState(false);
   const [categoryDeleting, setCategoryDeleting] = useState(false);
   const [categoryDraft, setCategoryDraft] = useState<{
@@ -387,9 +395,27 @@ function MainApp() {
   );
   const realReady = !demoEnabled && sessionGate === 'ready' && services !== null;
 
+  const handleBottomTab = useCallback((tab: BottomTab) => {
+    const target = resolveBottomTab(tab);
+    if (target) {
+      setCurrentState(target);
+      return;
+    }
+    Alert.alert(
+      'Asistente no disponible',
+      'El asistente queda fuera del alcance del MVP académico y no ejecuta acciones en esta versión.',
+    );
+  }, []);
+
   const balance = useWalletBalance(services, realReady);
   const ownClientId = balance.data?.clientId ?? null;
-  const movements = useMovements(services, realReady);
+  const movements = useMovements(
+    services,
+    realReady,
+    undefined,
+    appConfig.academicModeEnabled,
+    ownClientId,
+  );
   const transfers = useTransfers(services, realReady, ownClientId);
   const recharges = useRecharges(services, realReady);
   const receipt = useTransferReceipt(
@@ -402,6 +428,14 @@ function MainApp() {
   const beneficiariesStatus = beneficiaries.status;
   const beneficiariesCount = beneficiaries.data?.length ?? 0;
   const beneficiariesError = beneficiaries.error;
+  const academicTransferRecipients = useMemo(() => {
+    const stored = beneficiaries.data ?? [];
+    const byCode = new Map(stored.map((recipient) => [recipient.code, recipient]));
+    for (const recipient of ACADEMIC_TRANSFER_RECIPIENTS) {
+      if (!byCode.has(recipient.code)) byCode.set(recipient.code, recipient);
+    }
+    return [...byCode.values()];
+  }, [beneficiaries.data]);
   const categories = useCategories(services, realReady);
   const cashRegister = useCashRegister(services, realReady);
   const budgets = useBudgets(services, realReady);
@@ -464,7 +498,7 @@ function MainApp() {
   );
   const rechargeOperation = useMemo(
     () => new FinancialOperation({ scope: 'recharges.create' }),
-    [],
+    [rechargeAttempt],
   );
   // Escrituras de la Fase 8. Cada intención tiene su propia instancia: una
   // clave por intención y bloqueo de doble envío local.
@@ -517,6 +551,14 @@ function MainApp() {
     let active = true;
     const unsubscribe = sessionManager.subscribe((snapshot) => {
       if (!active) return;
+      if (typeof __DEV__ !== 'undefined' && __DEV__) {
+        console.debug('[session] state', {
+          status: snapshot.status,
+          hasUser: Boolean(snapshot.user),
+          hasClientId: Boolean(snapshot.user?.clientId),
+          errorCode: snapshot.errorCode,
+        });
+      }
       switch (snapshot.status) {
         case 'authenticated':
           setSessionGate('ready');
@@ -550,6 +592,50 @@ function MainApp() {
   const handleTransferRecipient = (recipient: TransferRecipient) => {
     setTransferDraft((current) => ({ ...current, recipient }));
   };
+
+  const openTransferFlow = () => {
+    setTransferSubmitRequested(false);
+    setTransferValidationError(null);
+    setTransferAmountText('');
+    if (!demoEnabled) {
+      setTransferDraft({
+        recipient: { id: '', name: '', code: '', initialLetter: '?' },
+        amountCents: 0,
+        message: '',
+      });
+    }
+    setCurrentState('Transfers_01');
+  };
+
+  const leaveAcademicTransferCompletion = useCallback(
+    (action: 'home' | 'movements' | 'back') => {
+      setTransferSubmitRequested(false);
+      if (appConfig.academicModeEnabled) {
+        setTransferDraft({
+          recipient: { id: '', name: '', code: '', initialLetter: '?' },
+          amountCents: 0,
+          message: '',
+        });
+        setTransferAmountText('');
+      }
+      setCurrentState(resolveTransferCompletionTarget(action));
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (!appConfig.academicModeEnabled || currentState !== 'Transfers_22') {
+      return undefined;
+    }
+    const subscription = BackHandler.addEventListener(
+      'hardwareBackPress',
+      () => {
+        leaveAcademicTransferCompletion('back');
+        return true;
+      },
+    );
+    return () => subscription.remove();
+  }, [currentState, leaveAcademicTransferCompletion]);
 
   const handleCategoryDraft = async (
     name: string,
@@ -652,6 +738,10 @@ function MainApp() {
 
   const handleSelectMovement = (item: MovementItem) => {
     setSelectedMovement(item);
+    const transfer = item.sourceId
+      ? transfers.data?.find((candidate) => candidate.id === item.sourceId)
+      : undefined;
+    if (transfer) setSelectedTransfer(transfer);
     setCurrentState('Movements_05');
   };
 
@@ -886,8 +976,22 @@ function MainApp() {
   // ── Envío real de transferencia (una sola vez por intención) ─
   useEffect(() => {
     if (demoEnabled || !realReady || !services) return;
-    if (currentState !== 'Transfers_03') return;
+    if (currentState !== 'Transfers_03' || !transferSubmitRequested) return;
     if (transferAttempt.current !== null) return;
+
+    // Defensa final: la UI no debe poder iniciar una operación inválida aunque
+    // un evento antiguo o una navegación rápida active la confirmación.
+    const availableBalanceCents = balance.data?.availableBalanceCents ?? null;
+    const amountIsValid = Number.isSafeInteger(transferDraft.amountCents)
+      && transferDraft.amountCents >= 100
+      && transferDraft.amountCents <= 200_000_000
+      && (availableBalanceCents === null || transferDraft.amountCents <= availableBalanceCents);
+    if (!amountIsValid || transferDraft.recipient.code.trim().length === 0) {
+      setTransferSubmitRequested(false);
+      setTransferValidationError('Revisa el destinatario y el monto antes de continuar.');
+      setCurrentState('Transfers_05');
+      return;
+    }
 
     const fingerprint = `${transferDraft.recipient.code}|${transferDraft.amountCents}|${transferDraft.message}`;
     transferAttempt.current = fingerprint;
@@ -928,10 +1032,12 @@ function MainApp() {
             mapTransfer(dto, { ownClientId: dto.originClientId }),
           );
         } catch {
+          setTransferSubmitRequested(false);
           setCurrentState('Transfers_13');
           return;
         }
         setTransferUncertain(false);
+        setTransferSubmitRequested(false);
         reloadBalance();
         reloadMovements();
         reloadTransfers();
@@ -941,6 +1047,7 @@ function MainApp() {
 
       if (outcome.status === 'blocked') return;
       if (outcome.status === 'cancelled') {
+        setTransferSubmitRequested(false);
         setCurrentState('Transfers_01');
         return;
       }
@@ -948,39 +1055,56 @@ function MainApp() {
       const failure = classifyOperationFailure(outcome.error);
       switch (failure) {
         case 'session':
+          setTransferSubmitRequested(false);
           setCurrentState('Transfers_06');
           break;
         case 'not_found':
+          setTransferSubmitRequested(false);
           setCurrentState('Transfers_07');
           break;
         case 'conflict':
+          setTransferSubmitRequested(false);
           setCurrentState('Transfers_08');
           break;
         case 'insufficient_funds':
+          setTransferSubmitRequested(false);
           setCurrentState('Transfers_09');
           reloadBalance();
           break;
         case 'limit_exceeded':
+          setTransferSubmitRequested(false);
           setCurrentState('Transfers_11');
           break;
         case 'rate_limited':
+          setTransferSubmitRequested(false);
           setCurrentState('Transfers_12');
           break;
         case 'validation':
+          setTransferSubmitRequested(false);
+          setTransferValidationError(
+            outcome.error?.problem.code === 'DESTINATION_ACCOUNT_INACTIVE'
+              ? 'La cuenta de destino está inactiva y no puede recibir transferencias.'
+              : outcome.error?.problem.code === 'SELF_TRANSFER_NOT_ALLOWED'
+                ? 'No puedes transferir dinero a tu propia cuenta.'
+                : outcome.error?.problem.detail ?? 'Revisa los datos de la transferencia.',
+          );
           setCurrentState('Transfers_05');
           break;
         case 'unavailable':
+          setTransferSubmitRequested(false);
           setCurrentState('Transfers_14');
           break;
         case 'uncertain':
           // Resultado desconocido: refrescar para verificar antes de reintentar.
           setTransferUncertain(true);
+          setTransferSubmitRequested(false);
           reloadBalance();
           reloadMovements();
           reloadTransfers();
           setCurrentState('Transfers_13');
           break;
         default:
+          setTransferSubmitRequested(false);
           setTransferUncertain(false);
           setCurrentState('Transfers_13');
       }
@@ -999,9 +1123,16 @@ function MainApp() {
     services,
     transferDraft,
     transferOperation,
+    transferSubmitRequested,
   ]);
 
   // ── Recarga real (idempotente, sin doble envío) ────────────
+  const startNewRecharge = () => {
+    setRechargeResult(null);
+    setRechargeAttempt((attempt) => attempt + 1);
+    setCurrentState('Recharges_01');
+  };
+
   const handleRecharge = async () => {
     if (demoEnabled) {
       setRechargeResult(null);
@@ -1994,17 +2125,20 @@ function MainApp() {
             hasMore={demoEnabled ? false : movements.hasMore}
             loadingMore={demoEnabled ? false : movements.loadingMore}
             onLoadMore={demoEnabled ? undefined : movements.loadMore}
+            onTabPress={handleBottomTab}
           />
         )}
         {currentState === 'Movements_02' && (
           <Movements02Screen
             onOpenFilter={() => setCurrentState('Movements_04')}
-            onRechargePress={() => setCurrentState('Recharges_01')}
+            onRechargePress={() => setCurrentState(RECHARGE_ENTRY_STATE)}
+            onTabPress={handleBottomTab}
           />
         )}
         {currentState === 'Movements_03' && (
           <Movements03Screen
             onOpenFilter={() => setCurrentState('Movements_04')}
+            onTabPress={handleBottomTab}
           />
         )}
         {currentState === 'Movements_04' && (
@@ -2017,6 +2151,12 @@ function MainApp() {
           <Movements05Screen
             movement={selectedMovement}
             onBack={() => setCurrentState('Movements_01')}
+            onViewReceipt={
+              selectedMovement.sourceId &&
+              transfers.data?.some((transfer) => transfer.id === selectedMovement.sourceId)
+                ? () => setCurrentState('Transfers_22')
+                : undefined
+            }
           />
         )}
         {currentState === 'Movements_06' && (
@@ -2031,6 +2171,7 @@ function MainApp() {
           <Movements08Screen
             onRetryPress={() => setCurrentState('Movements_01')}
             error={movements.error}
+            onTabPress={handleBottomTab}
           />
         )}
 
@@ -2293,6 +2434,8 @@ function MainApp() {
             onContinue={() => setCurrentState('Transfers_02')}
             realMode={!demoEnabled}
             availableBalanceCents={demoEnabled ? null : balance.data?.availableBalanceCents ?? null}
+            amountText={demoEnabled ? undefined : transferAmountText}
+            onAmountTextChange={demoEnabled ? undefined : setTransferAmountText}
             onAmountChange={(amountCents) =>
               setTransferDraft((current) => ({ ...current, amountCents }))
             }
@@ -2305,14 +2448,32 @@ function MainApp() {
             onSelectRecipient={handleTransferRecipient}
             onContinue={(recipient) => {
               handleTransferRecipient(recipient);
+              setTransferSubmitRequested(false);
               setCurrentState('Transfers_03');
             }}
-            recipients={demoEnabled ? undefined : beneficiaries.data ?? []}
+            recipients={
+              demoEnabled
+                ? undefined
+                : appConfig.academicModeEnabled
+                  ? academicTransferRecipients
+                  : beneficiaries.data ?? []
+            }
             realMode={!demoEnabled}
           />
         )}
         {currentState === 'Transfers_03' && (
-          <Transfers03Screen onShowDemoResult={demoEnabled ? handleTransferSimulatedSuccess : undefined} />
+          <Transfers03Screen
+            onShowDemoResult={demoEnabled ? handleTransferSimulatedSuccess : undefined}
+            recipient={demoEnabled ? undefined : transferDraft.recipient}
+            amountCents={demoEnabled ? undefined : transferDraft.amountCents}
+            availableBalanceCents={demoEnabled ? null : balance.data?.availableBalanceCents ?? null}
+            onConfirm={demoEnabled ? undefined : () => setTransferSubmitRequested(true)}
+            onCancel={demoEnabled ? undefined : () => {
+              setTransferSubmitRequested(false);
+              setCurrentState('Transfers_01');
+            }}
+            submitting={!demoEnabled && transferSubmitRequested}
+          />
         )}
         {currentState === 'Transfers_04' && (
           <Transfers04Screen
@@ -2320,15 +2481,21 @@ function MainApp() {
             amountCents={transferDraft.amountCents}
             reference={selectedTransfer.reference}
             onViewReceipt={() => setCurrentState('Transfers_22')}
-            onGoHome={() => setCurrentState('Movements_01')}
+            onGoHome={() => appConfig.academicModeEnabled
+              ? leaveAcademicTransferCompletion('home')
+              : setCurrentState('Movements_01')}
             balanceAfterCents={demoEnabled ? undefined : null}
             demoMode={demoEnabled}
           />
         )}
         {currentState === 'Transfers_05' && (
           <Transfers05Screen
-            onBack={() => setCurrentState('Transfers_01')}
-            onContinue={() => setCurrentState('Transfers_02')}
+            errorMessage={transferValidationError ?? undefined}
+            recipient={transferDraft.recipient}
+            amountCents={transferDraft.amountCents}
+            message={transferDraft.message}
+            onBack={() => { setTransferSubmitRequested(false); setTransferValidationError(null); setCurrentState('Transfers_01'); }}
+            onContinue={() => { setTransferSubmitRequested(false); setTransferValidationError(null); setCurrentState('Transfers_02'); }}
           />
         )}
         {currentState === 'Transfers_06' && (
@@ -2338,8 +2505,8 @@ function MainApp() {
         )}
         {currentState === 'Transfers_07' && (
           <Transfers07Screen
-            onCorrectRecipient={() => setCurrentState('Transfers_02')}
-            onCancel={() => setCurrentState('Transfers_15')}
+            onCorrectRecipient={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_02'); }}
+            onCancel={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_15'); }}
           />
         )}
         {currentState === 'Transfers_08' && (
@@ -2350,38 +2517,38 @@ function MainApp() {
         )}
         {currentState === 'Transfers_09' && (
           <Transfers09Screen
-            onReload={() => setCurrentState('Movements_01')}
-            onChangeAmount={() => setCurrentState('Transfers_01')}
+            onReload={() => { setTransferSubmitRequested(false); setCurrentState('Movements_01'); }}
+            onChangeAmount={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_01'); }}
           />
         )}
         {currentState === 'Transfers_10' && (
           <Transfers10Screen
-            onChangeAmount={() => setCurrentState('Transfers_01')}
-            onCancel={() => setCurrentState('Transfers_15')}
+            onChangeAmount={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_01'); }}
+            onCancel={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_15'); }}
           />
         )}
         {currentState === 'Transfers_11' && (
           <Transfers11Screen
-            onChangeAmount={() => setCurrentState('Transfers_01')}
-            onCancel={() => setCurrentState('Transfers_15')}
+            onChangeAmount={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_01'); }}
+            onCancel={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_15'); }}
           />
         )}
         {currentState === 'Transfers_12' && (
           <Transfers12Screen
-            onDismiss={() => setCurrentState('Transfers_15')}
+            onDismiss={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_15'); }}
           />
         )}
         {currentState === 'Transfers_13' && (
           <Transfers13Screen
             onViewMovements={() => setCurrentState('Transfers_15')}
-            onRetry={() => setCurrentState('Transfers_01')}
+            onRetry={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_01'); }}
             uncertain={transferUncertain}
             demoMode={demoEnabled}
           />
         )}
         {currentState === 'Transfers_14' && (
           <Transfers14Screen
-            onRetry={() => setCurrentState('Transfers_01')}
+            onRetry={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_01'); }}
             onGoHome={() => setCurrentState('Movements_01')}
             demoMode={demoEnabled}
           />
@@ -2438,14 +2605,24 @@ function MainApp() {
           (demoEnabled ? (
             <Transfers22Screen
               transfer={selectedTransfer}
-              onBack={() => setCurrentState('Transfers_19')}
+              onBack={() => appConfig.academicModeEnabled
+                ? leaveAcademicTransferCompletion('back')
+                : setCurrentState('Transfers_19')}
+              onGoHome={() => leaveAcademicTransferCompletion('home')}
+              onViewMovements={() => leaveAcademicTransferCompletion('movements')}
               demoMode
+              academicMode={appConfig.academicModeEnabled}
             />
           ) : receipt.status === 'success' && receipt.data ? (
             <Transfers22Screen
               receipt={receipt.data}
-              onBack={() => setCurrentState('Transfers_19')}
+              onBack={() => appConfig.academicModeEnabled
+                ? leaveAcademicTransferCompletion('back')
+                : setCurrentState('Transfers_19')}
+              onGoHome={() => leaveAcademicTransferCompletion('home')}
+              onViewMovements={() => leaveAcademicTransferCompletion('movements')}
               demoMode={false}
+              academicMode={appConfig.academicModeEnabled}
             />
           ) : receipt.status === 'error' ? (
             receiptFailure === 'not_found' ? (
@@ -2503,6 +2680,7 @@ function MainApp() {
             result={rechargeResult ?? undefined}
             onGoHome={() => setCurrentState('Movements_01')}
             onViewHistory={() => setCurrentState('Recharges_08')}
+            onNewRecharge={startNewRecharge}
             demoMode={demoEnabled}
           />
         )}
@@ -2548,7 +2726,7 @@ function MainApp() {
           ) : (
             <Recharges08Screen
               onBack={() => setCurrentState('Movements_01')}
-              onNewRecharge={() => setCurrentState('Recharges_01')}
+              onNewRecharge={startNewRecharge}
               onTabPress={(tab) => {
                 if (tab === 'inicio' || tab === 'movimientos') {
                   setCurrentState('Movements_01');
@@ -3338,6 +3516,9 @@ function MainApp() {
             screenKey={currentState as Module1ScreenKey}
             onNavigate={(key) => setCurrentState(key)}
             onHome={() => setCurrentState('Movements_01')}
+            onTabPress={handleBottomTab}
+            onTransfer={openTransferFlow}
+            onRecharge={() => setCurrentState(RECHARGE_ENTRY_STATE)}
             services={services}
             apiEnabled={realReady}
           />
