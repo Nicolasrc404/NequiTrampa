@@ -705,7 +705,7 @@ Etapa 2 queda validada para el slice HTTP local: Gateway -> Wallet memory -> `Ac
 2. En `frontend\.env` configurar `EXPO_PUBLIC_API_URL=http://10.0.2.2:8087` para emulador o `http://IP-LAN-PC:8087` para dispositivo fisico; usar `EXPO_PUBLIC_DEMO_MODE=false` y `EXPO_PUBLIC_ACADEMIC_MODE=true`.
 3. No usar `localhost` desde Android. No usar tuneles publicos. La opcion `-Lan` solo es para red local autorizada.
 4. Desde `frontend` ejecutar `npx expo start --android` con dependencias instaladas.
-5. Iniciar sesion con correo y contrasena no vacios; el modo academico es solo Development.
+5. Iniciar sesión con una cuenta del catálogo, por ejemplo `laura@demo.local` / `DemoLaura123!`; el modo académico es solo Development.
 6. Ejecutar Login -> Wallet -> saldo -> transferencia a `DEST0001` -> saldo/historial -> recarga `SIMULATED_PSE` -> saldo/historial.
 7. Repetir la misma intencion y confirmar que no duplica; cerrar y abrir app; reiniciar backend y confirmar persistencia.
 8. Ejecutar `.\scripts\stop-local.ps1` y conservar evidencia sin tokens.

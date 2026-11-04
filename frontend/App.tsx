@@ -29,6 +29,7 @@ import {
 } from './src/hooks/useApiData';
 import { useWalletBalance } from './src/hooks/useWallet';
 import { FinancialOperation } from './src/services/financialOperation';
+import { ACADEMIC_TRANSFER_RECIPIENTS } from './src/services/academicCatalog';
 import { classifyOperationFailure } from './src/services/operationFailure';
 import { asApiError } from './src/services/http';
 import { routeCategoryFailure } from './src/services/categorySubmission';
@@ -304,6 +305,7 @@ function MainApp() {
     useState<TransferItem>(DEMO_TRANSFER_DETAIL);
   const [rechargeDraft, setRechargeDraft] =
     useState<RechargeDraft>(DEMO_RECHARGE_DRAFT);
+  const [rechargeAttempt, setRechargeAttempt] = useState(0);
   const [categorySubmitting, setCategorySubmitting] = useState(false);
   const [categoryDeleting, setCategoryDeleting] = useState(false);
   const [categoryDraft, setCategoryDraft] = useState<{
@@ -425,6 +427,14 @@ function MainApp() {
   const beneficiariesStatus = beneficiaries.status;
   const beneficiariesCount = beneficiaries.data?.length ?? 0;
   const beneficiariesError = beneficiaries.error;
+  const academicTransferRecipients = useMemo(() => {
+    const stored = beneficiaries.data ?? [];
+    const byCode = new Map(stored.map((recipient) => [recipient.code, recipient]));
+    for (const recipient of ACADEMIC_TRANSFER_RECIPIENTS) {
+      if (!byCode.has(recipient.code)) byCode.set(recipient.code, recipient);
+    }
+    return [...byCode.values()];
+  }, [beneficiaries.data]);
   const categories = useCategories(services, realReady);
   const cashRegister = useCashRegister(services, realReady);
   const budgets = useBudgets(services, realReady);
@@ -487,7 +497,7 @@ function MainApp() {
   );
   const rechargeOperation = useMemo(
     () => new FinancialOperation({ scope: 'recharges.create' }),
-    [],
+    [rechargeAttempt],
   );
   // Escrituras de la Fase 8. Cada intención tiene su propia instancia: una
   // clave por intención y bloqueo de doble envío local.
@@ -1112,6 +1122,12 @@ function MainApp() {
   ]);
 
   // ── Recarga real (idempotente, sin doble envío) ────────────
+  const startNewRecharge = () => {
+    setRechargeResult(null);
+    setRechargeAttempt((attempt) => attempt + 1);
+    setCurrentState('Recharges_01');
+  };
+
   const handleRecharge = async () => {
     if (demoEnabled) {
       setRechargeResult(null);
@@ -2416,7 +2432,13 @@ function MainApp() {
               setTransferSubmitRequested(false);
               setCurrentState('Transfers_03');
             }}
-            recipients={demoEnabled ? undefined : beneficiaries.data ?? []}
+            recipients={
+              demoEnabled
+                ? undefined
+                : appConfig.academicModeEnabled
+                  ? academicTransferRecipients
+                  : beneficiaries.data ?? []
+            }
             realMode={!demoEnabled}
           />
         )}
@@ -2636,6 +2658,7 @@ function MainApp() {
             result={rechargeResult ?? undefined}
             onGoHome={() => setCurrentState('Movements_01')}
             onViewHistory={() => setCurrentState('Recharges_08')}
+            onNewRecharge={startNewRecharge}
             demoMode={demoEnabled}
           />
         )}
@@ -2681,7 +2704,7 @@ function MainApp() {
           ) : (
             <Recharges08Screen
               onBack={() => setCurrentState('Movements_01')}
-              onNewRecharge={() => setCurrentState('Recharges_01')}
+              onNewRecharge={startNewRecharge}
               onTabPress={(tab) => {
                 if (tab === 'inicio' || tab === 'movimientos') {
                   setCurrentState('Movements_01');

@@ -40,7 +40,7 @@ function copyFor(reason: SessionGateReason): GateCopy {
       return {
         badge: 'SESIÓN REQUERIDA',
         title: 'Inicia sesion academica para continuar',
-        body: 'Usa datos ficticios de desarrollo. En modo academico local no existe una cuenta productiva: cualquier correo y una contrasena no vacia crean una sesion local temporal.',
+        body: 'Usa una cuenta demo autorizada. Por ejemplo: laura@demo.local con DemoLaura123!. Las cuentas no registradas son rechazadas.',
         action: 'Volver a comprobar',
       };
   }

@@ -1006,7 +1006,7 @@ El MVP queda funcional en API local memory con persistencia JSON y pruebas autom
 
 La pantalla observada era `SessionGate` en estado `signed-out`. El formulario ya existia, pero el texto decia incorrectamente que la aplicacion todavia no incluia login. Se actualizo el mensaje para explicar el modo academico y se agregaron pruebas del proveedor local: credenciales no vacias, token compatible con `SessionManager`, rol `CLIENTE` y refresh de identidad.
 
-La autenticacion academica no crea cuentas en GCP ni requiere usuarios preexistentes. En Development, cualquier correo ficticio no vacio junto con cualquier contrasena no vacia genera una identidad determinista `academic-...`; el backend local autoriza la identidad mediante `X-Demo-User` y `X-Demo-Role=CLIENTE`. Esta ruta queda bloqueada fuera de Development.
+La autenticacion academica no crea cuentas en GCP ni requiere usuarios preexistentes. En Development, solo las cuentas del catalogo local (`laura@demo.local`, `carlos@demo.local`, `sofia@demo.local`; `ana@demo.local` permanece inactiva) generan una identidad determinista asociada a una billetera. El backend local restringe `X-Demo-User` al catalogo cuando se inicia con `run-local.ps1 -Backend memory`; esta ruta queda bloqueada fuera de Development.
 
 La prueba frontend posterior a esta correccion queda en 258/258 (antes 255/255): se agregaron tres casos directos del proveedor academico. El archivo efectivo verificado en la maquina es `frontend/.env.local`; como Expo Go cachea el bundle, debe reiniciarse Metro con `npx expo start --clear` despues de cambiar esas variables.
 

@@ -1,5 +1,6 @@
+import { ACADEMIC_DEMO_USERS, findAcademicUser } from '../academicCatalog';
 import { AuthError } from './errors';
-import type { IdentityPlatformClient, } from './identityPlatform';
+import type { IdentityPlatformClient } from './identityPlatform';
 import type { IdentityTokens } from './types';
 
 const encoder = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
@@ -41,17 +42,24 @@ export function createAcademicIdentityPlatformClient(): IdentityPlatformClient {
   let currentUid: string | null = null;
   return {
     async signInWithPassword(email: string, password: string): Promise<IdentityTokens> {
-      const normalized = email.trim().toLowerCase();
-      if (!normalized || !password) throw new AuthError('invalid_credentials', 'Correo y contraseña requeridos.');
-      currentUid = `academic-${normalized.replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')}`;
+      const user = findAcademicUser(email);
+      if (!user || password.length === 0 || user.password !== password) {
+        throw new AuthError('invalid_credentials', 'Correo o contraseña incorrectos.');
+      }
+      if (!user.active) {
+        throw new AuthError('user_disabled', 'Esta cuenta demo está inactiva.');
+      }
+      currentUid = user.uid;
       return { idToken: tokenFor(currentUid), refreshToken: `academic-refresh:${currentUid}`, expiresInSeconds: 3600 };
     },
     async refresh(refreshToken: string): Promise<IdentityTokens> {
       const prefix = 'academic-refresh:';
-      if (!refreshToken.startsWith(prefix) || refreshToken.length === prefix.length) {
+      const uid = refreshToken.startsWith(prefix) ? refreshToken.slice(prefix.length) : '';
+      const user = ACADEMIC_DEMO_USERS.find((candidate) => candidate.uid === uid);
+      if (!user || !user.active) {
         throw new AuthError('invalid_session', 'La sesión académica no es válida.');
       }
-      currentUid = refreshToken.slice(prefix.length);
+      currentUid = user.uid;
       return { idToken: tokenFor(currentUid), refreshToken, expiresInSeconds: 3600 };
     },
   };

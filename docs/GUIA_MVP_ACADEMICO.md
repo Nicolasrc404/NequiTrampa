@@ -154,14 +154,14 @@ Abre el proyecto en Expo Go dentro del emulador. Usa r en Metro para recargar. -
 
 ## I. Credenciales académicas
 
-Con EXPO_PUBLIC_ACADEMIC_MODE=true en Development, el cliente usa academicIdentityPlatform, no Identity Platform ni GCP. Cualquier correo ficticio no vacío y contraseña no vacía crea una identidad determinista.
+Con EXPO_PUBLIC_ACADEMIC_MODE=true en Development, el cliente usa academicIdentityPlatform, no Identity Platform ni GCP. Solo las cuentas del catálogo académico pueden iniciar sesión.
 
 Ejemplo no productivo:
 
-    Correo: equipo.demo@academic.local
-    Contraseña: Demo-Local-2026!
+    Correo: laura@demo.local
+    Contraseña: DemoLaura123!
 
-Estas credenciales son solo un ejemplo. El token es sintético y el backend local autoriza la identidad en Development. SessionManager guarda solo el refresh token en SecureStore, restaura una sesión válida y Logout elimina sesión y claves de idempotencia. El modo académico está bloqueado fuera de Development.
+También están disponibles `carlos@demo.local` / `DemoCarlos123!` y `sofia@demo.local` / `DemoSofia123!`. `ana@demo.local` / `DemoAna123!` existe en el catálogo, pero su cuenta está inactiva y debe rechazarse. Un correo inexistente o una contraseña incorrecta muestran un mensaje genérico. El token es sintético y el backend local restringe las cabeceras demo al catálogo cuando se inicia con `run-local.ps1 -Backend memory`; el modo académico está bloqueado fuera de Development.
 
 ## J. Recorrido funcional
 
