@@ -83,6 +83,7 @@ if (academicPersistenceEnabled && string.IsNullOrWhiteSpace(academicStorePath))
     academicStorePath = Path.Combine(Path.GetTempPath(), "nequitrampa-academic-wallet.json");
 builder.Services.AddSingleton(_ => new AcademicWalletStore(
     academicPersistenceEnabled ? academicStorePath : null));
+builder.Services.AddSingleton<AcademicDemoAccountCatalog>();
 // Deny-by-default gate for simulated payment methods (SIMULATED_PSE, SIMULATED_CARD,
 // SIMULATED_CORRESPONSAL). Only deployments that explicitly opt in accept them.
 builder.Services.AddSingleton<RechargePolicy>();

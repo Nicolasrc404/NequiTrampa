@@ -53,6 +53,15 @@ public sealed class WalletNotFoundException : WalletDomainException
     public WalletNotFoundException(string message) : base(message) { }
 }
 
+/// <summary>El código público no pertenece a una cuenta demo conocida.</summary>
+public sealed class DestinationNotFoundException(string code) : WalletDomainException(
+    $"No existe una cuenta demo activa asociada al código de destino '{code}'.")
+{
+    public override int StatusCode => 404;
+    public override string ErrorCode => "DESTINATION_NOT_FOUND";
+    public override string ErrorType => "https://errors.nequitrampa.internal/destination-not-found";
+}
+
 /// <summary>Cliente origen o cuenta inactiva o bloqueada (422).</summary>
 public sealed class InactiveOriginException : WalletDomainException
 {

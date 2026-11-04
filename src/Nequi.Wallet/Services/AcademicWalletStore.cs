@@ -38,7 +38,8 @@ public sealed class AcademicWalletStore : IIdempotencyStore
         }
     }
 
-    public TransferResponseDto CreateTransfer(string originClientId, string idempotencyKey, CreateTransferRequestDto request)
+    public TransferResponseDto CreateTransfer(
+        string originClientId, string idempotencyKey, CreateTransferRequestDto request, string? destinationClientId = null)
     {
         lock (_gate)
         {
@@ -46,7 +47,12 @@ public sealed class AcademicWalletStore : IIdempotencyStore
             if (_idempotency.TryGetValue(identity, out var existing) && existing.StatusCode is not null && existing.ResponseBody is not null)
                 return JsonSerializer.Deserialize<TransferResponseDto>(existing.ResponseBody, JsonOptions)!;
 
-            var destinationClientId = DestinationClientId(request.DestinationTransferCode);
+            if (request.Amount <= 0 || request.Amount > 2_000_000m || decimal.Round(request.Amount, 2) != request.Amount)
+                throw new InvalidTransferAmountException("El monto debe ser positivo, no superar $2.000.000 COP y usar máximo dos decimales.");
+            if (!string.Equals(request.Currency, "COP", StringComparison.Ordinal))
+                throw new InvalidCurrencyException();
+            if (string.IsNullOrWhiteSpace(destinationClientId))
+                throw new DestinationNotFoundException(request.DestinationTransferCode);
             var amountCents = checked((long)(request.Amount * 100m));
             if (amountCents > 200_000_000)
                 throw new TransferLimitExceededException("El monto de la transferencia supera el límite individual permitido.");
@@ -92,6 +98,10 @@ public sealed class AcademicWalletStore : IIdempotencyStore
             if (_idempotency.TryGetValue(identity, out var existing) && existing.StatusCode is not null && existing.ResponseBody is not null)
                 return JsonSerializer.Deserialize<RechargeResponseDto>(existing.ResponseBody, JsonOptions)!;
 
+            if (request.Amount < 1_000m || request.Amount > 5_000_000m || decimal.Round(request.Amount, 2) != request.Amount)
+                throw new InvalidTransferAmountException("El monto debe estar entre $1.000 y $5.000.000 COP y usar máximo dos decimales.");
+            if (!string.Equals(request.Currency, "COP", StringComparison.Ordinal))
+                throw new InvalidCurrencyException();
             var amountCents = checked((long)(request.Amount * 100m));
             var balances = new Dictionary<string, long>(_balances, StringComparer.Ordinal);
             var recharge = new RechargeResponseDto(
@@ -263,9 +273,6 @@ public sealed class AcademicWalletStore : IIdempotencyStore
         balances.TryGetValue(clientId, out var balance) ? balance : balances[clientId] = InitialBalanceCents;
 
     private static string Id(string actor, string scope, string key) => $"{actor}|{scope}|{key}";
-
-    private static string DestinationClientId(string transferCode) =>
-        $"cli_dest_{transferCode.Trim().ToUpperInvariant()}";
 
     private sealed record State(
         Dictionary<string, long> Balances,

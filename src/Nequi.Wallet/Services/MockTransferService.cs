@@ -5,14 +5,20 @@ using Nequi.Wallet.Interfaces;
 namespace Nequi.Wallet.Services;
 
 /// <summary>Academic transfer service backed by the atomic local wallet store.</summary>
-public sealed class MockTransferService(AcademicWalletStore? store = null) : ITransferService
+public sealed class MockTransferService(
+    AcademicWalletStore? store = null,
+    AcademicDemoAccountCatalog? catalog = null) : ITransferService
 {
     private readonly AcademicWalletStore _store = store ?? AcademicWalletStore.Shared;
+    private readonly AcademicDemoAccountCatalog _catalog = catalog ?? new AcademicDemoAccountCatalog();
 
     public Task<TransferResponseDto> CreateTransferAsync(string originClientId, string idempotencyKey, CreateTransferRequestDto request, CancellationToken cancellationToken = default)
     {
-        if (request.DestinationTransferCode == "TRF-INACTIVE-0000") throw new InactiveDestinationException();
-        return Task.FromResult(_store.CreateTransfer(originClientId, idempotencyKey, request));
+        var destination = _catalog.Find(request.DestinationTransferCode)
+            ?? throw new DestinationNotFoundException(request.DestinationTransferCode);
+        if (!destination.IsActive) throw new InactiveDestinationException();
+        if (destination.ClientId == originClientId) throw new SelfTransferException();
+        return Task.FromResult(_store.CreateTransfer(originClientId, idempotencyKey, request, destination.ClientId));
     }
 
     public Task<IReadOnlyList<TransferResponseDto>> GetTransfersByClientIdAsync(string clientId, int page = 1, int pageSize = 20, CancellationToken cancellationToken = default) =>
