@@ -160,14 +160,16 @@ export const Transfers02Screen: React.FC<Transfers02ScreenProps> = ({
         <View style={styles.listCard}>
           {filtered.map((recipient, index) => {
             const active = selected.id === recipient.id;
+            const inactive = recipient.isActive === false;
             return (
               <React.Fragment key={recipient.id}>
                 <TouchableOpacity
                   style={styles.recipientRow}
                   activeOpacity={0.75}
-                  onPress={() => handleSelect(recipient)}
+                  onPress={inactive ? undefined : () => handleSelect(recipient)}
+                  disabled={inactive}
                   accessibilityRole="button"
-                  accessibilityState={{ selected: active }}
+                  accessibilityState={{ selected: active, disabled: inactive }}
                   accessibilityLabel={`${recipient.name}, ${recipient.code}`}
                 >
                   <View style={styles.avatar}>
@@ -178,6 +180,7 @@ export const Transfers02Screen: React.FC<Transfers02ScreenProps> = ({
                   <View style={styles.recipientInfo}>
                     <Text style={styles.recipientName}>{recipient.name}</Text>
                     <Text style={styles.recipientCode}>{recipient.code}</Text>
+                    {inactive ? <Text style={styles.inactiveLabel}>Cuenta inactiva</Text> : null}
                   </View>
                   <View
                     style={[styles.radio, active ? styles.radioActive : null]}
@@ -205,7 +208,7 @@ export const Transfers02Screen: React.FC<Transfers02ScreenProps> = ({
         <TransferActionButtons
           primaryLabel="Continuar"
           onPrimary={() => selected && onContinue?.(selected)}
-          disabled={!selected || selected.code.trim().length === 0}
+          disabled={!selected || selected.code.trim().length === 0 || selected.isActive === false}
         />
       </View>
     </KeyboardAvoidingView>
@@ -325,6 +328,12 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: colors.transfersSubtext,
     marginTop: 2,
+  },
+  inactiveLabel: {
+    color: colors.transfersError,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 3,
   },
   radio: {
     width: 22,

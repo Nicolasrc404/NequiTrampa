@@ -22,6 +22,7 @@ export const ACADEMIC_TRANSFER_RECIPIENTS: readonly TransferRecipient[] =
     name: user.displayName,
     code: user.transferCode,
     initialLetter: user.displayName.slice(0, 1).toUpperCase(),
+    isActive: user.active,
   }));
 
 export function findAcademicUser(email: string): AcademicDemoUser | undefined {

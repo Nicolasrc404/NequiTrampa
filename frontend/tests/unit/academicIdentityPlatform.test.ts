@@ -65,6 +65,10 @@ test('el refresh academico rechaza tokens inventados o de cuentas inactivas', as
 test('el catalogo academico expone nombres verificados por codigo', () => {
   assert.deepEqual(
     ACADEMIC_TRANSFER_RECIPIENTS.find((recipient) => recipient.code === 'CARL-9941'),
-    { id: 'academic-carlos', name: 'Carlos Demo', code: 'CARL-9941', initialLetter: 'C' },
+    { id: 'academic-carlos', name: 'Carlos Demo', code: 'CARL-9941', initialLetter: 'C', isActive: true },
+  );
+  assert.equal(
+    ACADEMIC_TRANSFER_RECIPIENTS.find((recipient) => recipient.code === 'ANA-3092')?.isActive,
+    false,
   );
 });

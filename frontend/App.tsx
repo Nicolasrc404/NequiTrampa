@@ -2473,6 +2473,9 @@ function MainApp() {
         {currentState === 'Transfers_05' && (
           <Transfers05Screen
             errorMessage={transferValidationError ?? undefined}
+            recipient={transferDraft.recipient}
+            amountCents={transferDraft.amountCents}
+            message={transferDraft.message}
             onBack={() => { setTransferSubmitRequested(false); setTransferValidationError(null); setCurrentState('Transfers_01'); }}
             onContinue={() => { setTransferSubmitRequested(false); setTransferValidationError(null); setCurrentState('Transfers_02'); }}
           />
