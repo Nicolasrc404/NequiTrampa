@@ -123,7 +123,7 @@ export function useMovements(
           ownClientId,
           controller.signal,
         ).then((items) => ({
-          items: items.slice(0, limit),
+          items,
           nextCursor: null,
         }))
       : services!.movements.list({ limit, signal: controller.signal });

@@ -5,10 +5,16 @@ El repositorio también conserva una arquitectura ampliada con clientes, gastos 
 presupuestos, categorías, asistente de IA y comandos de voz; esas capacidades no deben
 interpretarse como parte funcional del recorrido Android mínimo.
 
-> **Rama académica:** en `feature/mvp-academico`, la demostración operativa recomendada usa
+> **Rama académica:** en `feature/mvp-academico-estable`, la demostración operativa recomendada usa
 > `scripts/run-local.ps1 -Backend memory`, autenticación académica local y Expo Go. No requiere
 > GCP ni dinero real. La arquitectura GCP descrita más abajo conserva el contexto ampliado y no
 > debe confundirse con un sistema listo para producción. Consulta la [guía de ejecución del MVP](docs/GUIA_MVP_ACADEMICO.md).
+
+El cierre académico vigente se trabaja en `feature/mvp-academico-estable`. En modo `memory`,
+`AcademicWalletStore` conserva saldos, operaciones y evidencia de idempotencia en JSON; el
+catálogo local valida `LAUR-5120`, `CARL-9941`, `SOFI-3307` y la cuenta inactiva `ANA-3092`.
+Los comprobantes se reconstruyen con identificadores estables. Esto no cambia ni certifica la
+implementación Spanner/GCP descrita en la arquitectura ampliada.
 
 
 ---

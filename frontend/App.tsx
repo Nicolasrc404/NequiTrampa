@@ -29,6 +29,7 @@ import {
 } from './src/hooks/useApiData';
 import { useWalletBalance } from './src/hooks/useWallet';
 import { FinancialOperation } from './src/services/financialOperation';
+import { ACADEMIC_TRANSFER_RECIPIENTS } from './src/services/academicCatalog';
 import { classifyOperationFailure } from './src/services/operationFailure';
 import { asApiError } from './src/services/http';
 import { routeCategoryFailure } from './src/services/categorySubmission';
@@ -49,6 +50,7 @@ import { MovementsState, MovementItem } from './src/types/movements';
 import { DEMO_MOVEMENTS } from './src/data/demoMovements';
 import { resolveBottomTab, type BottomTab } from './src/utils/bottomTabNavigation';
 import { resolveTransferCompletionTarget } from './src/utils/transferCompletionNavigation';
+import { RECHARGE_ENTRY_STATE } from './src/utils/rechargeNavigation';
 
 import Movements01Screen from './src/screens/movements/Movements01Screen';
 import Movements02Screen from './src/screens/movements/Movements02Screen';
@@ -298,11 +300,13 @@ function MainApp() {
         },
   );
   const [transferSubmitRequested, setTransferSubmitRequested] = useState(false);
+  const [transferValidationError, setTransferValidationError] = useState<string | null>(null);
   const [transferAmountText, setTransferAmountText] = useState('');
   const [selectedTransfer, setSelectedTransfer] =
     useState<TransferItem>(DEMO_TRANSFER_DETAIL);
   const [rechargeDraft, setRechargeDraft] =
     useState<RechargeDraft>(DEMO_RECHARGE_DRAFT);
+  const [rechargeAttempt, setRechargeAttempt] = useState(0);
   const [categorySubmitting, setCategorySubmitting] = useState(false);
   const [categoryDeleting, setCategoryDeleting] = useState(false);
   const [categoryDraft, setCategoryDraft] = useState<{
@@ -424,6 +428,14 @@ function MainApp() {
   const beneficiariesStatus = beneficiaries.status;
   const beneficiariesCount = beneficiaries.data?.length ?? 0;
   const beneficiariesError = beneficiaries.error;
+  const academicTransferRecipients = useMemo(() => {
+    const stored = beneficiaries.data ?? [];
+    const byCode = new Map(stored.map((recipient) => [recipient.code, recipient]));
+    for (const recipient of ACADEMIC_TRANSFER_RECIPIENTS) {
+      if (!byCode.has(recipient.code)) byCode.set(recipient.code, recipient);
+    }
+    return [...byCode.values()];
+  }, [beneficiaries.data]);
   const categories = useCategories(services, realReady);
   const cashRegister = useCashRegister(services, realReady);
   const budgets = useBudgets(services, realReady);
@@ -486,7 +498,7 @@ function MainApp() {
   );
   const rechargeOperation = useMemo(
     () => new FinancialOperation({ scope: 'recharges.create' }),
-    [],
+    [rechargeAttempt],
   );
   // Escrituras de la Fase 8. Cada intención tiene su propia instancia: una
   // clave por intención y bloqueo de doble envío local.
@@ -583,6 +595,7 @@ function MainApp() {
 
   const openTransferFlow = () => {
     setTransferSubmitRequested(false);
+    setTransferValidationError(null);
     setTransferAmountText('');
     if (!demoEnabled) {
       setTransferDraft({
@@ -725,6 +738,10 @@ function MainApp() {
 
   const handleSelectMovement = (item: MovementItem) => {
     setSelectedMovement(item);
+    const transfer = item.sourceId
+      ? transfers.data?.find((candidate) => candidate.id === item.sourceId)
+      : undefined;
+    if (transfer) setSelectedTransfer(transfer);
     setCurrentState('Movements_05');
   };
 
@@ -971,6 +988,7 @@ function MainApp() {
       && (availableBalanceCents === null || transferDraft.amountCents <= availableBalanceCents);
     if (!amountIsValid || transferDraft.recipient.code.trim().length === 0) {
       setTransferSubmitRequested(false);
+      setTransferValidationError('Revisa el destinatario y el monto antes de continuar.');
       setCurrentState('Transfers_05');
       return;
     }
@@ -1063,6 +1081,13 @@ function MainApp() {
           break;
         case 'validation':
           setTransferSubmitRequested(false);
+          setTransferValidationError(
+            outcome.error?.problem.code === 'DESTINATION_ACCOUNT_INACTIVE'
+              ? 'La cuenta de destino está inactiva y no puede recibir transferencias.'
+              : outcome.error?.problem.code === 'SELF_TRANSFER_NOT_ALLOWED'
+                ? 'No puedes transferir dinero a tu propia cuenta.'
+                : outcome.error?.problem.detail ?? 'Revisa los datos de la transferencia.',
+          );
           setCurrentState('Transfers_05');
           break;
         case 'unavailable':
@@ -1102,6 +1127,12 @@ function MainApp() {
   ]);
 
   // ── Recarga real (idempotente, sin doble envío) ────────────
+  const startNewRecharge = () => {
+    setRechargeResult(null);
+    setRechargeAttempt((attempt) => attempt + 1);
+    setCurrentState('Recharges_01');
+  };
+
   const handleRecharge = async () => {
     if (demoEnabled) {
       setRechargeResult(null);
@@ -2100,7 +2131,7 @@ function MainApp() {
         {currentState === 'Movements_02' && (
           <Movements02Screen
             onOpenFilter={() => setCurrentState('Movements_04')}
-            onRechargePress={() => setCurrentState('Recharges_01')}
+            onRechargePress={() => setCurrentState(RECHARGE_ENTRY_STATE)}
             onTabPress={handleBottomTab}
           />
         )}
@@ -2120,6 +2151,12 @@ function MainApp() {
           <Movements05Screen
             movement={selectedMovement}
             onBack={() => setCurrentState('Movements_01')}
+            onViewReceipt={
+              selectedMovement.sourceId &&
+              transfers.data?.some((transfer) => transfer.id === selectedMovement.sourceId)
+                ? () => setCurrentState('Transfers_22')
+                : undefined
+            }
           />
         )}
         {currentState === 'Movements_06' && (
@@ -2406,7 +2443,13 @@ function MainApp() {
               setTransferSubmitRequested(false);
               setCurrentState('Transfers_03');
             }}
-            recipients={demoEnabled ? undefined : beneficiaries.data ?? []}
+            recipients={
+              demoEnabled
+                ? undefined
+                : appConfig.academicModeEnabled
+                  ? academicTransferRecipients
+                  : beneficiaries.data ?? []
+            }
             realMode={!demoEnabled}
           />
         )}
@@ -2439,8 +2482,12 @@ function MainApp() {
         )}
         {currentState === 'Transfers_05' && (
           <Transfers05Screen
-            onBack={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_01'); }}
-            onContinue={() => { setTransferSubmitRequested(false); setCurrentState('Transfers_02'); }}
+            errorMessage={transferValidationError ?? undefined}
+            recipient={transferDraft.recipient}
+            amountCents={transferDraft.amountCents}
+            message={transferDraft.message}
+            onBack={() => { setTransferSubmitRequested(false); setTransferValidationError(null); setCurrentState('Transfers_01'); }}
+            onContinue={() => { setTransferSubmitRequested(false); setTransferValidationError(null); setCurrentState('Transfers_02'); }}
           />
         )}
         {currentState === 'Transfers_06' && (
@@ -2625,6 +2672,7 @@ function MainApp() {
             result={rechargeResult ?? undefined}
             onGoHome={() => setCurrentState('Movements_01')}
             onViewHistory={() => setCurrentState('Recharges_08')}
+            onNewRecharge={startNewRecharge}
             demoMode={demoEnabled}
           />
         )}
@@ -2670,7 +2718,7 @@ function MainApp() {
           ) : (
             <Recharges08Screen
               onBack={() => setCurrentState('Movements_01')}
-              onNewRecharge={() => setCurrentState('Recharges_01')}
+              onNewRecharge={startNewRecharge}
               onTabPress={(tab) => {
                 if (tab === 'inicio' || tab === 'movimientos') {
                   setCurrentState('Movements_01');
@@ -3413,6 +3461,7 @@ function MainApp() {
             onHome={() => setCurrentState('Movements_01')}
             onTabPress={handleBottomTab}
             onTransfer={openTransferFlow}
+            onRecharge={() => setCurrentState(RECHARGE_ENTRY_STATE)}
             services={services}
             apiEnabled={realReady}
           />

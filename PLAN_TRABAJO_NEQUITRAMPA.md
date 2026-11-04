@@ -705,7 +705,7 @@ Etapa 2 queda validada para el slice HTTP local: Gateway -> Wallet memory -> `Ac
 2. En `frontend\.env` configurar `EXPO_PUBLIC_API_URL=http://10.0.2.2:8087` para emulador o `http://IP-LAN-PC:8087` para dispositivo fisico; usar `EXPO_PUBLIC_DEMO_MODE=false` y `EXPO_PUBLIC_ACADEMIC_MODE=true`.
 3. No usar `localhost` desde Android. No usar tuneles publicos. La opcion `-Lan` solo es para red local autorizada.
 4. Desde `frontend` ejecutar `npx expo start --android` con dependencias instaladas.
-5. Iniciar sesion con correo y contrasena no vacios; el modo academico es solo Development.
+5. Iniciar sesión con una cuenta del catálogo, por ejemplo `laura@demo.local` / `DemoLaura123!`; el modo académico es solo Development.
 6. Ejecutar Login -> Wallet -> saldo -> transferencia a `DEST0001` -> saldo/historial -> recarga `SIMULATED_PSE` -> saldo/historial.
 7. Repetir la misma intencion y confirmar que no duplica; cerrar y abrir app; reiniciar backend y confirmar persistencia.
 8. Ejecutar `.\scripts\stop-local.ps1` y conservar evidencia sin tokens.
@@ -918,9 +918,19 @@ Las referencias históricas a `10.0.2.2:8087` corresponden al diagnóstico de co
 - [ ] Suite backend completa sin el fallo ambiental de Windows Event Log.
 - [ ] iOS, Expo Web y GCP real: fuera del MVP académico.
 
+## Seguimiento 2026-11-03 — rama MVP académico estable
+
+La implementación académica se continúa en `feature/mvp-academico-estable`, sobre `origin/main`
+en el commit base `dba42784`. Quedaron registrados commits separados para validaciones monetarias
+(`c235b93`), persistencia e idempotencia JSON (`138c0c8`), catálogo de destinatarios
+(`9391758`), errores del frontend (`c60f2cf`) e historial/comprobantes (`c9adb01`). La fase final
+de documentación y regresión queda condicionada a una compilación backend ejecutada fuera del
+bloqueo de permisos de `obj`; el frontend sí pasó typecheck y 292 pruebas unitarias. El uso de
+Spanner/GCP y la producción permanecen fuera del cierre académico.
+
 ## Flujo de demostración para el equipo
 
-1. Clonar el repositorio y cambiar a feature/mvp-academico.
+1. Clonar el repositorio y cambiar a feature/mvp-academico-estable.
 2. Ejecutar npm ci dentro de frontend.
 3. Ejecutar run-local.ps1 -Backend memory desde la raíz.
 4. Comprobar health/live y health/ready del Gateway.

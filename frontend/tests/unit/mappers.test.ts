@@ -26,6 +26,7 @@ import {
   mapCategory,
 } from '../../src/services/mappers/categoryMapper';
 import type { CategoryDto } from '../../src/services/categoriesService';
+import { buildAcademicMovementDtos } from '../../src/services/mappers/academicMovementMapper';
 
 const MOVEMENT: MovementDto = {
   eventId: 'evt_01',
@@ -71,6 +72,7 @@ test('mapMovement conserva centavos, saldo y estado sin inventar contraparte', (
   const item = mapMovement(MOVEMENT);
   assert.ok(item);
   assert.equal(item.id, 'op_01');
+  assert.equal(item.sourceId, 'evt_01');
   assert.equal(item.reference, 'op_01');
   assert.equal(item.title, 'Pago a Ana');
   assert.equal(item.type, 'TRANSFER_SENT');
@@ -274,4 +276,53 @@ test('mapCategories respeta el orden entregado por el backend', () => {
     { ...CATEGORY, id: 'cat_02', name: 'Transporte' },
   ]);
   assert.deepEqual(items.map((item) => item.id), ['cat_01', 'cat_02']);
+});
+
+test('mapMovement conserva la contraparte durable del historial', () => {
+  const item = mapMovement({
+    ...MOVEMENT,
+    counterpartyName: 'Laura Demo',
+    counterpartyCode: 'LAUR-5120',
+  });
+  assert.equal(item?.counterpartyName, 'Laura Demo');
+  assert.equal(item?.counterpartyCode, 'LAUR-5120');
+  assert.equal(item?.description, 'Pago a Ana');
+});
+
+test('el historial academico resuelve nombres por clientId y conserva el fallback historico', () => {
+  const sent = buildAcademicMovementDtos(
+    [
+      { ...TRANSFER, transferId: 'TRF-LAURA', originClientId: 'academic-origin', destinationClientId: 'academic-laura', destinationTransferCode: 'LAUR-5120' },
+      { ...TRANSFER, transferId: 'TRF-SOFIA', originClientId: 'academic-origin', destinationClientId: 'academic-sofia', destinationTransferCode: 'SOFI-3307' },
+      { ...TRANSFER, transferId: 'TRF-HISTORIC', originClientId: 'academic-origin', destinationClientId: 'academic-unknown', destinationTransferCode: 'LEGACY-001' },
+    ],
+    [],
+    'academic-origin',
+  );
+
+  const laura = mapMovement(sent[0]);
+  const sofia = mapMovement(sent[1]);
+  const historic = mapMovement(sent[2]);
+  assert.equal(laura?.counterpartyName, 'Laura Demo');
+  assert.equal(laura?.counterpartyCode, 'LAUR-5120');
+  assert.match(sofia?.counterpartyName ?? '', /^Sof/);
+  assert.equal(sofia?.counterpartyCode, 'SOFI-3307');
+  assert.equal(historic?.counterpartyName, null);
+  assert.equal(historic?.counterpartyCode, 'LEGACY-001');
+});
+
+test('el historial academico resuelve remitente y no asigna contraparte a recargas', () => {
+  const receivedItems = buildAcademicMovementDtos(
+    [{ ...TRANSFER, originClientId: 'academic-sofia', destinationClientId: 'academic-laura', destinationTransferCode: 'LAUR-5120' }],
+    [],
+    'academic-laura',
+  );
+  const received = mapMovement(receivedItems[0]);
+  const rechargeItems = buildAcademicMovementDtos([], [RECHARGE], 'cli_01');
+  const recharge = mapMovement(rechargeItems[0]);
+  assert.match(received?.counterpartyName ?? '', /^Sof/);
+  assert.equal(received?.counterpartyCode, 'SOFI-3307');
+  assert.equal(recharge?.type, 'RECHARGE');
+  assert.equal(recharge?.counterpartyName, null);
+  assert.equal(recharge?.counterpartyCode, null);
 });

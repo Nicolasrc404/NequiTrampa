@@ -1006,7 +1006,7 @@ El MVP queda funcional en API local memory con persistencia JSON y pruebas autom
 
 La pantalla observada era `SessionGate` en estado `signed-out`. El formulario ya existia, pero el texto decia incorrectamente que la aplicacion todavia no incluia login. Se actualizo el mensaje para explicar el modo academico y se agregaron pruebas del proveedor local: credenciales no vacias, token compatible con `SessionManager`, rol `CLIENTE` y refresh de identidad.
 
-La autenticacion academica no crea cuentas en GCP ni requiere usuarios preexistentes. En Development, cualquier correo ficticio no vacio junto con cualquier contrasena no vacia genera una identidad determinista `academic-...`; el backend local autoriza la identidad mediante `X-Demo-User` y `X-Demo-Role=CLIENTE`. Esta ruta queda bloqueada fuera de Development.
+La autenticacion academica no crea cuentas en GCP ni requiere usuarios preexistentes. En Development, solo las cuentas del catalogo local (`laura@demo.local`, `carlos@demo.local`, `sofia@demo.local`; `ana@demo.local` permanece inactiva) generan una identidad determinista asociada a una billetera. El backend local restringe `X-Demo-User` al catalogo cuando se inicia con `run-local.ps1 -Backend memory`; esta ruta queda bloqueada fuera de Development.
 
 La prueba frontend posterior a esta correccion queda en 258/258 (antes 255/255): se agregaron tres casos directos del proveedor academico. El archivo efectivo verificado en la maquina es `frontend/.env.local`; como Expo Go cachea el bundle, debe reiniciarse Metro con `npx expo start --clear` despues de cambiar esas variables.
 
@@ -1233,6 +1233,19 @@ La compilación completa del backend puede quedar bloqueada en Windows si un pro
 ## Riesgos financieros históricos
 
 Los riesgos RES-F1-001 a RES-F1-010 continúan conservados y no quedan cerrados por el MVP memory. En particular, el MVP no demuestra DDL Spanner, FinancialIntent productivo, recuperación ante commit incierto, reconciliación durable, CAS administrativo ni seguridad GCP. La implementación académica garantiza coherencia local e idempotencia básica para el flujo de demostración, no garantías bancarias de producción.
+
+## Seguimiento 2026-11-03 — cierre MVP académico estable
+
+La rama `feature/mvp-academico-estable` incorpora validación monetaria de precisión, persistencia
+JSON fail-closed, idempotencia académica durable, catálogo local de destinatarios, mensajes de
+error específicos, historial paginado y comprobantes estables. Los commits son `c235b93`,
+`138c0c8`, `9391758`, `c60f2cf` y `c9adb01`. El typecheck y las pruebas unitarias frontend
+actuales pasaron (292/292). La compilación backend completa quedó pendiente por bloqueo de permisos
+de MSBuild en `obj`; no se debe interpretar como fallo funcional ni como validación productiva.
+
+Estas mejoras solo cubren el backend `memory` y dinero ficticio. No modifican ni certifican la
+arquitectura Spanner/GCP; permanecen fuera de alcance la validación Android manual, la durabilidad
+multiinstancia y la preparación de producción.
 
 ## Historial relevante de la rama
 

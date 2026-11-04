@@ -8,6 +8,7 @@ namespace Nequi.Wallet.DTOs;
 public record CreateRechargeRequestDto(
     [Required]
     [Range(1000, 5000000, ErrorMessage = "El monto mínimo de recarga es $1.000 COP y el máximo $5.000.000 COP.")]
+    [MaxDecimalPlaces(2)]
     decimal Amount,
 
     [Required]

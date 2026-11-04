@@ -258,6 +258,22 @@ public sealed class WalletIntegrationTests : IDisposable
     }
 
     // 4. POST /v1/transfers con misma Idempotency-Key y body diferente -> HTTP 409
+    [Theory]
+    [InlineData("/v1/transfers", 1.999)]
+    [InlineData("/v1/recharges", 1000.001)]
+    public async Task Post_AmountWithMoreThanTwoDecimals_Returns422(string path, double amount)
+    {
+        var client = _factory.CreateClient().As("client-1");
+        var amountValue = (decimal)amount;
+        HttpRequestMessage request = path == "/v1/transfers"
+            ? PostJson(path, new CreateTransferRequestDto("TRF-LAU-0002", amountValue, null, "COP"), Guid.NewGuid().ToString())
+            : PostJson(path, new CreateRechargeRequestDto(amountValue, "SIMULATED_PSE", "COP"), Guid.NewGuid().ToString());
+
+        var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.UnprocessableEntity, response.StatusCode);
+    }
+
     [Fact]
     public async Task Transfers_Post_SameIdempotencyKeyDifferentBody_Returns409()
     {

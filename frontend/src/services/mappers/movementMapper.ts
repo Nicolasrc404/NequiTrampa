@@ -74,6 +74,7 @@ export function mapMovement(dto: MovementDto): MovementItem | null {
 
   return {
     id,
+    sourceId: dto.eventId,
     reference: id,
     title: description.length > 0 ? description : label,
     type,
@@ -86,6 +87,9 @@ export function mapMovement(dto: MovementDto): MovementItem | null {
       balanceAfterCents === null ? null : Math.trunc(balanceAfterCents / 100),
     balanceAfterCents,
     status: mapStatus(dto.status),
+    counterpartyName: dto.counterpartyName,
+    counterpartyCode: dto.counterpartyCode,
+    description: description.length > 0 ? description : null,
   };
 }
 

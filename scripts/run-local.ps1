@@ -75,6 +75,7 @@ if ($Backend -eq 'gcp') {
     $env:Academic__Persist = 'true'
     $env:Academic__StorePath = Join-Path $runDir 'academic-wallet.json'
     $env:Gateway__AllowDemoHeaders = 'true'
+    $env:Auth__DemoAllowedUsers = 'academic-laura,academic-carlos,academic-sofia,academic-ana'
 }
 # Gateway config for local memory mode
 $env:Gateway__IdentityTokens = 'false'

@@ -15,16 +15,25 @@ import { Feather } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import TransfersHeader from '../../components/transfers/TransfersHeader';
 import TransferActionButtons from '../../components/transfers/TransferActionButtons';
-import { DEMO_TRANSFER_DRAFT, formatCopFromCents } from '../../data/demoTransfers';
+import { formatCopFromCents } from '../../data/demoTransfers';
+import { TransferRecipient } from '../../types/transfers';
 
 export interface Transfers05ScreenProps {
   readonly onBack?: () => void;
   readonly onContinue?: () => void;
+  readonly errorMessage?: string;
+  readonly recipient?: TransferRecipient;
+  readonly amountCents?: number;
+  readonly message?: string;
 }
 
 export const Transfers05Screen: React.FC<Transfers05ScreenProps> = ({
   onBack,
   onContinue,
+  errorMessage,
+  recipient,
+  amountCents = 0,
+  message = '',
 }) => {
   return (
     <KeyboardAvoidingView
@@ -45,14 +54,14 @@ export const Transfers05Screen: React.FC<Transfers05ScreenProps> = ({
             color={colors.transfersError}
           />
           <Text style={styles.bannerText}>
-            Revisa los datos marcados antes de continuar.
+            {errorMessage ?? 'Revisa los datos marcados antes de continuar.'}
           </Text>
         </View>
 
         <View style={[styles.amountCard, styles.amountCardError]}>
           <Text style={styles.amountQuestion}>¿Cuánto quieres enviar?</Text>
           <Text style={styles.amountValue}>
-            {formatCopFromCents(DEMO_TRANSFER_DRAFT.amountCents)}
+            {formatCopFromCents(amountCents)}
           </Text>
           <Text style={styles.amountMeta}>Límite por operación $ 2.000.000</Text>
         </View>
@@ -61,18 +70,18 @@ export const Transfers05Screen: React.FC<Transfers05ScreenProps> = ({
           <Text style={styles.label}>Para</Text>
           <View style={[styles.fieldBox, styles.fieldError]}>
             <Text style={styles.errorValue}>
-              Selecciona un destinatario
+              {recipient?.name || 'Selecciona un destinatario'}{recipient?.code ? ` · ${recipient.code}` : ''}
             </Text>
           </View>
           <Text style={styles.errorText}>
-            El nombre del destinatario es obligatorio.
+            {recipient?.isActive === false ? 'La cuenta de destino está inactiva y no puede recibir transferencias.' : 'Puedes corregir el destinatario antes de continuar.'}
           </Text>
         </View>
 
         <View style={styles.fieldGroup}>
           <Text style={styles.label}>Mensaje (opcional)</Text>
           <View style={styles.fieldBox}>
-            <Text style={styles.fieldValue}>{DEMO_TRANSFER_DRAFT.message}</Text>
+            <Text style={styles.fieldValue}>{message || 'Sin mensaje'}</Text>
           </View>
         </View>
 

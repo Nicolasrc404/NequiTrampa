@@ -33,10 +33,13 @@ export async function loadAcademicMovementDtos(
     const clientId =
       ownClientId?.trim() ||
       (await dependencies.wallet.getBalance({ signal })).clientId;
-    const [transfers, recharges] = await Promise.all([
-      dependencies.transfers.list({ page: 1, pageSize: 100, signal }),
-      dependencies.recharges.list({ signal }),
-    ]);
+    const transfers: TransferDto[] = [];
+    for (let page = 1; ; page += 1) {
+      const batch = await dependencies.transfers.list({ page, pageSize: 100, signal });
+      transfers.push(...batch);
+      if (batch.length < 100) break;
+    }
+    const recharges = await dependencies.recharges.list({ signal });
     const items = buildAcademicMovementDtos(transfers, recharges, clientId);
     diagnostic('success', {
       durationMs: Date.now() - startedAt,
