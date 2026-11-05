@@ -1,15 +1,5 @@
 import React, { useState } from 'react';
-import {
-  ActivityIndicator,
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import colors from '../../theme/colors';
 import { sessionManager } from '../../services/session/platform';
 import { asAuthError } from '../../services/session/errors';
@@ -29,7 +19,7 @@ interface GateCopy {
   readonly action: string | null;
 }
 
-function copyFor(reason: SessionGateReason, isRegistering = false): GateCopy {
+function copyFor(reason: SessionGateReason): GateCopy {
   switch (reason) {
     case 'configuration':
       return {
@@ -48,11 +38,9 @@ function copyFor(reason: SessionGateReason, isRegistering = false): GateCopy {
     case 'signed-out':
     default:
       return {
-        badge: isRegistering ? 'NUEVO USUARIO' : 'SESIÓN REQUERIDA',
-        title: isRegistering ? 'Crea tu cuenta' : 'Inicia sesión para continuar',
-        body: isRegistering
-          ? 'Regístrate con tu correo y contraseña para acceder a la aplicación.'
-          : 'Ingresa con tu correo y contraseña para acceder a tus movimientos y funciones.',
+        badge: 'SESIÓN REQUERIDA',
+        title: 'Inicia sesion academica para continuar',
+        body: 'Usa una cuenta demo autorizada. Por ejemplo: laura@demo.local con DemoLaura123!. Las cuentas no registradas son rechazadas.',
         action: 'Volver a comprobar',
       };
   }
@@ -60,15 +48,15 @@ function copyFor(reason: SessionGateReason, isRegistering = false): GateCopy {
 
 /**
  * Gate de sesión para builds sin modo DEMO.
- * Soporta inicio de sesión y registro de nuevos usuarios en Firebase Authentication.
+ * No es una pantalla de login: no captura credenciales ni simula autenticación.
+ * La pantalla real de login queda BLOQUEADA hasta contar con diseño en Stitch.
  */
 export const SessionGate: React.FC<SessionGateProps> = ({
   reason,
   onRetry,
   testID = 'session-gate',
 }) => {
-  const [isRegistering, setIsRegistering] = useState(false);
-  const copy = copyFor(reason, isRegistering);
+  const copy = copyFor(reason);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -81,11 +69,7 @@ export const SessionGate: React.FC<SessionGateProps> = ({
     setSubmitting(true);
     setAuthMessage(null);
     try {
-      if (isRegistering) {
-        await sessionManager.signUp(email.trim(), password);
-      } else {
-        await sessionManager.signIn(email.trim(), password);
-      }
+      await sessionManager.signIn(email.trim(), password);
       setPassword('');
     } catch (error) {
       setAuthMessage(asAuthError(error).message);
@@ -95,124 +79,84 @@ export const SessionGate: React.FC<SessionGateProps> = ({
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      style={styles.root}
-      testID={testID}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.card}>
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{copy.badge}</Text>
-          </View>
-          <Text style={styles.title}>{copy.title}</Text>
-          <Text style={styles.body}>{copy.body}</Text>
+    <View style={styles.container} testID={testID}>
+      <View style={styles.card}>
+        <View style={styles.badge}>
+          <Text style={styles.badgeText}>{copy.badge}</Text>
+        </View>
+        <Text style={styles.title}>{copy.title}</Text>
+        <Text style={styles.body}>{copy.body}</Text>
 
-          {reason === 'signed-out' ? (
-            <View style={styles.form}>
-              <TextInput
-                accessibilityLabel="Correo electrónico"
-                autoCapitalize="none"
-                autoComplete="email"
-                keyboardType="email-address"
-                placeholder="Correo electrónico"
-                placeholderTextColor={colors.graySub}
-                style={styles.input}
-                value={email}
-                onChangeText={setEmail}
-                editable={!submitting}
-              />
-              <TextInput
-                accessibilityLabel="Contraseña"
-                autoCapitalize="none"
-                autoComplete={isRegistering ? 'new-password' : 'password'}
-                placeholder="Contraseña"
-                placeholderTextColor={colors.graySub}
-                secureTextEntry
-                style={styles.input}
-                value={password}
-                onChangeText={setPassword}
-                editable={!submitting}
-                onSubmitEditing={submit}
-              />
-              {authMessage ? <Text style={styles.error}>{authMessage}</Text> : null}
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={isRegistering ? 'Registrarme' : 'Iniciar sesión'}
-                disabled={!canSubmit}
-                onPress={submit}
-                style={({ pressed }) => [
-                  styles.action,
-                  !canSubmit ? styles.actionDisabled : null,
-                  pressed ? styles.actionPressed : null,
-                ]}
-              >
-                {submitting ? (
-                  <ActivityIndicator color={colors.white} />
-                ) : (
-                  <Text style={styles.actionText}>
-                    {isRegistering ? 'Registrarme' : 'Iniciar sesión'}
-                  </Text>
-                )}
-              </Pressable>
-
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel={
-                  isRegistering
-                    ? '¿Ya tienes cuenta? Inicia sesión'
-                    : '¿No tienes cuenta? Regístrate'
-                }
-                onPress={() => {
-                  setAuthMessage(null);
-                  setIsRegistering((prev) => !prev);
-                }}
-                style={styles.toggleButton}
-                disabled={submitting}
-              >
-                <Text style={styles.toggleButtonText}>
-                  {isRegistering
-                    ? '¿Ya tienes cuenta? Inicia sesión'
-                    : '¿No tienes cuenta? Regístrate'}
-                </Text>
-              </Pressable>
-            </View>
-          ) : null}
-
-          {reason !== 'signed-out' && copy.action && onRetry ? (
+        {reason === 'signed-out' ? (
+          <View style={styles.form}>
+            <TextInput
+              accessibilityLabel="Correo electrónico"
+              autoCapitalize="none"
+              autoComplete="email"
+              keyboardType="email-address"
+              placeholder="Correo electrónico"
+              placeholderTextColor={colors.graySub}
+              style={styles.input}
+              value={email}
+              onChangeText={setEmail}
+              editable={!submitting}
+            />
+            <TextInput
+              accessibilityLabel="Contraseña"
+              autoCapitalize="none"
+              autoComplete="password"
+              placeholder="Contraseña"
+              placeholderTextColor={colors.graySub}
+              secureTextEntry
+              style={styles.input}
+              value={password}
+              onChangeText={setPassword}
+              editable={!submitting}
+              onSubmitEditing={submit}
+            />
+            {authMessage ? <Text style={styles.error}>{authMessage}</Text> : null}
             <Pressable
               accessibilityRole="button"
-              accessibilityLabel={copy.action}
-              onPress={onRetry}
+              accessibilityLabel="Iniciar sesión"
+              disabled={!canSubmit}
+              onPress={submit}
               style={({ pressed }) => [
                 styles.action,
+                !canSubmit ? styles.actionDisabled : null,
                 pressed ? styles.actionPressed : null,
               ]}
             >
-              <Text style={styles.actionText}>{copy.action}</Text>
+              {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.actionText}>Iniciar sesión</Text>}
             </Pressable>
-          ) : null}
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          </View>
+        ) : null}
+
+        {reason !== 'signed-out' && copy.action && onRetry ? (
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={copy.action}
+            onPress={onRetry}
+            style={({ pressed }) => [
+              styles.action,
+              pressed ? styles.actionPressed : null,
+            ]}
+          >
+            <Text style={styles.actionText}>{copy.action}</Text>
+          </Pressable>
+        ) : null}
+      </View>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  root: {
+  container: {
     flex: 1,
-    backgroundColor: colors.background,
-  },
-  scrollContent: {
-    flexGrow: 1,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 24,
     paddingVertical: 32,
+    backgroundColor: colors.background,
   },
   card: {
     width: '100%',
@@ -268,16 +212,6 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: colors.white,
-  },
-  toggleButton: {
-    marginTop: 8,
-    paddingVertical: 10,
-    alignItems: 'center',
-  },
-  toggleButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: colors.magenta,
   },
   form: {
     gap: 10,

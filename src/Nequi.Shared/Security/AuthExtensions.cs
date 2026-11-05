@@ -125,10 +125,6 @@ public sealed class DemoHeaderHandler(
         var clientId = Request.Headers["X-Demo-Client-Id"].FirstOrDefault();
         if (!string.IsNullOrWhiteSpace(clientId))
             claims.Add(new Claim("client_id", clientId));
-        // X-Demo-Email carries the email for provisioning flows that need it.
-        var email = Request.Headers["X-Demo-Email"].FirstOrDefault();
-        if (!string.IsNullOrWhiteSpace(email))
-            claims.Add(new Claim(ClaimTypes.Email, email));
         var id = new ClaimsIdentity(claims, AuthExtensions.DemoScheme);
         return Task.FromResult(AuthenticateResult.Success(new AuthenticationTicket(new ClaimsPrincipal(id), AuthExtensions.DemoScheme)));
     }

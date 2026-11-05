@@ -37,32 +37,23 @@ function tokens(
 interface FakeIdentityOptions {
   readonly refresh?: (refreshToken: string) => Promise<IdentityTokens>;
   readonly signIn?: (email: string, password: string) => Promise<IdentityTokens>;
-  readonly signUp?: (email: string, password: string) => Promise<IdentityTokens>;
 }
 
 class FakeIdentity implements IdentityPlatformClient {
   readonly refreshCalls: string[] = [];
   readonly signInCalls: Array<{ email: string; password: string }> = [];
-  readonly signUpCalls: Array<{ email: string; password: string }> = [];
   private readonly refreshHandler: (refreshToken: string) => Promise<IdentityTokens>;
   private readonly signInHandler: (email: string, password: string) => Promise<IdentityTokens>;
-  private readonly signUpHandler: (email: string, password: string) => Promise<IdentityTokens>;
 
   constructor(options: FakeIdentityOptions = {}) {
     this.refreshHandler =
       options.refresh ?? (async () => tokens({ refreshToken: 'refresh-rotated' }));
     this.signInHandler = options.signIn ?? (async () => tokens());
-    this.signUpHandler = options.signUp ?? (async () => tokens());
   }
 
   async signInWithPassword(email: string, password: string): Promise<IdentityTokens> {
     this.signInCalls.push({ email, password });
     return this.signInHandler(email, password);
-  }
-
-  async signUp(email: string, password: string): Promise<IdentityTokens> {
-    this.signUpCalls.push({ email, password });
-    return this.signUpHandler(email, password);
   }
 
   async refresh(refreshToken: string): Promise<IdentityTokens> {
@@ -385,23 +376,4 @@ test('getAccessToken durante el logout no reutiliza el refresh token', async () 
   assert.equal(manager.getSnapshot().status, 'anonymous');
   assert.equal(await manager.getAccessToken(), null);
   assert.equal(await storage.loadRefreshToken(), null);
-});
-
-test('signUp registra usuario, persiste refresh token y queda autenticado', async () => {
-  const storage = new MemorySessionStorage();
-  const identity = new FakeIdentity({
-    signUp: async (email) =>
-      tokens({
-        idToken: idToken({ email, user_id: 'new-uid' }),
-        refreshToken: 'refresh-registered',
-      }),
-  });
-  const { manager } = createManager({ storage, identity });
-  const snapshot = await manager.signUp('nuevo@nequi.com', 'secreto123');
-
-  assert.equal(snapshot.status, 'authenticated');
-  assert.equal(snapshot.user?.uid, 'new-uid');
-  assert.equal(identity.signUpCalls.length, 1);
-  assert.equal(identity.signUpCalls[0].email, 'nuevo@nequi.com');
-  assert.equal(await storage.loadRefreshToken(), 'refresh-registered');
 });

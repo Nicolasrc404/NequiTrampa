@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk">
+﻿<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -27,7 +27,6 @@
     <ProjectReference Include="..\..\src\Nequi.Finance\Nequi.Finance.csproj" />
     <ProjectReference Include="..\..\src\Nequi.Gateway\Nequi.Gateway.csproj" />
     <ProjectReference Include="..\..\src\Nequi.Backoffice\Nequi.Backoffice.csproj" />
-    <ProjectReference Include="..\..\src\Nequi.Profile\Nequi.Profile.csproj" />
   </ItemGroup>
 
 </Project>
