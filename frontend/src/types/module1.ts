@@ -3,8 +3,7 @@ export type Module1Section =
   | 'Wallet'
   | 'Profile'
   | 'Configuration'
-  | 'Projection_Status'
-  | 'Assistant';
+  | 'Projection_Status';
 
 export type Module1ScreenKey = `${Module1Section}_${number}`;
 

@@ -8,15 +8,7 @@ namespace Nequi.Shared.Data;
 /// <summary>Spanner connection helper. Database = projects/{p}/instances/{i}/databases/{d} (comes from Secret Manager).</summary>
 public sealed class SpannerDb(string database)
 {
-    public SpannerConnection Open()
-    {
-        var builder = new SpannerConnectionStringBuilder($"Data Source={database}");
-        if (!string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("SPANNER_EMULATOR_HOST")))
-        {
-            builder.EmulatorDetection = Google.Api.Gax.EmulatorDetection.EmulatorOnly;
-        }
-        return new SpannerConnection(builder);
-    }
+    public SpannerConnection Open() => new($"Data Source={database}");
 }
 
 /// <summary>idempotency_records (PK actor_id, scope, idempotency_key). Begin is one read-write transaction: no double effects.</summary>

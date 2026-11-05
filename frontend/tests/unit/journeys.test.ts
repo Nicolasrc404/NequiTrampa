@@ -1600,13 +1600,6 @@ test('journey: un 401 limpia la sesión y la siguiente petición no lleva token'
         expiresInSeconds: 3600,
       };
     },
-    async signUp(): Promise<IdentityTokens> {
-      return {
-        idToken,
-        refreshToken: 'refresh-alice',
-        expiresInSeconds: 3600,
-      };
-    },
     async refresh(): Promise<IdentityTokens> {
       return {
         idToken,
