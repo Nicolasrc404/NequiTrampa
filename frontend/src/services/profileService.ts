@@ -14,20 +14,16 @@ import {
   requireString,
 } from './contract';
 import { normalizeBaseUrl } from '../utils/url';
-import type { ProfileDto, UpdateProfileInput, ProvisionProfileInput } from '../types/profile';
+import type { ProfileDto, UpdateProfileInput } from '../types/profile';
 
 // Compatibilidad para consumidores que aún importan tipos desde el servicio.
-export type { ProfileDto, UpdateProfileInput, ProvisionProfileInput } from '../types/profile';
+export type { ProfileDto, UpdateProfileInput } from '../types/profile';
 
 export const MIN_ALIAS_LENGTH = 2;
 export const MAX_ALIAS_LENGTH = 50;
 
 export interface ProfileService {
   get(options?: { readonly signal?: AbortSignal }): Promise<ProfileDto>;
-  provision(
-    input: ProvisionProfileInput,
-    options?: { readonly signal?: AbortSignal },
-  ): Promise<ProfileDto>;
   update(
     input: UpdateProfileInput,
     options?: { readonly signal?: AbortSignal },
@@ -63,24 +59,6 @@ export function createProfileService(http: HttpClient): ProfileService {
   return {
     async get(options) {
       const payload = await http.get<unknown>('/v1/profile', {
-        signal: options?.signal,
-      });
-      return parseProfile(payload);
-    },
-
-    async provision(input, options) {
-      const firstName = input.firstName.trim();
-      const lastName = input.lastName.trim();
-      if (!firstName || !lastName) {
-        throw new Error('Nombre y apellido son obligatorios para crear el perfil.');
-      }
-      const body: Record<string, string> = { firstName, lastName };
-      if (input.email?.trim()) body.email = input.email.trim();
-      if (input.username?.trim()) body.username = input.username.trim();
-      if (input.alias?.trim()) body.alias = input.alias.trim();
-      if (input.timezone?.trim()) body.timezone = input.timezone.trim();
-
-      const payload = await http.post<unknown>('/v1/profile', body, {
         signal: options?.signal,
       });
       return parseProfile(payload);

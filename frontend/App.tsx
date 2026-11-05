@@ -2311,10 +2311,6 @@ function MainApp() {
               onTabPress={(tab) => {
                 if (tab === 'inicio' || tab === 'movimientos') {
                   setCurrentState('Movements_01');
-                } else if (tab === 'perfil') {
-                  setCurrentState('Profile_01');
-                } else if (tab === 'asistente') {
-                  setCurrentState('Assistant_01');
                 }
               }}
             />
@@ -2348,10 +2344,6 @@ function MainApp() {
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
-              } else if (tab === 'perfil') {
-                setCurrentState('Profile_01');
-              } else if (tab === 'asistente') {
-                setCurrentState('Assistant_01');
               }
             }}
             demo={demoEnabled}
@@ -2730,10 +2722,6 @@ function MainApp() {
               onTabPress={(tab) => {
                 if (tab === 'inicio' || tab === 'movimientos') {
                   setCurrentState('Movements_01');
-                } else if (tab === 'perfil') {
-                  setCurrentState('Profile_01');
-                } else if (tab === 'asistente') {
-                  setCurrentState('Assistant_01');
                 }
               }}
               recharges={demoEnabled ? undefined : recharges.data ?? []}
@@ -2744,14 +2732,10 @@ function MainApp() {
             onBack={() => setCurrentState('Movements_01')}
             onStartRecharge={() => setCurrentState('Recharges_01')}
             onTabPress={(tab) => {
-                if (tab === 'inicio' || tab === 'movimientos') {
-                  setCurrentState('Movements_01');
-                } else if (tab === 'perfil') {
-                  setCurrentState('Profile_01');
-                } else if (tab === 'asistente') {
-                  setCurrentState('Assistant_01');
-                }
-              }}
+              if (tab === 'inicio' || tab === 'movimientos') {
+                setCurrentState('Movements_01');
+              }
+            }}
           />
         )}
         {currentState === 'Recharges_10' && (
@@ -2761,10 +2745,6 @@ function MainApp() {
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
-              } else if (tab === 'perfil') {
-                setCurrentState('Profile_01');
-              } else if (tab === 'asistente') {
-                setCurrentState('Assistant_01');
               }
             }}
           />
@@ -2945,10 +2925,6 @@ function MainApp() {
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
-              } else if (tab === 'perfil') {
-                setCurrentState('Profile_01');
-              } else if (tab === 'asistente') {
-                setCurrentState('Assistant_01');
               }
             }}
             transactions={demoEnabled ? undefined : cashRegister.transactions}
@@ -2995,10 +2971,6 @@ function MainApp() {
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
-              } else if (tab === 'perfil') {
-                setCurrentState('Profile_01');
-              } else if (tab === 'asistente') {
-                setCurrentState('Assistant_01');
               }
             }}
             demo={demoEnabled}
@@ -3325,10 +3297,6 @@ function MainApp() {
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
-              } else if (tab === 'perfil') {
-                setCurrentState('Profile_01');
-              } else if (tab === 'asistente') {
-                setCurrentState('Assistant_01');
               }
             }}
           />
@@ -3344,10 +3312,6 @@ function MainApp() {
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
-              } else if (tab === 'perfil') {
-                setCurrentState('Profile_01');
-              } else if (tab === 'asistente') {
-                setCurrentState('Assistant_01');
               }
             }}
           />
@@ -3366,10 +3330,6 @@ function MainApp() {
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
-              } else if (tab === 'perfil') {
-                setCurrentState('Profile_01');
-              } else if (tab === 'asistente') {
-                setCurrentState('Assistant_01');
               }
             }}
           />
@@ -3410,10 +3370,6 @@ function MainApp() {
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
-              } else if (tab === 'perfil') {
-                setCurrentState('Profile_01');
-              } else if (tab === 'asistente') {
-                setCurrentState('Assistant_01');
               }
             }}
           />
@@ -3432,10 +3388,6 @@ function MainApp() {
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
-              } else if (tab === 'perfil') {
-                setCurrentState('Profile_01');
-              } else if (tab === 'asistente') {
-                setCurrentState('Assistant_01');
               }
             }}
           />
@@ -3474,10 +3426,6 @@ function MainApp() {
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
-              } else if (tab === 'perfil') {
-                setCurrentState('Profile_01');
-              } else if (tab === 'asistente') {
-                setCurrentState('Assistant_01');
               }
             }}
           />
@@ -3496,10 +3444,6 @@ function MainApp() {
             onTabPress={(tab) => {
               if (tab === 'inicio' || tab === 'movimientos') {
                 setCurrentState('Movements_01');
-              } else if (tab === 'perfil') {
-                setCurrentState('Profile_01');
-              } else if (tab === 'asistente') {
-                setCurrentState('Assistant_01');
               }
             }}
           />
@@ -3510,8 +3454,7 @@ function MainApp() {
         currentState.startsWith('Wallet_') ||
         currentState.startsWith('Profile_') ||
         currentState.startsWith('Configuration_') ||
-        currentState.startsWith('Projection_Status_') ||
-        currentState.startsWith('Assistant_') ? (
+        currentState.startsWith('Projection_Status_') ? (
           <Module1ScreenRenderer
             screenKey={currentState as Module1ScreenKey}
             onNavigate={(key) => setCurrentState(key)}
