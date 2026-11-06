@@ -39,8 +39,8 @@ function copyFor(reason: SessionGateReason): GateCopy {
     default:
       return {
         badge: 'SESIÓN REQUERIDA',
-        title: 'Inicia sesion academica para continuar',
-        body: 'Usa una cuenta demo autorizada. Por ejemplo: laura@demo.local con DemoLaura123!. Las cuentas no registradas son rechazadas.',
+        title: 'Inicia sesión para continuar',
+        body: 'Ingresa con tu correo y contraseña. Las cuentas no registradas son rechazadas.',
         action: 'Volver a comprobar',
       };
   }

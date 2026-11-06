@@ -5,6 +5,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import BudgetsHeader from '../../components/budgets/BudgetsHeader';
 import BudgetsActionButtons from '../../components/budgets/BudgetsActionButtons';
@@ -26,6 +27,7 @@ export const Budgets02Screen: React.FC<Budgets02ScreenProps> = ({
   onTabPress,
   demo = true,
 }) => {
+  const insets = useSafeAreaInsets();
   return (
     <View style={styles.root}>
       <View style={styles.top}>
@@ -52,7 +54,7 @@ export const Budgets02Screen: React.FC<Budgets02ScreenProps> = ({
         ) : null}
       </View>
 
-      <View style={styles.actionBlock}>
+      <View style={[styles.actionBlock, { paddingBottom: 88 + insets.bottom }]}>
         <BudgetsActionButtons
           primaryLabel="Crear presupuesto"
           onPrimary={onCreate}

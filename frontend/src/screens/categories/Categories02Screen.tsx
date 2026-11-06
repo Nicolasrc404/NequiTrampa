@@ -5,6 +5,7 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import BottomNav from '../../components/common/BottomNav';
 import BackButton from '../../components/categories/BackButton';
@@ -25,9 +26,10 @@ export const Categories02Screen: React.FC<Categories02ScreenProps> = ({
   onTabPress,
   demo = true,
 }) => {
+  const insets = useSafeAreaInsets();
   return (
     <View style={styles.root}>
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingBottom: 104 + insets.bottom }]}>
         <View style={styles.header}>
           <BackButton onPress={onBack} />
           <Text style={styles.title}>Categorías</Text>

@@ -10,17 +10,17 @@ Navegador ──HTTPS + Bearer JWT──► nequi-gateway (público, CORS, rate 
         wallet · finance · profile · assistant · workers · backoffice · realtime   (privados)
 ```
 
-**Base URL**: `https://nequi-gateway-7v3gdoy4ra-tl.a.run.app` (consúltala con `gcloud run services describe nequi-gateway --region southamerica-west1 --project full-stack-2026 --format 'value(status.url)'`).
+**Base URL**: `https://nequi-gateway-241267467975.southamerica-west1.run.app` (consúltala con `gcloud run services describe nequi-gateway --region southamerica-west1 --project finanzas-mvp-2026 --format 'value(status.url)'`).
 
 ## 1. Autenticación (Identity Platform / Firebase Auth)
 
-El proyecto de Identity Platform es `full-stack-2026`. En el front usa el SDK de Firebase Auth (email + contraseña):
+El proyecto de Identity Platform es `finanzas-mvp-2026`. En el front usa el SDK de Firebase Auth (email + contraseña):
 
 ```js
 import { initializeApp } from "firebase/app";
 import { getAuth, signInWithEmailAndPassword } from "firebase/auth";
 
-const app = initializeApp({ apiKey: "<WEB_API_KEY>", authDomain: "full-stack-2026.firebaseapp.com", projectId: "full-stack-2026" });
+const app = initializeApp({ apiKey: "<WEB_API_KEY>", authDomain: "finanzas-mvp-2026.firebaseapp.com", projectId: "finanzas-mvp-2026" });
 const { user } = await signInWithEmailAndPassword(getAuth(app), email, password);
 const token = await user.getIdToken();          // se renueva solo; pídelo antes de cada llamada
 await fetch(`${API}/v1/wallet`, { headers: { Authorization: `Bearer ${token}` } });
@@ -74,7 +74,7 @@ No se exponen `/internal/**`, `/swagger` ni `/health` de los servicios (solo `/h
 El navegador no puede enviar `Authorization` en un WebSocket, así que el gateway acepta el JWT por query string:
 
 ```js
-const ws = new WebSocket(`wss://nequi-gateway-7v3gdoy4ra-tl.a.run.app/ws?access_token=${token}`);
+const ws = new WebSocket(`wss://nequi-gateway-241267467975.southamerica-west1.run.app/ws?access_token=${token}`);
 ws.onmessage = (e) => {
   const m = JSON.parse(e.data);   // { type:"movement", eventType, operationId, amountCents, balanceAfterCents, occurredAt }
   // Solo refresca la UI: el saldo autoritativo sigue siendo GET /v1/wallet/balance

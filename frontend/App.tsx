@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { Alert, BackHandler, SafeAreaView, StyleSheet, View } from 'react-native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import colors from './src/theme/colors';
 import { appConfig } from './src/config/appConfig';
 import BackofficeApp from './src/navigation/BackofficeApp';
@@ -28,6 +29,7 @@ import {
   useTransfers,
 } from './src/hooks/useApiData';
 import { useWalletBalance } from './src/hooks/useWallet';
+import { useRetryLimiter } from './src/hooks/useRetryLimiter';
 import { FinancialOperation } from './src/services/financialOperation';
 import { ACADEMIC_TRANSFER_RECIPIENTS } from './src/services/academicCatalog';
 import { classifyOperationFailure } from './src/services/operationFailure';
@@ -284,6 +286,8 @@ function MainApp() {
   const [currentState, setCurrentState] = useState<AppState>(
     demoEnabled ? 'Access_01' : 'Movements_01',
   );
+  const stateHistoryRef = useRef<AppState[]>([]);
+  const previousStateRef = useRef<AppState>(currentState);
   const [selectedMovement, setSelectedMovement] = useState<MovementItem>(
     DEMO_MOVEMENTS[1],
   );
@@ -418,6 +422,24 @@ function MainApp() {
   );
   const transfers = useTransfers(services, realReady, ownClientId);
   const recharges = useRecharges(services, realReady);
+
+  // ── Límite de reintentos manuales (máx. 3) ──────────────────
+  // Tras 3 intentos sin éxito, se deja de reintentar y se vuelve al inicio
+  // real (Wallet_01) en vez de dejar al usuario atrapado en la pantalla de
+  // error. Cada recurso reinicia su propio contador al volver a 'success'.
+  const goHomeAfterRepeatedFailure = useCallback((resourceLabel: string) => {
+    Alert.alert(
+      'Seguimos sin poder cargar esto',
+      `Lo intentamos varias veces y ${resourceLabel} sigue sin responder. Vuelve a intentarlo más tarde desde el inicio.`,
+    );
+    setCurrentState('Wallet_01');
+  }, []);
+  const movementsRetryLimiter = useRetryLimiter(
+    useCallback(() => goHomeAfterRepeatedFailure('Movimientos'), [goHomeAfterRepeatedFailure]),
+  );
+  const transfersRetryLimiter = useRetryLimiter(
+    useCallback(() => goHomeAfterRepeatedFailure('el historial de transferencias'), [goHomeAfterRepeatedFailure]),
+  );
   const receipt = useTransferReceipt(
     services,
     realReady && currentState === 'Transfers_22',
@@ -456,6 +478,8 @@ function MainApp() {
   const reloadMovements = movements.reload;
   const reloadTransfers = transfers.reload;
   const reloadRecharges = recharges.reload;
+  const resetMovementsRetry = movementsRetryLimiter.reset;
+  const resetTransfersRetry = transfersRetryLimiter.reset;
 
   // Valores primitivos para que los efectos no dependan de objetos recreados.
   const movementsStatus = movements.status;
@@ -623,15 +647,32 @@ function MainApp() {
     [],
   );
 
+  // ── Botón físico/gesto "Atrás" de Android ───────────────────
+  // La app no usa React Navigation (no hay pila nativa), así que sin esto
+  // Android trata cualquier "Atrás" como salir de la app en lugar de navegar
+  // a la pantalla anterior. Se mantiene una pila simple de estados visitados.
   useEffect(() => {
-    if (!appConfig.academicModeEnabled || currentState !== 'Transfers_22') {
-      return undefined;
+    if (previousStateRef.current !== currentState) {
+      stateHistoryRef.current.push(previousStateRef.current);
+      previousStateRef.current = currentState;
     }
+  }, [currentState]);
+
+  useEffect(() => {
     const subscription = BackHandler.addEventListener(
       'hardwareBackPress',
       () => {
-        leaveAcademicTransferCompletion('back');
-        return true;
+        if (appConfig.academicModeEnabled && currentState === 'Transfers_22') {
+          leaveAcademicTransferCompletion('back');
+          return true;
+        }
+        const previous = stateHistoryRef.current.pop();
+        if (previous) {
+          previousStateRef.current = previous;
+          setCurrentState(previous);
+          return true;
+        }
+        return false;
       },
     );
     return () => subscription.remove();
@@ -762,6 +803,7 @@ function MainApp() {
       return;
     }
     if (movementsStatus === 'success') {
+      resetMovementsRetry();
       setCurrentState(
         movementsCount === 0 ? 'Movements_02' : 'Movements_01',
       );
@@ -773,6 +815,7 @@ function MainApp() {
     movementsErrorKind,
     movementsStatus,
     realReady,
+    resetMovementsRetry,
   ]);
 
   // ── Beneficiarios: skeleton / vacío / error del listado ────
@@ -838,6 +881,7 @@ function MainApp() {
       return;
     }
     if (transfersStatus === 'success') {
+      resetTransfersRetry();
       setCurrentState(transfersCount === 0 ? 'Transfers_16' : 'Transfers_15');
     }
   }, [
@@ -846,6 +890,7 @@ function MainApp() {
     demoEnabled,
     ownClientId,
     realReady,
+    resetTransfersRetry,
     transfersCount,
     transfersErrorKind,
     transfersStatus,
@@ -2169,7 +2214,12 @@ function MainApp() {
         )}
         {currentState === 'Movements_08' && (
           <Movements08Screen
-            onRetryPress={() => setCurrentState('Movements_01')}
+            onRetryPress={() =>
+              movementsRetryLimiter.attempt(() => {
+                reloadMovements();
+                setCurrentState('Movements_03');
+              })
+            }
             error={movements.error}
             onTabPress={handleBottomTab}
           />
@@ -2423,7 +2473,10 @@ function MainApp() {
             }
             onBack={() => setCurrentState('Transfers_15')}
             onSelectRecipient={() => setCurrentState('Transfers_02')}
-            onContinue={() => setCurrentState('Transfers_02')}
+            onContinue={() => {
+              setTransferSubmitRequested(false);
+              setCurrentState('Transfers_03');
+            }}
             realMode={!demoEnabled}
             availableBalanceCents={demoEnabled ? null : balance.data?.availableBalanceCents ?? null}
             amountText={demoEnabled ? undefined : transferAmountText}
@@ -2570,7 +2623,12 @@ function MainApp() {
         {currentState === 'Transfers_18' && (
           <Transfers18Screen
             onBack={() => setCurrentState('Movements_01')}
-            onRetry={() => setCurrentState('Transfers_15')}
+            onRetry={() =>
+              transfersRetryLimiter.attempt(() => {
+                reloadTransfers();
+                setCurrentState('Transfers_17');
+              })
+            }
           />
         )}
         {currentState === 'Transfers_19' && (
@@ -3462,6 +3520,11 @@ function MainApp() {
             onTabPress={handleBottomTab}
             onTransfer={openTransferFlow}
             onRecharge={() => setCurrentState(RECHARGE_ENTRY_STATE)}
+            onBeneficiaries={() => setCurrentState('Beneficiaries_01')}
+            onGoals={() => setCurrentState('Goals_01')}
+            onBudgets={() => setCurrentState('Budgets_01')}
+            onCash={() => setCurrentState('Cash_01')}
+            onCategories={() => setCurrentState('Categories_01')}
             services={services}
             apiEnabled={realReady}
           />
@@ -3490,13 +3553,19 @@ const styles = StyleSheet.create({
 export default function App() {
   if (process.env.EXPO_PUBLIC_APP_MODE === 'backoffice') {
     return (
-      <View style={styles.webBackdrop}>
-        <SafeAreaView style={[styles.root, styles.phoneFrame]}>
-          <StatusBar style="dark" />
-          <BackofficeApp />
-        </SafeAreaView>
-      </View>
+      <SafeAreaProvider>
+        <View style={styles.webBackdrop}>
+          <SafeAreaView style={[styles.root, styles.phoneFrame]}>
+            <StatusBar style="dark" />
+            <BackofficeApp />
+          </SafeAreaView>
+        </View>
+      </SafeAreaProvider>
     );
   }
-  return <MainApp />;
+  return (
+    <SafeAreaProvider>
+      <MainApp />
+    </SafeAreaProvider>
+  );
 }

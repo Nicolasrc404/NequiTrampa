@@ -22,7 +22,7 @@ proyecta eventos de dominio a Firestore.
 ## Estado actual
 
 - **Estado activo**: ✅ **AS-IS desplegado** en Cloud Run (`nequi-workers`,
-  `southamerica-west1`, proyecto `full-stack-2026`).
+  `southamerica-west1`, proyecto `finanzas-mvp-2026`).
 - **E2E validado** (validado durante la integración GCP):
 
   ```
@@ -150,8 +150,8 @@ por sí solo lo dejaría leer.
 |---|:---:|---|
 | `PORT` | Puerto HTTP (inyectado por Cloud Run). | `8080` |
 | `Data__Backend` | `gcp` o `memory`. | `gcp` |
-| `Spanner__Database` | Recurso Spanner (via Secret Manager en Cloud Run). | `projects/full-stack-2026/instances/finanzas-mvp/databases/finanzas-core` |
-| `Gcp__ProjectId` | Proyecto principal. | `full-stack-2026` |
+| `Spanner__Database` | Recurso Spanner (via Secret Manager en Cloud Run). | `projects/finanzas-mvp-2026/instances/finanzas-mvp/databases/finanzas-core` |
+| `Gcp__ProjectId` | Proyecto principal. | `finanzas-mvp-2026` |
 | `Firestore__ProjectId` | Proyecto Firestore/Firebase. | `fullstack-d3be5` |
 | `PubSub__OutboxTopic` | Topic de eventos (default `wallet-events`). | `wallet-events` |
 | `Auth__DemoHeaders` | Habilita `X-Demo-User` / `X-Demo-Role` (solo smoke test). | `false` / `true` |

@@ -47,9 +47,9 @@ public static class NequiHost
 
         if (gcp)
         {
-            services.AddSingleton(_ => FirestoreDb.Create(firestoreProjectId));
+            services.AddSingleton(_ => CreateFirestoreDbWithRetry(firestoreProjectId));
             services.AddSingleton<IDocumentStore, FirestoreDocumentStore>();
-            health.AddDelegateCheck("firestore", async ct => await new FirestoreDocumentStore(FirestoreDb.Create(firestoreProjectId)).PingAsync(ct));
+            health.AddDelegateCheck("firestore", async ct => await new FirestoreDocumentStore(CreateFirestoreDbWithRetry(firestoreProjectId)).PingAsync(ct));
         }
         else
         {
@@ -90,5 +90,27 @@ public static class NequiHost
         app.MapNequiHealth();
         app.MapAccessEndpoint();
         return app;
+    }
+
+    /// <summary>
+    /// En una instancia de Cloud Run recién escalada, el servidor de metadatos que resuelve
+    /// Application Default Credentials puede tardar unos milisegundos en responder. Sin reintento,
+    /// esa primera solicitud falla con "Your default credentials were not found" aunque la cuenta
+    /// de servicio esté correctamente configurada. Reintentar con backoff corto absorbe esa carrera
+    /// sin tener que subir min-instances ni cambiar el resto de la arquitectura.
+    /// </summary>
+    private static FirestoreDb CreateFirestoreDbWithRetry(string projectId, int maxAttempts = 3)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return FirestoreDb.Create(projectId);
+            }
+            catch (InvalidOperationException) when (attempt < maxAttempts)
+            {
+                Thread.Sleep(TimeSpan.FromMilliseconds(200 * attempt));
+            }
+        }
     }
 }

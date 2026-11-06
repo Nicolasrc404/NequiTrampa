@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Feather, Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 
 interface BottomNavProps {
@@ -14,8 +15,13 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   onTabPress,
   bottomOffset = 0,
 }) => {
+  // En Android, la barra de navegación del sistema (3 botones o gestos) puede
+  // solapar la franja inferior de la pantalla: sin este inset, parte del área
+  // táctil de las pestañas queda disputada con el sistema operativo y los toques
+  // se pierden de forma intermitente en vez de llegar a la app.
+  const insets = useSafeAreaInsets();
   return (
-    <View style={[styles.container, { bottom: bottomOffset }]}>
+    <View style={[styles.container, { bottom: bottomOffset, paddingBottom: 20 + insets.bottom }]}>
       <TouchableOpacity
         style={styles.tab}
         activeOpacity={0.7}

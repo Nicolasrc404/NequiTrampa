@@ -9,8 +9,8 @@ if ! command -v gcloud >/dev/null 2>&1; then
     break
   done
 fi
-DEFAULT_PROJECT_ID="full-stack-2026"
-DEFAULT_FIRESTORE_PROJECT_ID="fullstack-d3be5"
+DEFAULT_PROJECT_ID="finanzas-mvp-2026"
+DEFAULT_FIRESTORE_PROJECT_ID="finanzas-mvp-2026"
 
 export PROJECT_ID="${PROJECT_ID:-$DEFAULT_PROJECT_ID}"
 

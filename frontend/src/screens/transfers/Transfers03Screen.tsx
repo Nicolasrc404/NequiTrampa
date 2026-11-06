@@ -53,7 +53,12 @@ export const Transfers03Screen: React.FC<Transfers03ScreenProps> = ({
           <Text style={styles.title}>Revisa los datos</Text>
           <View style={styles.confirmCard}>
             <Text style={styles.confirmLabel}>Destinatario</Text>
-            <Text style={styles.confirmValue}>{recipient?.name || 'Destinatario'} · {recipient?.code}</Text>
+            <Text style={styles.confirmValue}>
+              {recipient?.name ? `${recipient.name} · ${recipient.code}` : `Código ${recipient?.code ?? ''}`}
+            </Text>
+            {!recipient?.name ? (
+              <Text style={styles.confirmMeta}>El nombre del destinatario lo confirma el backend al procesar.</Text>
+            ) : null}
             <Text style={styles.confirmLabel}>Importe</Text>
             <Text style={styles.confirmAmount}>{formatCopCents(amountCents)}</Text>
             {typeof availableBalanceCents === 'number' ? <Text style={styles.confirmMeta}>Saldo disponible: {formatCopCents(availableBalanceCents)}</Text> : null}

@@ -59,7 +59,7 @@ deploy_profile() {
   gcloud run deploy nequi-profile --project "$PROJECT_ID" --region "$REGION" \
     --image "${IMAGE_BASE}/profile:latest" --service-account "$(sa_email $SA_PROFILE)" \
     --no-allow-unauthenticated --min-instances 0 --max-instances 3 --memory 512Mi \
-    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Data__Backend=memory,Auth__DemoHeaders=${DEMO}" $SPANNER_SECRET
+    --set-env-vars "Gcp__ProjectId=${PROJECT_ID},Data__Backend=gcp,Auth__DemoHeaders=${DEMO}" $SPANNER_SECRET
 }
 
 # Backoffice: ledger autoritativo (Spanner), casos/auditoria/config (Firestore) y roles (Identity Platform).

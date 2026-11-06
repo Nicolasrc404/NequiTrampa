@@ -60,7 +60,7 @@ flowchart TD
 El despliegue está dividido en dos proyectos GCP para desacoplar el plano
 transaccional bancario del plano documental de experiencia de usuario.
 
-### Proyecto principal: `full-stack-2026`
+### Proyecto principal: `finanzas-mvp-2026`
 
 | Recurso | Detalle |
 |---|---|
@@ -86,7 +86,7 @@ El secreto `nequi-spanner-database` contiene el **identificador canónico del
 recurso** de Spanner (no una cadena de conexión tradicional):
 
 ```
-projects/full-stack-2026/instances/finanzas-mvp/databases/finanzas-core
+projects/finanzas-mvp-2026/instances/finanzas-mvp/databases/finanzas-core
 ```
 
 En Cloud Run se inyecta como variable de entorno `Spanner__Database` mediante
@@ -101,7 +101,7 @@ credencial: el mismo valor aparece también en `infra/common.sh`
 Las suscripciones push autentican mediante **OIDC de Pub/Sub**:
 
 1. La subscription push usa como *push auth service account* la SA
-   `pubsub-push-invoker@full-stack-2026.iam.gserviceaccount.com`.
+   `pubsub-push-invoker@finanzas-mvp-2026.iam.gserviceaccount.com`.
 2. La SA `pubsub-push-invoker` tiene el rol `roles/run.invoker` sobre el
    servicio Cloud Run `nequi-workers` (`deploy.sh`, función `subscribe`).
 3. La solicitud push lleva un token OIDC con *audience* igual al URL del

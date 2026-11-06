@@ -62,7 +62,7 @@ El endpoint `POST /internal/pubsub/projection` espera la estructura estándar qu
     "data": "<BASE64_UTF8_JSON_DOMAINEVENT>",
     "messageId": "smoke-msg-001"
   },
-  "subscription": "projects/full-stack-2026/subscriptions/workers-projection"
+  "subscription": "projects/finanzas-mvp-2026/subscriptions/workers-projection"
 }
 ```
 
@@ -88,7 +88,7 @@ Al decodificar `message.data` en Base64, se obtiene el JSON del `DomainEvent`:
 
 1. **Variables de Entorno para Workers:**
    - `Data__Backend = "gcp"`
-   - `Gcp__ProjectId = "full-stack-2026"`
+   - `Gcp__ProjectId = "finanzas-mvp-2026"`
    - `Firestore__ProjectId = "fullstack-d3be5"`
    - Credenciales de GCP activas en el entorno local (vía `gcloud auth application-default login` o `GOOGLE_APPLICATION_CREDENTIALS`).
 2. **Acceso a Firestore:**
@@ -108,7 +108,7 @@ En una terminal de PowerShell, iniciar Workers configurando el backend GCP y el 
 
 ```powershell
 $env:Data__Backend = "gcp"
-$env:Gcp__ProjectId = "full-stack-2026"
+$env:Gcp__ProjectId = "finanzas-mvp-2026"
 $env:Firestore__ProjectId = "fullstack-d3be5"
 dotnet run --project src/Nequi.Workers
 ```

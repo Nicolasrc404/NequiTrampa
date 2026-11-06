@@ -180,7 +180,7 @@ El proyecto superó la fase puramente mock y cuenta con persistencia financiera 
 |---|:---:|---|
 | **Arquitectura y Reglas Financieras** | ✅ AS-IS Verificado | Congeladas y validadas contra principios contables y RFCs |
 | **Esquema Spanner (`finanzas-core`)** | ✅ AS-IS Verificado | DDL en [database/spanner/01_schema.sql](database/spanner/01_schema.sql) (7 tablas: `clients`, `wallet_accounts`, `daily_transfer_usage`, `ledger_operations`, `ledger_entries`, `idempotency_records`, `outbox_events`) |
-| **Infraestructura Core (`full-stack-2026`)** | ✅ AS-IS Verificado | Cloud Run (`nequi-wallet`, `nequi-workers`), Spanner, Pub/Sub con DLQ, Secret Manager, Artifact Registry y Service Accounts dedicadas |
+| **Infraestructura Core (`finanzas-mvp-2026`)** | ✅ AS-IS Verificado | Cloud Run (`nequi-wallet`, `nequi-workers`), Spanner, Pub/Sub con DLQ, Secret Manager, Artifact Registry y Service Accounts dedicadas |
 | **Persistencia NoSQL (`fullstack-d3be5`)** | ✅ AS-IS Verificado | Firestore Nativo `(default)`, colecciones `financial_movements` y `notifications` proyectadas desde eventos de dominio |
 | **`Nequi.Wallet` (wallet-api)** | ✅ AS-IS Verificado | Soporte dual: Spanner autoritativo (`Data__Backend=gcp`) y Mocks (`Data__Backend=memory`). Validado en Cloud Run con Bruno (suite completa vía gateway, ver `tests/bruno/README.md`) |
 | **`Nequi.Workers` (Outbox / Proyecciones)** | ✅ AS-IS Verificado | Pipeline E2E validado: Spanner Outbox → `OutboxWorker` → Pub/Sub → Push OIDC → `ProjectionService` / `NotificationService` → Firestore |
@@ -201,14 +201,14 @@ El proyecto superó la fase puramente mock y cuenta con persistencia financiera 
 
 El despliegue en la región `southamerica-west1` está dividido en dos proyectos de Google Cloud Platform para desacoplar el plano transaccional bancario del plano documental de experiencia de usuario:
 
-#### Proyecto Principal: `full-stack-2026`
+#### Proyecto Principal: `finanzas-mvp-2026`
 * **Cloud Run (Serverless Privado)**:
   * `nequi-wallet`: Microservicio autoritativo de billetera, transferencias y recargas.
   * `nequi-workers`: Host de background jobs (`OutboxWorker`) y endpoints push (`/internal/pubsub/projection`, `/internal/pubsub/notifications`).
 * **Google Cloud Spanner**:
   * Instancia: `finanzas-mvp`
   * Base de datos: `finanzas-core`
-  * Recurso: `projects/full-stack-2026/instances/finanzas-mvp/databases/finanzas-core`
+  * Recurso: `projects/finanzas-mvp-2026/instances/finanzas-mvp/databases/finanzas-core`
 * **Google Cloud Pub/Sub**:
   * Topic de eventos: `wallet-events`
   * Dead Letter Queue: `wallet-events-dlq`

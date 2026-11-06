@@ -9,10 +9,10 @@ financiera y ledger autoritativo de **NequiTrampa**.
 
 | Atributo | Valor |
 |---|---|
-| Proyecto | `full-stack-2026` |
+| Proyecto | `finanzas-mvp-2026` |
 | Instancia | `finanzas-mvp` |
 | Base de datos | `finanzas-core` |
-| Recurso | `projects/full-stack-2026/instances/finanzas-mvp/databases/finanzas-core` |
+| Recurso | `projects/finanzas-mvp-2026/instances/finanzas-mvp/databases/finanzas-core` |
 | Dialecto | GoogleSQL |
 | Fuente del DDL | [`database/spanner/01_schema.sql`](01_schema.sql) |
 

@@ -3,12 +3,36 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 import colors from '../../theme/colors';
 import { formatCopCents } from '../../utils/money';
 
-export default function WalletBalanceCard({ onDetail, onOptions, onTransfer, onRecharge, onRefresh, balanceCents, isDemo = true }: { readonly onDetail: () => void; readonly onOptions: () => void; readonly onTransfer?: () => void; readonly onRecharge?: () => void; readonly onRefresh?: () => void; readonly balanceCents?: number; readonly isDemo?: boolean }) {
+export interface WalletBalanceCardProps {
+  readonly onDetail: () => void;
+  readonly onOptions: () => void;
+  readonly onTransfer?: () => void;
+  readonly onRecharge?: () => void;
+  readonly onRefresh?: () => void;
+  readonly onBeneficiaries?: () => void;
+  readonly onGoals?: () => void;
+  readonly onBudgets?: () => void;
+  readonly onCash?: () => void;
+  readonly onCategories?: () => void;
+  readonly balanceCents?: number;
+  readonly isDemo?: boolean;
+}
+
+export default function WalletBalanceCard({ onDetail, onOptions, onTransfer, onRecharge, onRefresh, onBeneficiaries, onGoals, onBudgets, onCash, onCategories, balanceCents, isDemo = true }: WalletBalanceCardProps) {
   const hasRealBalance = !isDemo && balanceCents !== undefined;
   const realUnavailable = !isDemo && balanceCents === undefined;
   return <View style={styles.card}>
     <Text style={styles.label}>{hasRealBalance ? 'SALDO DISPONIBLE' : realUnavailable ? 'SALDO NO DISPONIBLE' : 'SALDO DEMO'}</Text><Text style={styles.balance}>{hasRealBalance ? formatCopCents(balanceCents) : realUnavailable ? '—' : '$ 1.250.000'}</Text><Text style={styles.hint}>{hasRealBalance ? 'COP · confirmado por el backend' : realUnavailable ? 'No se mostrará un saldo hasta confirmarlo con el backend' : 'COP · no corresponde a dinero real'}</Text>
     <View style={styles.actions}><Pressable onPress={onTransfer} style={[styles.button, styles.transferButton]}><Text style={styles.transferButtonText}>Transferir</Text></Pressable><Pressable onPress={onRecharge} style={[styles.button, styles.rechargeButton]}><Text style={styles.rechargeButtonText}>Recargar dinero</Text></Pressable><Pressable onPress={onDetail} style={styles.button}><Text style={styles.buttonText}>Ver detalle</Text></Pressable><Pressable onPress={onOptions} style={styles.button}><Text style={styles.buttonText}>Opciones</Text></Pressable>{!isDemo && onRefresh ? <Pressable onPress={onRefresh} style={styles.button}><Text style={styles.buttonText}>Actualizar</Text></Pressable> : null}</View>
+    {onBeneficiaries || onGoals || onBudgets || onCash || onCategories ? (
+      <View style={styles.actions}>
+        {onBeneficiaries ? <Pressable onPress={onBeneficiaries} style={styles.button}><Text style={styles.buttonText}>Beneficiarios</Text></Pressable> : null}
+        {onGoals ? <Pressable onPress={onGoals} style={styles.button}><Text style={styles.buttonText}>Metas</Text></Pressable> : null}
+        {onBudgets ? <Pressable onPress={onBudgets} style={styles.button}><Text style={styles.buttonText}>Presupuestos</Text></Pressable> : null}
+        {onCash ? <Pressable onPress={onCash} style={styles.button}><Text style={styles.buttonText}>Efectivo</Text></Pressable> : null}
+        {onCategories ? <Pressable onPress={onCategories} style={styles.button}><Text style={styles.buttonText}>Categorías</Text></Pressable> : null}
+      </View>
+    ) : null}
   </View>;
 }
 

@@ -68,7 +68,10 @@ export const Transfers02Screen: React.FC<Transfers02ScreenProps> = ({
     );
   }, [recipients, search]);
 
-  const selected = recipients.find((recipient) => recipient.id === selectedId) ?? (activeTab === 'code' && search.trim().length > 0 ? { id: `code-${search.trim()}`, name: 'Destinatario', code: search.trim(), initialLetter: '?' } : recipients[0]);
+  // El nombre real solo se conoce para beneficiarios ya guardados; un código
+  // digitado a mano lo confirma el backend al procesar la transferencia, por
+  // lo que aquí no se inventa un nombre de pila.
+  const selected = recipients.find((recipient) => recipient.id === selectedId) ?? (activeTab === 'code' && search.trim().length > 0 ? { id: `code-${search.trim()}`, name: '', code: search.trim(), initialLetter: '?' } : recipients[0]);
 
   const handleSelect = (recipient: TransferRecipient) => {
     setSelectedId(recipient.id);
@@ -142,11 +145,11 @@ export const Transfers02Screen: React.FC<Transfers02ScreenProps> = ({
             value={search}
             onChangeText={setSearch}
             placeholder={
-              activeTab === 'code' ? 'Ej. LAUR-5120' : 'Nombre o código'
+              activeTab === 'code' ? 'Ej. TRF-ALE-0001' : 'Nombre o código'
             }
             placeholderTextColor={colors.grayPlaceholder}
             autoCapitalize="none"
-            accessibilityLabel="Buscar destinatario"
+            accessibilityLabel={activeTab === 'code' ? 'Código del destinatario' : 'Buscar destinatario'}
           />
           {activeTab === 'code' ? (
             <Text style={styles.codeHint}>

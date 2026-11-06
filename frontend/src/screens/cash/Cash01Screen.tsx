@@ -4,6 +4,7 @@
 // ============================================================
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import TransfersHeader from '../../components/transfers/TransfersHeader';
 import CashTransactionRow from '../../components/cash/CashTransactionRow';
@@ -45,6 +46,7 @@ export const Cash01Screen: React.FC<Cash01ScreenProps> = ({
   demo = true,
   loading = false,
 }) => {
+  const insets = useSafeAreaInsets();
   if (loading) {
     return <LoadingState message="Cargando efectivo…" hint="Consultando tu registro personal." />;
   }
@@ -109,7 +111,7 @@ export const Cash01Screen: React.FC<Cash01ScreenProps> = ({
         ) : null}
       </ScrollView>
 
-      <View style={styles.actionBlock}>
+      <View style={[styles.actionBlock, { paddingBottom: 88 + insets.bottom }]}>
         <CashActionButtons
           primaryLabel="Registrar gasto"
           onPrimary={onRegisterExpense}

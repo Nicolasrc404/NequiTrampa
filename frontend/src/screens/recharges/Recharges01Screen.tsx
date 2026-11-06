@@ -2,21 +2,22 @@
 // Recharges_01 — Recargar
 // Fuente visual: Stitch screen d461575caee4428886a0331bb24dc92e
 // ============================================================
-import React from 'react';
+import React, { useState } from 'react';
 import {
+  KeyboardAvoidingView,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import colors from '../../theme/colors';
 import TransfersHeader from '../../components/transfers/TransfersHeader';
-import RechargeAmountPills from '../../components/recharges/RechargeAmountPills';
-import {
-  DEMO_RECHARGE_MAX_CENTS,
-  formatRechargeAmount,
-} from '../../data/demoRecharges';
+import { formatRechargeAmount } from '../../data/demoRecharges';
+import { MAX_RECHARGE_CENTS, MIN_RECHARGE_CENTS } from '../../services/rechargesService';
+import { parseCopInput } from '../../utils/money';
 
 export interface Recharges01ScreenProps {
   readonly amountCents: number;
@@ -34,11 +35,44 @@ export const Recharges01Screen: React.FC<Recharges01ScreenProps> = ({
   onContinue,
   submitting = false,
 }) => {
+  const [amountText, setAmountText] = useState(
+    amountCents > 0 ? String(Math.round(amountCents / 100)) : '',
+  );
+  const [touched, setTouched] = useState(false);
+
+  const parsedAmountCents = parseCopInput(amountText);
+  const amountValid =
+    parsedAmountCents !== null &&
+    parsedAmountCents >= MIN_RECHARGE_CENTS &&
+    parsedAmountCents <= MAX_RECHARGE_CENTS;
+
+  const handleChangeText = (text: string) => {
+    setAmountText(text);
+    const parsed = parseCopInput(text);
+    if (
+      parsed !== null &&
+      parsed >= MIN_RECHARGE_CENTS &&
+      parsed <= MAX_RECHARGE_CENTS
+    ) {
+      onAmountChange?.(parsed);
+    }
+  };
+
+  const handleContinue = () => {
+    setTouched(true);
+    if (submitting || !amountValid) return;
+    onContinue?.();
+  };
+
   return (
-    <View style={styles.root}>
+    <KeyboardAvoidingView
+      style={styles.root}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
       <ScrollView
         style={styles.scroll}
         contentContainerStyle={styles.scrollContent}
+        keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
@@ -47,25 +81,38 @@ export const Recharges01Screen: React.FC<Recharges01ScreenProps> = ({
 
         <View style={styles.amountCard}>
           <Text style={styles.question}>¿Cuánto quieres recargar?</Text>
-          <Text style={styles.amount}>
-            {formatRechargeAmount(amountCents)}
-          </Text>
+          <TextInput
+            style={[
+              styles.amountInput,
+              touched && !amountValid ? styles.amountInputError : null,
+            ]}
+            value={amountText}
+            onChangeText={handleChangeText}
+            onBlur={() => setTouched(true)}
+            placeholder="$ 0"
+            placeholderTextColor={colors.rechargesSubtle}
+            keyboardType="numeric"
+            editable={!submitting}
+            accessibilityLabel="Monto a recargar"
+          />
           <Text style={styles.note}>
-            Recarga simulada · Máximo {formatRechargeAmount(DEMO_RECHARGE_MAX_CENTS)}
+            Recarga simulada · entre {formatRechargeAmount(MIN_RECHARGE_CENTS)} y{' '}
+            {formatRechargeAmount(MAX_RECHARGE_CENTS)}
           </Text>
+          {touched && !amountValid ? (
+            <Text style={styles.errorText}>
+              Ingresa un monto entre {formatRechargeAmount(MIN_RECHARGE_CENTS)} y{' '}
+              {formatRechargeAmount(MAX_RECHARGE_CENTS)}.
+            </Text>
+          ) : null}
         </View>
-
-        <RechargeAmountPills
-          selectedAmountCents={amountCents}
-          onChange={onAmountChange}
-        />
       </ScrollView>
 
       <View style={styles.footer}>
         <TouchableOpacity
           style={[styles.primaryButton, submitting ? styles.primaryButtonBusy : null]}
           activeOpacity={0.85}
-          onPress={onContinue}
+          onPress={handleContinue}
           disabled={submitting}
           accessibilityRole="button"
           accessibilityLabel="Continuar con la recarga"
@@ -76,7 +123,7 @@ export const Recharges01Screen: React.FC<Recharges01ScreenProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
-    </View>
+    </KeyboardAvoidingView>
   );
 };
 
@@ -116,19 +163,30 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     textAlign: 'center',
   },
-  amount: {
+  amountInput: {
+    minWidth: 160,
+    textAlign: 'center',
     fontSize: 38,
     lineHeight: 45,
     fontWeight: '800',
     color: colors.rechargesDark,
     letterSpacing: -1,
     marginBottom: 8,
-    textAlign: 'center',
+    padding: 0,
+  },
+  amountInputError: {
+    color: colors.rechargesError,
   },
   note: {
     fontSize: 13,
     color: colors.rechargesMuted,
     letterSpacing: -0.2,
+    textAlign: 'center',
+  },
+  errorText: {
+    marginTop: 8,
+    fontSize: 12.5,
+    color: colors.rechargesError,
     textAlign: 'center',
   },
   footer: {

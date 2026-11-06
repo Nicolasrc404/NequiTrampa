@@ -26,12 +26,12 @@ Automatizar, de forma reproducible:
 
 | Proyecto | Rol | Usado por |
 |---|---|---|
-| `full-stack-2026` | Plano transaccional (compute): Cloud Run, Spanner, Pub/Sub, AR, Secret Manager | `setup.sh`, `deploy.sh` |
+| `finanzas-mvp-2026` | Plano transaccional (compute): Cloud Run, Spanner, Pub/Sub, AR, Secret Manager | `setup.sh`, `deploy.sh` |
 | `fullstack-d3be5` | Plano documental: Firestore | `setup.sh` (creación de Firestore) |
 
 Definidos en `common.sh` como `PROJECT_ID` y `FIRESTORE_PROJECT_ID`
 (override por variable de entorno). Si se hace override de `PROJECT_ID`
-(respecto de `full-stack-2026`), `FIRESTORE_PROJECT_ID` **debe** especificarse
+(respecto de `finanzas-mvp-2026`), `FIRESTORE_PROJECT_ID` **debe** especificarse
 también: en caso contrario `common.sh` falla con `exit 1` para evitar aplicar
 IAM cross-project sobre el Firestore histórico.
 
@@ -45,13 +45,13 @@ Variables compartidas y utilidades:
 
 | Variable | Default |
 |---|---|
-| `PROJECT_ID` | `full-stack-2026` |
+| `PROJECT_ID` | `finanzas-mvp-2026` |
 | `FIRESTORE_PROJECT_ID` | `fullstack-d3be5` |
 | `REGION` | `southamerica-west1` |
 | `AR_REPO` | `servicios` |
 | `TOPIC` | `wallet-events` |
 | `DLQ_TOPIC` | `wallet-events-dlq` |
-| `SPANNER_DATABASE` | `projects/full-stack-2026/instances/finanzas-mvp/databases/finanzas-core` |
+| `SPANNER_DATABASE` | `projects/finanzas-mvp-2026/instances/finanzas-mvp/databases/finanzas-core` |
 | SA | `outbox-dispatcher`, `realtime-service`, `pubsub-push-invoker`, `wallet-service` |
 
 Incluye `sa_email()` y el helper `exists()` (idempotencia).

@@ -118,7 +118,11 @@ export const Transfers01Screen: React.FC<Transfers01ScreenProps> = ({
               accessibilityLabel={`Destinatario ${recipient.name}, ${recipient.code}`}
             >
           <Text style={styles.fieldValue}>
-                {recipient.name} · {recipient.code}
+                {recipient.code.trim().length > 0
+                  ? recipient.name
+                    ? `${recipient.name} · ${recipient.code}`
+                    : `Código ${recipient.code}`
+                  : 'Selecciona un destinatario'}
               </Text>
             </TouchableOpacity>
           </View>

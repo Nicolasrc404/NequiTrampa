@@ -21,7 +21,7 @@ Microservicio transaccional financiero de la plataforma **NequiTrampa** (`wallet
 
 * **Estado**: ✅ **AS-IS Verificado en Google Cloud Platform**.
 * **Despliegue**: Desplegado en **Cloud Run** (`southamerica-west1`) bajo el servicio privado `nequi-wallet`.
-* **Persistencia**: Respaldado por **Google Cloud Spanner** (instancia `finanzas-mvp`, base de datos `finanzas-core` en proyecto `full-stack-2026`).
+* **Persistencia**: Respaldado por **Google Cloud Spanner** (instancia `finanzas-mvp`, base de datos `finanzas-core` en proyecto `finanzas-mvp-2026`).
 * **Validación**: Validado funcionalmente contra el servicio desplegado en GCP mediante Bruno (18/18 requests PASS, 2/2 tests PASS, 34/34 assertions PASS, exit code: 0).
 
 ---
@@ -184,8 +184,8 @@ Para garantizar la consistencia eventual entre Cloud Spanner y el plano NoSQL de
 |---|:---:|---|---|
 | `PORT` | string | Puerto HTTP de escucha (inyectado por Cloud Run). | `8080` |
 | `Data__Backend` | string | Selector de persistencia: `gcp` (Spanner) o `memory` (Mocks). | `gcp` |
-| `Spanner__Database` | string | Identificador canónico del recurso Spanner en GCP. | `projects/full-stack-2026/instances/finanzas-mvp/databases/finanzas-core` |
-| `Gcp__ProjectId` | string | ID del proyecto principal de GCP. | `full-stack-2026` |
+| `Spanner__Database` | string | Identificador canónico del recurso Spanner en GCP. | `projects/finanzas-mvp-2026/instances/finanzas-mvp/databases/finanzas-core` |
+| `Gcp__ProjectId` | string | ID del proyecto principal de GCP. | `finanzas-mvp-2026` |
 | `Firestore__ProjectId` | string | ID del proyecto GCP/Firebase donde reside Firestore. | `fullstack-d3be5` |
 | `Auth__DemoHeaders` | boolean | Habilita headers `X-Demo-User` / `X-Demo-Role` para smoke testing. | `false` (producción) / `true` (integración) |
 
@@ -224,7 +224,7 @@ Despliegue automatizado a través de los scripts de infraestructura:
 # Despliegue con Cloud Build hacia Cloud Run:
 bash infra/deploy.sh wallet
 ```
-El servicio corre en Cloud Run bajo la service account dedicada `wallet-service@full-stack-2026.iam.gserviceaccount.com`, con permisos `roles/spanner.databaseUser` y acceso de lectura al secreto `nequi-spanner-database`.
+El servicio corre en Cloud Run bajo la service account dedicada `wallet-service@finanzas-mvp-2026.iam.gserviceaccount.com`, con permisos `roles/spanner.databaseUser` y acceso de lectura al secreto `nequi-spanner-database`.
 
 ---
 
