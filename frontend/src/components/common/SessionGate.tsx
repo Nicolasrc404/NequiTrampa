@@ -115,6 +115,7 @@ export const SessionGate: React.FC<SessionGateProps> = ({
         lastName: lastName.trim(),
       });
       await sessionManager.signIn(registerEmail.trim(), registerPassword);
+      setEmail(registerEmail.trim());
       setRegisterPassword('');
       setRegisterConfirmPassword('');
     } catch (error) {

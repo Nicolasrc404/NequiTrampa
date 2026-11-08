@@ -11,19 +11,21 @@ export interface Recharges07ScreenProps {
   readonly onGoHome?: () => void;
   /** `false` cuando el resultado viene de la API real. */
   readonly demoMode?: boolean;
+  readonly badge?: string;
 }
 
 export const Recharges07Screen: React.FC<Recharges07ScreenProps> = ({
   onRetry,
   onGoHome,
   demoMode = true,
+  badge = 'ERROR EN RECARGA',
 }) => {
   return (
     <TransferStatusScreen
       icon="wifi-off"
       iconBackground={colors.rechargesErrorCircle}
       iconColor={colors.rechargesErrorIcon}
-      badge="500 · 503"
+      badge={badge}
       badgeBackground={colors.rechargesErrorBadgeBg}
       badgeColor={colors.rechargesErrorBadgeText}
       title="No pudimos hacer la recarga"
