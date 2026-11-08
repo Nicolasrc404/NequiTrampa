@@ -42,7 +42,7 @@ foreach (var (name, url) in services)
 [
     ("wallet", ["/v1/wallet", "/v1/transfers", "/v1/recharges", "/v1/beneficiaries"]),
     ("finance", ["/v1/movements", "/v1/categories", "/v1/budgets", "/v1/goals", "/v1/cash", "/v1/analytics"]),
-    ("profile", ["/v1/profile", "/v1/me"]),
+    ("profile", ["/v1/profile", "/v1/me", "/v1/auth"]),
     ("assistant", ["/v1/assistant"]),
     ("workers", ["/v1/notifications", "/v1/reports", "/v1/projections", "/v1/outbox"]),
     ("backoffice", ["/v1/admin", "/v1/support", "/v1/financial-operations", "/v1/financial-adjustments", "/v1/reversals", "/v1/reconciliation"]),

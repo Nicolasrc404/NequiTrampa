@@ -1,6 +1,6 @@
 # Estado de la app y pendientes — sesión de pruebas en dispositivo real
 
-> Generado durante una sesión larga de pruebas end-to-end en un teléfono físico (Android, build release) contra el backend real en GCP (`finanzas-mvp-2026`). Nada de esto está commiteado todavía — todos los cambios siguen en el working tree. Este archivo es el punto de retomada para la próxima sesión.
+> Generado durante una sesión larga de pruebas end-to-end en un teléfono físico (Android, build release) contra el backend real en GCP (`finanzas-mvp-2026`). Todo lo de las sesiones 1 y 2 quedó commiteado en `0ea6bfa` ("Rebranding a Lukas + revisión y fixes contra diseño de Figma"). La sesión 3 (módulo de registro, abajo) queda en un commit separado listo para `push`. Este archivo es el punto de retomada para la próxima sesión.
 
 ## Credenciales de prueba verificadas
 
@@ -184,12 +184,37 @@ Todo en el working tree, nada commiteado. La otra sesión (`nequitrampa-1e`) imp
 - **Cuenta de prueba nueva**: `juanca@demo.co` / `12345678` (Juan Camilo Pedraza, CLIENTE, saldo $50.000 COP), creada en Identity Platform + Spanner (`clients` + `wallet_accounts`), probada end-to-end real.
 - Todo el bug de padding (`BottomNav`) ya corregido en las pantallas que estaban pendientes.
 
-## Siguiente paso inmediato al retomar (sesión 3)
+## Sesión 3 — Módulo de registro ("Registrarme")
 
-1. Decidir si se construye la lista real de Recargas (`Recharges_09`, hallazgo 🔴 de hoy) — es trabajo de tamaño mediano, no un one-liner.
-2. Agregar "Olvidé mi contraseña" con lógica real (hoy quedó como stub visual sin backend).
-3. Props dinámicas en `Cash06Screen.tsx` si se quiere reemplazar el `Alert.alert()` del error 400 de Efectivo.
-4. Alertas automáticas de Budgets (80%/excedido) — requiere decisión de diseño.
-5. Confirmar que el patrón de `WalletQuickAccess` es el definitivo (o rediseñarlo).
-6. Módulos backend-listos-sin-pantalla, si se quieren construir: Reconciliation, Notifications, Sync, Voice, Audit global, Support Cliente.
-7. Seguir pendientes de la sesión 1 (Efectivo con monto claro, borrado de `full-stack-2026`, cold-start en otros servicios, `nequi-backoffice`).
+Pedido directo del usuario: auto-registro de clientes nuevos desde la app. No existía en absoluto (ni frontend ni backend, ni siquiera `/v1/auth/register`). Diseñado por una sesión, implementado y desplegado por esta.
+
+**Decisión de seguridad**: el auto-registro público de Identity Platform sigue desactivado (confirmado con un test que devuelve `ADMIN_ONLY_OPERATION`). El backend crea el usuario con su propia cuenta de servicio — mismo mecanismo que `infra/seed-identity.sh` y `IdentityAdmin` de Backoffice. El cliente nunca habla directo con Identity Platform para crear cuentas.
+
+**Backend** (`Nequi.Profile`):
+- `POST /v1/auth/register` (`RegisterController.cs`, `[AllowAnonymous]`) — valida email/password/nombre (422), chequea duplicado contra Identity Platform (409), crea la identidad (`IdentityRegistrar.cs`) y el cliente en Spanner (`ProfileDataStore.CreateClientAsync`, transacción `clients` + `wallet_accounts`, con rollback del usuario de Identity Platform si falla la escritura en Spanner). Devuelve 201 con el `ProfileDto` completo.
+- Gateway: ruta `/v1/auth` agregada al cluster `profile` (`Nequi.Gateway/Program.cs`).
+- **IAM aplicado en producción**: se agregó `roles/firebaseauth.admin` a `profile-service@finanzas-mvp-2026.iam.gserviceaccount.com` (antes solo lo tenía `admin-service`). Sin esto el endpoint daba 500.
+- Bug encontrado y corregido durante las pruebas: crear un usuario con `localId` explícito **no** es `accounts:signUp` (eso da 404 fuera del cliente público) — es un POST directo a `.../accounts` sin sufijo, igual que hace `seed-identity.sh`.
+- **Validado end-to-end contra el backend real** (`curl` directo al gateway): registro exitoso (201, con `transferCode` y `walletId` generados), duplicado correctamente rechazado (409), y login inmediato con la cuenta recién creada (200, token real de Identity Platform).
+- `nequi-profile` y `nequi-gateway` ya redeployados en Cloud Run con estos cambios — **en producción, no solo en el working tree**.
+
+**Frontend**:
+- `services/session/registration.ts` (nuevo): cliente HTTP sin autenticar (`skipAuth`) contra `/v1/auth/register`.
+- `SessionGate.tsx`: nueva pantalla "Crea tu cuenta" (Nombre/Apellido/Correo/Contraseña/Confirmar), link "¿No tienes cuenta? Regístrate" en el login. Al registrarse con éxito, llama a `sessionManager.signIn()` automáticamente (no hace falta loguearse de nuevo). Reusa el mismo lenguaje visual que el resto del gate (ícono circular, card blanca, botón magenta). Figma no tiene ningún frame de registro — diseño nuevo sobre el sistema visual existente, no hay mockup de referencia que contrastar.
+- Validado visualmente en el celular (la pantalla renderiza bien); el flujo de fondo quedó probado por `curl` contra el backend real, no se alcanzó a probar el submit completo desde la UI del celular en esta sesión (el dispositivo se desconectó repetidamente).
+
+**Pendiente de esta sesión**:
+1. Probar el submit completo desde la UI del celular (crear cuenta → auto-login → ver Inicio con saldo $0) — el backend ya está validado, falta solo el último tramo de la UI real.
+2. Decidir si el username generado (`local-part del email`, con sufijo numérico si choca) necesita algún criterio distinto — hoy es automático, no lo elige el usuario.
+3. No hay página de "verificar correo" — `emailVerified` se marca `true` directo al crear (mismo criterio que `seed-identity.sh`, no es un bug nuevo).
+
+## Siguiente paso inmediato al retomar (sesión 4)
+
+1. Probar el registro end-to-end desde el celular (ver arriba) para cerrar la sesión 3.
+2. Decidir si se construye la lista real de Recargas (`Recharges_09`, hallazgo 🔴 de la sesión 2) — es trabajo de tamaño mediano, no un one-liner.
+3. Agregar "Olvidé mi contraseña" con lógica real (hoy sigue como stub visual sin backend).
+4. Props dinámicas en `Cash06Screen.tsx` si se quiere reemplazar el `Alert.alert()` del error 400 de Efectivo.
+5. Alertas automáticas de Budgets (80%/excedido) — requiere decisión de diseño.
+6. Confirmar que el patrón de `WalletQuickAccess` es el definitivo (o rediseñarlo).
+7. Módulos backend-listos-sin-pantalla, si se quieren construir: Reconciliation, Notifications, Sync, Voice, Audit global, Support Cliente.
+8. Seguir pendientes de la sesión 1 (Efectivo con monto claro, borrado de `full-stack-2026`, cold-start en otros servicios, `nequi-backoffice`).

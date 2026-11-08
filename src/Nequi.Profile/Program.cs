@@ -1,6 +1,7 @@
 using Nequi.Shared;
 using Nequi.Shared.OpenApi;
 using Nequi.Profile.Controllers;
+using Nequi.Profile.Services;
 
 // =============================================================================
 // NequiTrampa — Nequi.Profile (core-api conceptual, dominio Profile)
@@ -24,6 +25,9 @@ if (string.Equals(builder.Configuration["Data:Backend"], "memory", StringCompari
     builder.Services.AddSingleton<IProfileDataStore, AcademicProfileDataStore>();
 else
     builder.Services.AddSingleton<IProfileDataStore, SpannerProfileDataStore>();
+
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<IIdentityRegistrar, IdentityRegistrar>();
 
 builder.Services.AddControllers()
     .ConfigureApiBehaviorOptions(options =>

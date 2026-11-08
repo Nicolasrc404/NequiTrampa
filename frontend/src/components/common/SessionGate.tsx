@@ -4,6 +4,8 @@ import { Feather } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import { sessionManager } from '../../services/session/platform';
 import { asAuthError } from '../../services/session/errors';
+import { registrationClient } from '../../services/session/registration';
+import { asApiError } from '../../services/http/ApiError';
 
 export type SessionGateReason = 'signed-out' | 'unavailable' | 'configuration';
 
@@ -63,6 +65,15 @@ export const SessionGate: React.FC<SessionGateProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [registerEmail, setRegisterEmail] = useState('');
+  const [registerPassword, setRegisterPassword] = useState('');
+  const [registerConfirmPassword, setRegisterConfirmPassword] = useState('');
+  const [registerShowPassword, setRegisterShowPassword] = useState(false);
+  const [registerSubmitting, setRegisterSubmitting] = useState(false);
+  const [registerMessage, setRegisterMessage] = useState<string | null>(null);
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
 
@@ -79,6 +90,148 @@ export const SessionGate: React.FC<SessionGateProps> = ({
       setSubmitting(false);
     }
   };
+
+  const canSubmitRegister =
+    firstName.trim().length >= 2 &&
+    lastName.trim().length >= 2 &&
+    registerEmail.trim().length > 0 &&
+    registerPassword.length >= 8 &&
+    registerConfirmPassword.length > 0 &&
+    !registerSubmitting;
+
+  const submitRegister = async () => {
+    if (!canSubmitRegister) return;
+    if (registerPassword !== registerConfirmPassword) {
+      setRegisterMessage('Las contraseñas no coinciden.');
+      return;
+    }
+    setRegisterSubmitting(true);
+    setRegisterMessage(null);
+    try {
+      await registrationClient.register({
+        email: registerEmail.trim(),
+        password: registerPassword,
+        firstName: firstName.trim(),
+        lastName: lastName.trim(),
+      });
+      await sessionManager.signIn(registerEmail.trim(), registerPassword);
+      setRegisterPassword('');
+      setRegisterConfirmPassword('');
+    } catch (error) {
+      setRegisterMessage(asApiError(error).toUserMessage().message);
+    } finally {
+      setRegisterSubmitting(false);
+    }
+  };
+
+  if (reason === 'signed-out' && showRegister) {
+    return (
+      <View style={styles.container} testID={testID}>
+        <View style={styles.card}>
+          <View style={styles.personIconCircle}>
+            <Feather name="user-plus" size={26} color={colors.navy} />
+          </View>
+          <Text style={styles.title}>Crea tu cuenta</Text>
+          <Text style={styles.subtitle}>
+            Regístrate con tu correo para empezar a usar tu billetera.
+          </Text>
+
+          <Text style={styles.label}>Nombre</Text>
+          <TextInput
+            accessibilityLabel="Nombre"
+            placeholder="Juan"
+            placeholderTextColor={colors.grayPlaceholder}
+            style={styles.input}
+            value={firstName}
+            onChangeText={setFirstName}
+            editable={!registerSubmitting}
+          />
+
+          <Text style={styles.label}>Apellido</Text>
+          <TextInput
+            accessibilityLabel="Apellido"
+            placeholder="Pérez"
+            placeholderTextColor={colors.grayPlaceholder}
+            style={styles.input}
+            value={lastName}
+            onChangeText={setLastName}
+            editable={!registerSubmitting}
+          />
+
+          <Text style={styles.label}>Correo</Text>
+          <TextInput
+            accessibilityLabel="Correo"
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            placeholder="ejemplo@correo.com"
+            placeholderTextColor={colors.grayPlaceholder}
+            style={styles.input}
+            value={registerEmail}
+            onChangeText={setRegisterEmail}
+            editable={!registerSubmitting}
+          />
+
+          <Text style={styles.label}>Contraseña</Text>
+          <View style={styles.secretRow}>
+            <TextInput
+              accessibilityLabel="Contraseña"
+              autoCapitalize="none"
+              autoComplete="password-new"
+              placeholderTextColor={colors.grayPlaceholder}
+              secureTextEntry={!registerShowPassword}
+              style={[styles.input, styles.secretInput]}
+              value={registerPassword}
+              onChangeText={setRegisterPassword}
+              editable={!registerSubmitting}
+            />
+            <Pressable onPress={() => setRegisterShowPassword((prev) => !prev)} style={styles.show}>
+              <Text style={styles.link}>{registerShowPassword ? 'Ocultar' : 'Ver'}</Text>
+            </Pressable>
+          </View>
+
+          <Text style={styles.label}>Confirmar contraseña</Text>
+          <TextInput
+            accessibilityLabel="Confirmar contraseña"
+            autoCapitalize="none"
+            autoComplete="password-new"
+            placeholderTextColor={colors.grayPlaceholder}
+            secureTextEntry={!registerShowPassword}
+            style={styles.input}
+            value={registerConfirmPassword}
+            onChangeText={setRegisterConfirmPassword}
+            editable={!registerSubmitting}
+            onSubmitEditing={submitRegister}
+          />
+
+          {registerMessage ? <Text style={styles.error}>{registerMessage}</Text> : null}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Crear cuenta"
+            disabled={!canSubmitRegister}
+            onPress={submitRegister}
+            style={({ pressed }) => [
+              styles.action,
+              !canSubmitRegister ? styles.actionDisabled : null,
+              pressed ? styles.actionPressed : null,
+            ]}
+          >
+            {registerSubmitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.actionText}>Crear cuenta</Text>}
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Volver"
+            onPress={() => { setShowRegister(false); setRegisterMessage(null); }}
+            style={({ pressed }) => [styles.secondaryAction, pressed ? styles.secondaryActionPressed : null]}
+          >
+            <Text style={styles.secondaryActionText}>Volver</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
 
   if (reason === 'signed-out' && showForgotPassword) {
     return (
@@ -169,6 +322,17 @@ export const SessionGate: React.FC<SessionGateProps> = ({
             style={({ pressed }) => [styles.secondaryAction, pressed ? styles.secondaryActionPressed : null]}
           >
             <Text style={styles.secondaryActionText}>Olvidé mi contraseña</Text>
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="¿No tienes cuenta? Regístrate"
+            onPress={() => setShowRegister(true)}
+            style={styles.inlineLink}
+          >
+            <Text style={styles.inlineLinkText}>
+              ¿No tienes cuenta? <Text style={styles.inlineLinkTextStrong}>Regístrate</Text>
+            </Text>
           </Pressable>
 
           <Text style={styles.legal}>
@@ -334,6 +498,18 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '700',
     color: colors.magenta,
+  },
+  inlineLink: {
+    marginTop: 14,
+    alignItems: 'center',
+  },
+  inlineLinkText: {
+    fontSize: 13,
+    color: colors.graySub,
+  },
+  inlineLinkTextStrong: {
+    color: colors.magenta,
+    fontWeight: '800',
   },
   legal: {
     marginTop: 14,
