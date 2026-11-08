@@ -57,7 +57,7 @@ CREATE TABLE daily_transfer_usage (
 ) PRIMARY KEY(client_id, local_day);
 
 CREATE TABLE idempotency_records (
-  actor_id STRING(36) NOT NULL,
+  actor_id STRING(128) NOT NULL,
   scope STRING(64) NOT NULL,
   idempotency_key STRING(64) NOT NULL,
   request_hash STRING(64) NOT NULL,

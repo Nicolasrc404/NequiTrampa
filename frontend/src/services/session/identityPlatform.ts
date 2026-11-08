@@ -208,6 +208,10 @@ export function createIdentityPlatformClient(
       isRecord(parsed) && isRecord(parsed.error)
         ? String(parsed.error.message ?? '')
         : '';
+    if (typeof __DEV__ !== 'undefined' && __DEV__) {
+      const codeOnly = providerMessage.split(' ')[0] || 'UNKNOWN';
+      console.warn(`[IdentityPlatform Diagnostic] context=${context} status=${response.status} code=${codeOnly}`);
+    }
     throw mapProviderError(providerMessage, response.status, context);
   }
 
@@ -218,7 +222,7 @@ export function createIdentityPlatformClient(
     ): Promise<IdentityTokens> {
       const data = await post(
         `${signInUrl}?key=${encodeURIComponent(apiKey)}`,
-        JSON.stringify({ email, password, returnSecureToken: true }),
+        JSON.stringify({ email: email.trim().toLowerCase(), password, returnSecureToken: true }),
         'application/json',
         'sign-in',
       );

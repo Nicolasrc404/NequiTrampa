@@ -94,7 +94,7 @@ CREATE INDEX idx_ledger_entries_account ON ledger_entries(account_id, created_at
 -- 6. Registro de Idempotencia distribuida
 -- -----------------------------------------------------------------------------
 CREATE TABLE idempotency_records (
-    actor_id STRING(64) NOT NULL,
+    actor_id STRING(128) NOT NULL,
     scope STRING(64) NOT NULL,
     idempotency_key STRING(128) NOT NULL,
     request_hash STRING(128) NOT NULL,

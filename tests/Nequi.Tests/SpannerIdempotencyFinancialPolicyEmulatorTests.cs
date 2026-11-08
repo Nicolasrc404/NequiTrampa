@@ -96,9 +96,21 @@ public sealed class SpannerIdempotencyFinancialPolicyTests
         Assert.Equal("IN_PROGRESS", await ReadStatusAsync(configuration, "actor-stale", "POST:/v1/transfers"));
     }
 
+    [SpannerEmulatorPersistenceFact]
+    [Trait("Category", "SpannerEmulatorPersistence")]
+    public async Task ActorIdWith40CharsSucceeds()
+    {
+        var configuration = await CreateDatabaseAsync();
+        var store = CreateStore(configuration);
+        var longActorId = "idp-sub-36527dbb1df94e2881bcfd97296f7855"; // 40 chars
+        var (started, _) = await store.BeginAsync(
+            longActorId, "POST:/v1/recharges", "recharge-key-1", "hash", CancellationToken.None);
+        Assert.Equal(BeginOutcome.Started, started);
+    }
+
     private const string CreateTable = """
         CREATE TABLE idempotency_records (
-          actor_id STRING(36) NOT NULL,
+          actor_id STRING(128) NOT NULL,
           scope STRING(64) NOT NULL,
           idempotency_key STRING(64) NOT NULL,
           request_hash STRING(64) NOT NULL,
