@@ -81,7 +81,7 @@ export default function Module1ScreenRenderer({ screenKey, onNavigate, onHome, s
   const projectionReady = projection.data !== null;
 
   return <View style={styles.root}>
-    <View style={styles.topBar}><Pressable onPress={() => (onHome ? onHome() : onNavigate(getPreviousModule1Screen(screenKey)))} style={styles.iconButton}><Text style={styles.icon}>‹</Text></Pressable><Text style={styles.brand}>nequi</Text><Pressable onPress={demo.openModal} style={styles.iconButton}><Text style={styles.icon}>•••</Text></Pressable></View>
+    <View style={styles.topBar}><Pressable onPress={() => (onHome ? onHome() : onNavigate(getPreviousModule1Screen(screenKey)))} style={styles.iconButton}><Text style={styles.icon}>‹</Text></Pressable><Text style={styles.brand}>Lukas</Text><Pressable onPress={demo.openModal} style={styles.iconButton}><Text style={styles.icon}>•••</Text></Pressable></View>
     <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
       {appConfig.demoModeEnabled ? <View style={styles.demoPill}><Text style={styles.demoText}>{isRealModule ? 'STITCH · MODO REAL' : 'STITCH · MODO DEMO'}</Text></View> : null}
       <Text style={styles.eyebrow}>{MODULE1_SECTION_LABELS[section].toUpperCase()}</Text><Text style={styles.title}>{status}</Text>
