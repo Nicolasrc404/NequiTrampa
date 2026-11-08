@@ -1,6 +1,7 @@
 import React from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import GoalProgressCard from '../../components/goals/GoalProgressCard';
 import BottomNav from '../../components/common/BottomNav';
@@ -31,6 +32,7 @@ export const Goals01Screen: React.FC<Goals01ScreenProps> = ({
   demo = true,
   loading = false,
 }) => {
+  const insets = useSafeAreaInsets();
   if (loading) {
     return (
       <LoadingState
@@ -43,7 +45,7 @@ export const Goals01Screen: React.FC<Goals01ScreenProps> = ({
     <View style={styles.root}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 108 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         <TouchableOpacity
@@ -108,7 +110,6 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 24,
     paddingTop: 40,
-    paddingBottom: 108,
   },
   backButton: {
     width: 48,

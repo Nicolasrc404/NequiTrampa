@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView, SafeAreaView } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import Header from '../../components/common/Header';
 import FilterPills from '../../components/common/FilterPills';
@@ -15,11 +16,12 @@ export const Movements03Screen: React.FC<Movements03ScreenProps> = ({
   onOpenFilter,
   onTabPress,
 }) => {
+  const insets = useSafeAreaInsets();
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 90 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
@@ -56,9 +58,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
-    paddingBottom: 90,
-  },
+  scrollContent: {},
   card: {
     marginHorizontal: 16,
     backgroundColor: colors.white,

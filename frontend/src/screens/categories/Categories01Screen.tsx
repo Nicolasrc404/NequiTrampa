@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import BottomNav from '../../components/common/BottomNav';
 import BackButton from '../../components/categories/BackButton';
@@ -52,12 +53,13 @@ export const Categories01Screen: React.FC<Categories01ScreenProps> = ({
     : activeTab === 'gastos'
       ? DEMO_EXPENSE_CATEGORIES
       : DEMO_INCOME_CATEGORIES;
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.root}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 120 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
@@ -183,7 +185,6 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 20,
     paddingTop: 28,
-    paddingBottom: 120,
   },
   header: {
     flexDirection: 'row',

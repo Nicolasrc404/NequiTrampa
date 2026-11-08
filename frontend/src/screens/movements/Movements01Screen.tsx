@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, SafeAreaView, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import Header from '../../components/common/Header';
 import FilterPills from '../../components/common/FilterPills';
@@ -38,6 +39,7 @@ export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<MovementFilter>('TODOS');
   const source = movements ?? DEMO_MOVEMENTS;
+  const insets = useSafeAreaInsets();
 
   const filteredMovements = source.filter((m) => {
     if (selectedFilter === 'TODOS') return true;
@@ -51,7 +53,7 @@ export const Movements01Screen: React.FC<Movements01ScreenProps> = ({
     <SafeAreaView style={styles.safeArea}>
       <ScrollView
         style={styles.container}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: 90 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         {/* Header */}
@@ -118,9 +120,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  scrollContent: {
-    paddingBottom: 90,
-  },
+  scrollContent: {},
   sectionHeader: {
     paddingHorizontal: 20,
     marginBottom: 10,

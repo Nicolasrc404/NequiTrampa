@@ -4,6 +4,7 @@
 // ============================================================
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import BudgetsHeader from '../../components/budgets/BudgetsHeader';
 import BudgetsSkeletonCard from '../../components/budgets/BudgetsSkeletonCard';
@@ -27,11 +28,15 @@ export const Budgets03Screen: React.FC<Budgets03ScreenProps> = ({
   monthLabel = DEMO_BUDGET_MONTH,
   demo = true,
 }) => {
+  const insets = useSafeAreaInsets();
   return (
     <View style={styles.root}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[
+          styles.content,
+          { paddingBottom: 104 + insets.bottom },
+        ]}
         showsVerticalScrollIndicator={false}
       >
         <BudgetsHeader title="Presupuestos" onBack={onBack} titleSize={24} />
@@ -65,7 +70,6 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingTop: 32,
-    paddingBottom: 104,
   },
   monthPill: {
     alignSelf: 'flex-start',

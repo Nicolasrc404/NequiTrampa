@@ -10,6 +10,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import TransfersHeader from '../../components/transfers/TransfersHeader';
 import RechargeHistoryRow from '../../components/recharges/RechargeHistoryRow';
@@ -34,6 +35,7 @@ export const Recharges08Screen: React.FC<Recharges08ScreenProps> = ({
   recharges,
 }) => {
   const items = recharges ?? DEMO_RECHARGE_HISTORY;
+  const insets = useSafeAreaInsets();
   return (
     <View style={styles.root}>
       <ScrollView
@@ -67,7 +69,7 @@ export const Recharges08Screen: React.FC<Recharges08ScreenProps> = ({
         </View>
       </ScrollView>
 
-      <View style={styles.actionBlock}>
+      <View style={[styles.actionBlock, { paddingBottom: 88 + insets.bottom }]}>
         <TouchableOpacity
           style={styles.primaryButton}
           activeOpacity={0.85}
@@ -125,7 +127,6 @@ const styles = StyleSheet.create({
   },
   actionBlock: {
     paddingHorizontal: 20,
-    paddingBottom: 88,
   },
   primaryButton: {
     height: 54,

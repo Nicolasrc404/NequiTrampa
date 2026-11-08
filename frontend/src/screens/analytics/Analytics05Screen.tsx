@@ -4,6 +4,7 @@
 // ============================================================
 import React from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import AnalyticsHeader from '../../components/analytics/AnalyticsHeader';
 import AnalyticsTabs from '../../components/analytics/AnalyticsTabs';
@@ -38,6 +39,7 @@ export const Analytics05Screen: React.FC<Analytics05ScreenProps> = ({
   demo: _demo = true,
   loading = false,
 }) => {
+  const insets = useSafeAreaInsets();
   if (loading) {
     return (
       <LoadingState
@@ -51,7 +53,7 @@ export const Analytics05Screen: React.FC<Analytics05ScreenProps> = ({
     <View style={styles.root}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 90 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         <AnalyticsHeader onBack={onBack} />
@@ -125,7 +127,6 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingTop: 16,
-    paddingBottom: 90,
   },
   headingSection: {
     marginBottom: 16,

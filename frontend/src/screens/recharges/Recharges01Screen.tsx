@@ -15,6 +15,8 @@ import {
 } from 'react-native';
 import colors from '../../theme/colors';
 import TransfersHeader from '../../components/transfers/TransfersHeader';
+import ConfirmSheet from '../../components/common/ConfirmSheet';
+import RechargeAmountPills from '../../components/recharges/RechargeAmountPills';
 import { formatRechargeAmount } from '../../data/demoRecharges';
 import { MAX_RECHARGE_CENTS, MIN_RECHARGE_CENTS } from '../../services/rechargesService';
 import { parseCopInput } from '../../utils/money';
@@ -39,6 +41,7 @@ export const Recharges01Screen: React.FC<Recharges01ScreenProps> = ({
     amountCents > 0 ? String(Math.round(amountCents / 100)) : '',
   );
   const [touched, setTouched] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const parsedAmountCents = parseCopInput(amountText);
   const amountValid =
@@ -61,7 +64,16 @@ export const Recharges01Screen: React.FC<Recharges01ScreenProps> = ({
   const handleContinue = () => {
     setTouched(true);
     if (submitting || !amountValid) return;
+    setConfirmOpen(true);
+  };
+
+  const handleConfirm = () => {
     onContinue?.();
+  };
+
+  const handleSelectPreset = (presetAmountCents: number) => {
+    setAmountText(String(Math.round(presetAmountCents / 100)));
+    onAmountChange?.(presetAmountCents);
   };
 
   return (
@@ -106,6 +118,13 @@ export const Recharges01Screen: React.FC<Recharges01ScreenProps> = ({
             </Text>
           ) : null}
         </View>
+
+        <View style={styles.pillsWrap}>
+          <RechargeAmountPills
+            selectedAmountCents={parsedAmountCents ?? 0}
+            onChange={handleSelectPreset}
+          />
+        </View>
       </ScrollView>
 
       <View style={styles.footer}>
@@ -123,6 +142,20 @@ export const Recharges01Screen: React.FC<Recharges01ScreenProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
+
+      <ConfirmSheet
+        visible={confirmOpen}
+        icon="plus"
+        title="Confirma tu recarga"
+        body={`Se sumarán ${
+          parsedAmountCents !== null ? formatRechargeAmount(parsedAmountCents) : ''
+        } a tu saldo. Es una recarga simulada.`}
+        primaryLabel="Confirmar recarga"
+        onPrimary={handleConfirm}
+        primaryLoading={submitting}
+        secondaryLabel="Volver"
+        onSecondary={() => setConfirmOpen(false)}
+      />
     </KeyboardAvoidingView>
   );
 };
@@ -155,6 +188,11 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     shadowOffset: { width: 0, height: 2 },
     elevation: 1,
+  },
+  pillsWrap: {
+    marginTop: -8,
+    marginBottom: 24,
+    alignItems: 'center',
   },
   question: {
     fontSize: 15,

@@ -14,6 +14,7 @@ import {
   Platform,
 } from 'react-native';
 import colors from '../../theme/colors';
+import ConfirmSheet from '../../components/common/ConfirmSheet';
 
 interface Beneficiaries04ScreenProps {
   onBack?: () => void;
@@ -34,8 +35,10 @@ export const Beneficiaries04Screen: React.FC<Beneficiaries04ScreenProps> = ({
 }) => {
   const [code, setCode] = useState(initialCode ?? '');
   const [alias, setAlias] = useState(initialAlias ?? '');
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const canSubmit = code.trim().length >= 4 && !submitting;
+  const displayName = alias.trim().length > 0 ? alias.trim() : code.trim();
 
   return (
     <KeyboardAvoidingView
@@ -113,7 +116,7 @@ export const Beneficiaries04Screen: React.FC<Beneficiaries04ScreenProps> = ({
         <TouchableOpacity
           style={[styles.ctaButton, !canSubmit && styles.ctaDisabled]}
           activeOpacity={canSubmit ? 0.85 : 1}
-          onPress={canSubmit ? () => onSubmit?.(code.trim(), alias.trim()) : undefined}
+          onPress={canSubmit ? () => setConfirmOpen(true) : undefined}
           disabled={!canSubmit}
           accessibilityLabel="Agregar beneficiario"
         >
@@ -122,6 +125,18 @@ export const Beneficiaries04Screen: React.FC<Beneficiaries04ScreenProps> = ({
           </Text>
         </TouchableOpacity>
       </View>
+
+      <ConfirmSheet
+        visible={confirmOpen}
+        icon="user"
+        title={`¿Agregar a ${displayName}?`}
+        body={`Guardaremos el código ${code.trim()} en tus beneficiarios. Podrás enviarle dinero más rápido.`}
+        primaryLabel="Agregar"
+        onPrimary={() => onSubmit?.(code.trim(), alias.trim())}
+        primaryLoading={submitting}
+        secondaryLabel="Cancelar"
+        onSecondary={() => setConfirmOpen(false)}
+      />
     </KeyboardAvoidingView>
   );
 };

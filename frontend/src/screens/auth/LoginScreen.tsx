@@ -32,7 +32,7 @@ export function LoginScreen({ notice, onSignedIn }: Props) {
   };
 
   return (
-    <BoScreen title="Backoffice" subtitle="NequiTrampa · acceso de personal">
+    <BoScreen title="Backoffice" subtitle="Lukas · acceso de personal">
       <View style={{ height: 8 }} />
       <Card>
         {notice ? <Text style={{ color: colors.boWarnText, fontWeight: '700' }}>{notice}</Text> : null}

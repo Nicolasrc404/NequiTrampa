@@ -1118,7 +1118,7 @@ function MainApp() {
           break;
         case 'limit_exceeded':
           setTransferSubmitRequested(false);
-          setCurrentState('Transfers_11');
+          setCurrentState('Transfers_10');
           break;
         case 'rate_limited':
           setTransferSubmitRequested(false);
@@ -3004,7 +3004,7 @@ function MainApp() {
               onCreate={() => setCurrentState('Budgets_04')}
               onSelectBudget={(budget) => {
                 setSelectedBudget(budget);
-                setCurrentState('Budgets_05');
+                setCurrentState('Budgets_06');
               }}
               onTabPress={(tab) => {
                 if (tab === 'inicio' || tab === 'movimientos') {

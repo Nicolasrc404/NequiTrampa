@@ -14,17 +14,25 @@ const STATUS_FILTERS = [
   ...(['OPEN', 'IN_PROGRESS', 'ESCALATED', 'RESOLVED', 'CLOSED'] as const).map((v) => ({ value: v, label: CASE_STATUS_LABEL[v] })),
 ];
 
+const PRIORITY_FILTERS = [
+  { value: '', label: 'Todas' },
+  ...(['LOW', 'MEDIUM', 'HIGH', 'URGENT'] as const).map((v) => ({ value: v, label: PRIORITY_LABEL[v] })),
+];
+
 export function CasesListScreen() {
   const nav = useNav();
   const [status, setStatus] = useState('');
+  const [priority, setPriority] = useState('');
   const state = useApiResource((signal) => requireBackoffice().cases.list({ status: status || undefined, signal }), [status]);
 
   return (
     <BoScreen title="Casos de soporte" subtitle="Gestión de soporte" badge="SOPORTE" onBack={nav.back}>
       <Segmented options={STATUS_FILTERS} value={status} onChange={setStatus} />
+      <Segmented options={PRIORITY_FILTERS} value={priority} onChange={setPriority} />
       <Remote state={state} resource="Casos" onBack={nav.back}>
-        {(items) =>
-          items.length === 0 ? (
+        {(allItems) => {
+          const items = priority ? allItems.filter((c) => c.priority === priority) : allItems;
+          return items.length === 0 ? (
             <EmptyState title="Sin casos" message="No hay casos con este estado por ahora." />
           ) : (
             <>
@@ -45,8 +53,8 @@ export function CasesListScreen() {
                 </Card>
               ))}
             </>
-          )
-        }
+          );
+        }}
       </Remote>
       <ReadOnlyNote>{NOTE}</ReadOnlyNote>
     </BoScreen>

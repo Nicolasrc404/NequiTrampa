@@ -4,6 +4,7 @@
 // ============================================================
 import React, { useMemo, useState } from 'react';
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import TransfersHeader from '../../components/transfers/TransfersHeader';
 import CashFilterPills from '../../components/cash/CashFilterPills';
@@ -37,12 +38,13 @@ export const Cash12Screen: React.FC<Cash12ScreenProps> = ({
     }
     return source.filter((item) => item.direction === filter);
   }, [filter, source]);
+  const insets = useSafeAreaInsets();
 
   return (
     <View style={styles.root}>
       <ScrollView
         style={styles.scroll}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: 104 + insets.bottom }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.header}>
@@ -102,7 +104,6 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: 20,
     paddingTop: 32,
-    paddingBottom: 104,
   },
   header: {
     marginBottom: 24,

@@ -12,7 +12,7 @@ export interface AnalyticsHeaderProps {
 export const AnalyticsHeader: React.FC<AnalyticsHeaderProps> = ({
   onBack,
   title = 'Analytics',
-  brandLabel = 'NequiTrampa',
+  brandLabel = 'Lukas',
 }) => {
   return (
     <View style={styles.header}>

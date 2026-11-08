@@ -5,6 +5,7 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import TransfersHeader from '../../components/transfers/TransfersHeader';
 import TransferActionButtons from '../../components/transfers/TransferActionButtons';
@@ -19,9 +20,10 @@ export const Transfers18Screen: React.FC<Transfers18ScreenProps> = ({
   onBack,
   onRetry,
 }) => {
+  const insets = useSafeAreaInsets();
   return (
     <View style={styles.root}>
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingBottom: 104 + insets.bottom }]}>
         <TransfersHeader
           title="Mis transferencias"
           onBack={onBack}
@@ -67,7 +69,6 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
     paddingTop: 32,
-    paddingBottom: 104,
   },
   body: {
     flex: 1,

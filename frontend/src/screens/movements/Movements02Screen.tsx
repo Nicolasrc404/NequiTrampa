@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
 import { Feather } from '@expo/vector-icons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import colors from '../../theme/colors';
 import Header from '../../components/common/Header';
 import FilterPills from '../../components/common/FilterPills';
@@ -19,10 +20,11 @@ export const Movements02Screen: React.FC<Movements02ScreenProps> = ({
   onTabPress,
 }) => {
   const [selectedFilter, setSelectedFilter] = useState<MovementFilter>('TODOS');
+  const insets = useSafeAreaInsets();
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <View style={styles.container}>
+      <View style={[styles.container, { paddingBottom: 80 + insets.bottom }]}>
         {/* Header */}
         <Header title="Movimientos" onFilterPress={onOpenFilter} showFilter />
 
@@ -68,7 +70,6 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingBottom: 80,
     justifyContent: 'space-between',
   },
   emptyContainer: {

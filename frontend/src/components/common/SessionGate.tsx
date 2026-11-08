@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Feather } from '@expo/vector-icons';
 import colors from '../../theme/colors';
 import { sessionManager } from '../../services/session/platform';
 import { asAuthError } from '../../services/session/errors';
@@ -47,9 +48,8 @@ function copyFor(reason: SessionGateReason): GateCopy {
 }
 
 /**
- * Gate de sesión para builds sin modo DEMO.
- * No es una pantalla de login: no captura credenciales ni simula autenticación.
- * La pantalla real de login queda BLOQUEADA hasta contar con diseño en Stitch.
+ * Gate de sesión para builds sin modo DEMO. Cuando `reason === 'signed-out'`
+ * usa el diseño de Access_01 (Figma) y llama a sessionManager.signIn real.
  */
 export const SessionGate: React.FC<SessionGateProps> = ({
   reason,
@@ -59,8 +59,10 @@ export const SessionGate: React.FC<SessionGateProps> = ({
   const copy = copyFor(reason);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
 
   const canSubmit = email.trim().length > 0 && password.length > 0 && !submitting;
 
@@ -78,60 +80,115 @@ export const SessionGate: React.FC<SessionGateProps> = ({
     }
   };
 
+  if (reason === 'signed-out' && showForgotPassword) {
+    return (
+      <View style={styles.container} testID={testID}>
+        <View style={styles.card}>
+          <Text style={styles.title}>Recuperar contraseña</Text>
+          <Text style={styles.body}>
+            Esta función todavía no está disponible. Por ahora, contacta a soporte para restablecer tu contraseña.
+          </Text>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Volver"
+            onPress={() => setShowForgotPassword(false)}
+            style={({ pressed }) => [styles.secondaryAction, pressed ? styles.secondaryActionPressed : null]}
+          >
+            <Text style={styles.secondaryActionText}>Volver</Text>
+          </Pressable>
+        </View>
+      </View>
+    );
+  }
+
+  if (reason === 'signed-out') {
+    return (
+      <View style={styles.container} testID={testID}>
+        <View style={styles.card}>
+          <View style={styles.personIconCircle}>
+            <Feather name="user" size={26} color={colors.navy} />
+          </View>
+          <Text style={styles.title}>Ingresa a tu cuenta</Text>
+          <Text style={styles.subtitle}>
+            Usa tu correo y contraseña para ver tu saldo y mover tu dinero.
+          </Text>
+
+          <Text style={styles.label}>Correo o celular</Text>
+          <TextInput
+            accessibilityLabel="Correo o celular"
+            autoCapitalize="none"
+            autoComplete="email"
+            keyboardType="email-address"
+            placeholder="ejemplo@correo.com"
+            placeholderTextColor={colors.grayPlaceholder}
+            style={styles.input}
+            value={email}
+            onChangeText={setEmail}
+            editable={!submitting}
+          />
+
+          <Text style={styles.label}>Contraseña</Text>
+          <View style={styles.secretRow}>
+            <TextInput
+              accessibilityLabel="Contraseña"
+              autoCapitalize="none"
+              autoComplete="password"
+              placeholderTextColor={colors.grayPlaceholder}
+              secureTextEntry={!showPassword}
+              style={[styles.input, styles.secretInput]}
+              value={password}
+              onChangeText={setPassword}
+              editable={!submitting}
+              onSubmitEditing={submit}
+            />
+            <Pressable onPress={() => setShowPassword((prev) => !prev)} style={styles.show}>
+              <Text style={styles.link}>{showPassword ? 'Ocultar' : 'Ver'}</Text>
+            </Pressable>
+          </View>
+
+          {authMessage ? <Text style={styles.error}>{authMessage}</Text> : null}
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Iniciar sesión"
+            disabled={!canSubmit}
+            onPress={submit}
+            style={({ pressed }) => [
+              styles.action,
+              !canSubmit ? styles.actionDisabled : null,
+              pressed ? styles.actionPressed : null,
+            ]}
+          >
+            {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.actionText}>Iniciar sesión</Text>}
+          </Pressable>
+
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel="Olvidé mi contraseña"
+            onPress={() => setShowForgotPassword(true)}
+            style={({ pressed }) => [styles.secondaryAction, pressed ? styles.secondaryActionPressed : null]}
+          >
+            <Text style={styles.secondaryActionText}>Olvidé mi contraseña</Text>
+          </Pressable>
+
+          <Text style={styles.legal}>
+            Al ingresar aceptas los términos y la política de privacidad.
+          </Text>
+        </View>
+      </View>
+    );
+  }
+
   return (
     <View style={styles.container} testID={testID}>
       <View style={styles.card}>
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{copy.badge}</Text>
         </View>
-        <Text style={styles.title}>{copy.title}</Text>
+        <Text style={styles.gateTitle}>{copy.title}</Text>
         <Text style={styles.body}>{copy.body}</Text>
 
-        {reason === 'signed-out' ? (
-          <View style={styles.form}>
-            <TextInput
-              accessibilityLabel="Correo electrónico"
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              placeholder="Correo electrónico"
-              placeholderTextColor={colors.graySub}
-              style={styles.input}
-              value={email}
-              onChangeText={setEmail}
-              editable={!submitting}
-            />
-            <TextInput
-              accessibilityLabel="Contraseña"
-              autoCapitalize="none"
-              autoComplete="password"
-              placeholder="Contraseña"
-              placeholderTextColor={colors.graySub}
-              secureTextEntry
-              style={styles.input}
-              value={password}
-              onChangeText={setPassword}
-              editable={!submitting}
-              onSubmitEditing={submit}
-            />
-            {authMessage ? <Text style={styles.error}>{authMessage}</Text> : null}
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Iniciar sesión"
-              disabled={!canSubmit}
-              onPress={submit}
-              style={({ pressed }) => [
-                styles.action,
-                !canSubmit ? styles.actionDisabled : null,
-                pressed ? styles.actionPressed : null,
-              ]}
-            >
-              {submitting ? <ActivityIndicator color={colors.white} /> : <Text style={styles.actionText}>Iniciar sesión</Text>}
-            </Pressable>
-          </View>
-        ) : null}
-
-        {reason !== 'signed-out' && copy.action && onRetry ? (
+        {copy.action && onRetry ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel={copy.action}
@@ -182,11 +239,58 @@ const styles = StyleSheet.create({
     letterSpacing: 0.8,
     color: colors.status401LockStroke,
   },
+  personIconCircle: {
+    alignSelf: 'center',
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.stateIconBg,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 14,
+  },
   title: {
+    color: colors.navy,
+    fontSize: 18,
+    fontWeight: '800',
+    textAlign: 'center',
+  },
+  subtitle: {
+    fontSize: 13,
+    lineHeight: 19,
+    color: colors.graySub,
+    textAlign: 'center',
+    marginTop: 6,
+    marginBottom: 16,
+  },
+  gateTitle: {
     fontSize: 22,
     lineHeight: 28,
     fontWeight: '700',
     color: colors.stateTitle,
+  },
+  label: {
+    color: colors.graySub,
+    fontSize: 12,
+    fontWeight: '700',
+    marginTop: 12,
+    marginBottom: 7,
+  },
+  secretRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  secretInput: {
+    flex: 1,
+  },
+  show: {
+    marginLeft: -64,
+    padding: 12,
+  },
+  link: {
+    color: colors.magenta,
+    fontWeight: '800',
+    fontSize: 12,
   },
   body: {
     fontSize: 14,
@@ -213,9 +317,30 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: colors.white,
   },
-  form: {
-    gap: 10,
-    marginTop: 4,
+  secondaryAction: {
+    marginTop: 10,
+    minHeight: 48,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: colors.magenta,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 20,
+  },
+  secondaryActionPressed: {
+    backgroundColor: colors.magentaLight,
+  },
+  secondaryActionText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: colors.magenta,
+  },
+  legal: {
+    marginTop: 14,
+    fontSize: 11,
+    lineHeight: 16,
+    color: colors.graySub,
+    textAlign: 'center',
   },
   input: {
     minHeight: 50,
